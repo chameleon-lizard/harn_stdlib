@@ -1,0 +1,23 @@
+"""Compatibility wrapper for the Bedrock provider module."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+from harnify_ai.providers.amazon_bedrock import stream_bedrock, stream_simple_bedrock
+
+streamBedrock = stream_bedrock
+streamSimpleBedrock = stream_simple_bedrock
+
+bedrock_provider_module = SimpleNamespace(
+    streamBedrock=stream_bedrock,
+    streamSimpleBedrock=stream_simple_bedrock,
+)
+bedrockProviderModule = bedrock_provider_module
+
+__all__ = [
+    "bedrock_provider_module",
+    "bedrockProviderModule",
+    "streamBedrock",
+    "streamSimpleBedrock",
+]

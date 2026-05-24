@@ -150,6 +150,16 @@ async def _await_with_signal(awaitable: Any, signal: Any, *, on_abort: Any = Non
             await asyncio.gather(abort_task, return_exceptions=True)
 
 
+async def _await_maybe_with_signal(value: Any, signal: Any, *, on_abort: Any = None) -> Any:
+    if hasattr(value, "__await__"):
+        return await _await_with_signal(value, signal, on_abort=on_abort)
+    if _is_aborted(signal):
+        if on_abort is not None:
+            await _maybe_await(on_abort())
+        raise RuntimeError("Request was aborted")
+    return value
+
+
 def has_tool_history(messages: list[Any]) -> bool:
     for message in messages:
         if message.role == "toolResult":

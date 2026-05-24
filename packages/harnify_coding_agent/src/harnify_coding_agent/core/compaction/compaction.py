@@ -628,15 +628,15 @@ async def _generate_turn_prefix_summary(
         math.floor(0.5 * reserve_tokens),
         model.maxTokens if model.maxTokens > 0 else math.inf,
     )
-    conversation_text = serialize_conversation(convert_to_llm(messages))
-    prompt_text = f"<conversation>\n{conversation_text}\n</conversation>\n\n{TURN_PREFIX_SUMMARIZATION_PROMPT}"
-    response = await complete_summarization(
+    conversation_text = _serialize_conversation(convert_to_llm(messages))
+    prompt_text = f"<conversation>\n{conversation_text}\n</conversation>\n\n{_TURN_PREFIX_SUMMARIZATION_PROMPT}"
+    response = await _complete_summarization(
         model,
         {
-            "systemPrompt": SUMMARIZATION_SYSTEM_PROMPT,
+            "systemPrompt": _SUMMARIZATION_SYSTEM_PROMPT,
             "messages": [UserMessage(content=[{"type": "text", "text": prompt_text}], timestamp=_timestamp_ms())],
         },
-        create_summarization_options(model, int(max_tokens), api_key, headers, signal, thinking_level),
+        _create_summarization_options(model, int(max_tokens), api_key, headers, signal, thinking_level),
         stream_fn,
     )
     if response.stopReason == "error":

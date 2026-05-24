@@ -14,6 +14,8 @@ from harnify_ai.providers.openai_codex_responses import (
     close_openai_codex_websocket_sessions,
     extract_account_id,
     get_openai_codex_websocket_debug_stats,
+    parse_error_response,
+    parse_sse,
     reset_openai_codex_websocket_debug_stats,
     resolve_codex_url,
     stream_openai_codex_responses,
@@ -166,6 +168,45 @@ class _InvalidJsonWebSocket:
     def close(self, code: int = 1000, reason: str = "done") -> None:
         self.closed = True
         self.state = 3
+
+
+class _ListByteStream(httpx.AsyncByteStream):
+    def __init__(self, chunks: list[bytes]) -> None:
+        self._chunks = list(chunks)
+        self.closed = False
+
+    def __aiter__(self) -> _ListByteStream:
+        return self
+
+    async def __anext__(self) -> bytes:
+        if not self._chunks:
+            raise StopAsyncIteration
+        return self._chunks.pop(0)
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
+class _BlockingByteStream(httpx.AsyncByteStream):
+    def __init__(self) -> None:
+        self.entered = asyncio.Event()
+        self.closed = False
+        self.cancelled = False
+
+    def __aiter__(self) -> _BlockingByteStream:
+        return self
+
+    async def __anext__(self) -> bytes:
+        self.entered.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.cancelled = True
+            raise
+        raise StopAsyncIteration
+
+    async def aclose(self) -> None:
+        self.closed = True
 
 
 @pytest.fixture(autouse=True)

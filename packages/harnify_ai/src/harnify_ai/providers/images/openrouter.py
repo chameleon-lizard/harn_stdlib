@@ -141,12 +141,14 @@ def _create_client(
         headers.update(model.headers)
     if option_headers:
         headers.update(option_headers)
-    return AsyncOpenAI(
+    client_kwargs: dict[str, Any] = {
         api_key=api_key,
         base_url=model.baseUrl,
         default_headers=headers,
-        max_retries=max_retries if max_retries is not None else 2,
-    )
+    }
+    if max_retries is not None:
+        client_kwargs["max_retries"] = max_retries
+    return AsyncOpenAI(**client_kwargs)
 
 
 def _build_params(model: ImagesModel, context: ImagesContext) -> dict[str, Any]:

@@ -68,7 +68,7 @@ def _schedule_awaitable(channel: str, awaitable: Awaitable[Any]) -> None:
 
 
 def _report_handler_error(channel: str, error: Exception) -> None:
-    print(f"Event handler error ({channel}): {error}", file=sys.stderr)
+    print(f"Event handler error ({channel}):", error, file=sys.stderr)
 
 
 def create_event_bus() -> EventBusController:
@@ -81,5 +81,4 @@ __all__ = [
     "EventBus",
     "EventBusController",
     "createEventBus",
-    "create_event_bus",
 ]

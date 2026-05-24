@@ -1555,6 +1555,55 @@ class AgentSession:
         elif role in {"user", "assistant", "toolResult"}:
             self.sessionManager.appendMessage(_message_dict(message))
 
+    def _apply_extension_bindings(self, runner: ExtensionRunner) -> None:
+        runner.set_ui_context(self._extensionUIContext)
+        runner.bind_command_context(self._extensionCommandContextActions)
+        self._extensionErrorUnsubscriber = (
+            runner.on_error(self._extensionErrorListener) if self._extensionErrorListener is not None else None
+        )
+
+    async def _extend_resources_from_extensions(self, reason: str) -> None:
+        if not self._extensionRunner.has_handlers("resources_discover"):
+            return
+
+        discovered = await self._extensionRunner.emit_resources_discover(self._cwd, reason)
+        if not discovered["skillPaths"] and not discovered["promptPaths"] and not discovered["themePaths"]:
+            return
+
+        self._resourceLoader.extendResources(
+            {
+                "skillPaths": self._build_extension_resource_paths(discovered["skillPaths"]),
+                "promptPaths": self._build_extension_resource_paths(discovered["promptPaths"]),
+                "themePaths": self._build_extension_resource_paths(discovered["themePaths"]),
+            }
+        )
+        self._baseSystemPrompt = self._rebuild_system_prompt(self.getActiveToolNames())
+        self.agent.state.systemPrompt = self._baseSystemPrompt
+
+    def _build_extension_resource_paths(self, entries: list[dict[str, str]]) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
+        for entry in entries:
+            extension_path = entry["extensionPath"]
+            base_dir = None if extension_path.startswith("<") else os.path.dirname(extension_path)
+            result.append(
+                {
+                    "path": entry["path"],
+                    "metadata": {
+                        "source": self._get_extension_source_label(extension_path),
+                        "scope": "temporary",
+                        "origin": "top-level",
+                        "baseDir": base_dir,
+                    },
+                }
+            )
+        return result
+
+    def _get_extension_source_label(self, extension_path: str) -> str:
+        if extension_path.startswith("<"):
+            return f"extension:{extension_path.replace('<', '').replace('>', '')}"
+        base = os.path.basename(extension_path)
+        return f"extension:{re.sub(r'\\.(ts|js)$', '', base)}"
+
     async def _emit_extension_event(self, event: Any) -> None:
         event_type = _event_type(event)
         if event_type == "agent_start":

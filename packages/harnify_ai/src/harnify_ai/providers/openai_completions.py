@@ -197,8 +197,6 @@ def stream_openai_completions(
                     _option(options, "headers"),
                     cache_session_id,
                     compat,
-                    timeout_ms=_option(options, "timeoutMs"),
-                    max_retries=_option(options, "maxRetries"),
                 )
 
             params = build_params(model, context, options, compat)
@@ -277,7 +275,7 @@ def stream_openai_completions(
                     tool_call_index_by_id[tool_call["id"]] = existing_index
                 return existing_index, block
 
-            async for raw_chunk in _iterate_stream(openai_stream):
+            async for raw_chunk in _iterate_stream(openai_stream, _option(options, "signal")):
                 if not isinstance(raw_chunk, Mapping):
                     continue
 

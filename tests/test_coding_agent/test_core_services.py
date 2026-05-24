@@ -117,7 +117,9 @@ def test_event_bus_module_exports_match_ts_surface() -> None:
 
 
 @pytest.mark.asyncio
-async def test_exec_command_supports_cwd_env_and_stdin(tmp_path: Path) -> None:
+async def test_exec_command_uses_argument_cwd_and_ignores_python_only_options(tmp_path: Path) -> None:
+    ignored_cwd = tmp_path / "ignored"
+    ignored_cwd.mkdir()
     result = await exec_command(
         sys.executable,
         [
@@ -131,6 +133,7 @@ async def test_exec_command_supports_cwd_env_and_stdin(tmp_path: Path) -> None:
         ],
         str(tmp_path),
         {
+            "cwd": str(ignored_cwd),
             "env": {"DEMO": "ok"},
             "input": "payload",
         },
@@ -138,19 +141,23 @@ async def test_exec_command_supports_cwd_env_and_stdin(tmp_path: Path) -> None:
 
     assert result.code == 0
     assert result.killed is False
-    assert result.stdout == f"ok\n{tmp_path.name}\npayload"
+    assert result.stdout == f"None\n{tmp_path.name}\n"
     assert result.stderr == ""
 
 
 @pytest.mark.asyncio
-async def test_exec_command_supports_timeout_and_abort(tmp_path: Path) -> None:
+async def test_exec_command_uses_millisecond_timeout_and_abort(tmp_path: Path) -> None:
+    started = asyncio.get_running_loop().time()
     timeout_result = await exec_command(
         sys.executable,
-        ["-c", "import time; time.sleep(5)"],
+        ["-c", "import time; time.sleep(1)"],
         str(tmp_path),
-        {"timeoutMs": 50},
+        {"timeout": 50},
     )
+    elapsed = asyncio.get_running_loop().time() - started
     assert timeout_result.killed is True
+    assert timeout_result.code == 0
+    assert elapsed < 0.5
 
     signal = _AbortSignal()
     task = asyncio.create_task(
@@ -165,6 +172,25 @@ async def test_exec_command_supports_timeout_and_abort(tmp_path: Path) -> None:
     signal.abort()
     aborted_result = await task
     assert aborted_result.killed is True
+    assert aborted_result.code == 0
+
+
+@pytest.mark.asyncio
+async def test_exec_command_returns_code_1_for_spawn_errors(tmp_path: Path) -> None:
+    result = await exec_command("__missing_exec_command__", [], str(tmp_path))
+
+    assert result == type(result)(stdout="", stderr="", code=1, killed=False)
+
+
+def test_exec_module_exports_match_ts_surface() -> None:
+    import importlib
+
+    exec_module = importlib.import_module("harnify_coding_agent.core.exec")
+    assert exec_module.__all__ == [
+        "ExecOptions",
+        "ExecResult",
+        "execCommand",
+    ]
 
 
 @pytest.mark.asyncio

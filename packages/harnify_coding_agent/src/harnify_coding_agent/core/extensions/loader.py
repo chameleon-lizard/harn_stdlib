@@ -454,7 +454,7 @@ async def _exec_command(
     return ExecResult(
         stdout=result.stdout,
         stderr=result.stderr,
-        exitCode=result.exitCode,
+        exitCode=result.code,
     )
 
 

@@ -3,34 +3,25 @@
 from __future__ import annotations
 
 import asyncio
-import os
-from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, TypedDict
 
-from harnify_coding_agent.utils.paths import resolve_path
-from harnify_coding_agent.utils.shell import kill_process_tree, track_detached_child_pid, untrack_detached_child_pid
+_EXIT_STDIO_GRACE_SECONDS = 0.1
+_FORCE_KILL_DELAY_SECONDS = 5.0
 
 
 class ExecOptions(TypedDict, total=False):
     signal: Any
-    timeout: float
-    timeoutMs: int
+    timeout: int | float
     cwd: str
-    env: dict[str, str]
-    input: str
 
 
 @dataclass(slots=True)
 class ExecResult:
     stdout: str
     stderr: str
-    code: int | None
+    code: int
     killed: bool
-
-    @property
-    def exitCode(self) -> int | None:
-        return self.code
 
 
 def _is_aborted(signal: Any | None) -> bool:
@@ -58,42 +49,84 @@ async def _read_stream(stream: asyncio.StreamReader | None, chunks: list[bytes])
         chunks.append(chunk)
 
 
-def _resolve_timeout_seconds(options: Mapping[str, Any]) -> float | None:
+def _resolve_timeout_seconds(options: ExecOptions) -> float | None:
     timeout = options.get("timeout")
-    if timeout is not None:
-        return float(timeout)
-    timeout_ms = options.get("timeoutMs")
-    if timeout_ms is None:
+    if timeout is None:
         return None
-    return float(timeout_ms) / 1000
+    return float(timeout) / 1000
+
+
+def _destroy_stream(stream: asyncio.StreamReader | None) -> None:
+    if stream is None:
+        return
+    transport = getattr(stream, "_transport", None)
+    if transport is None:
+        return
+    abort = getattr(transport, "abort", None)
+    if callable(abort):
+        abort()
+        return
+    close = getattr(transport, "close", None)
+    if callable(close):
+        close()
+
+
+async def _wait_for_streams(
+    stdout_task: asyncio.Task[None],
+    stderr_task: asyncio.Task[None],
+    stdout: asyncio.StreamReader | None,
+    stderr: asyncio.StreamReader | None,
+) -> None:
+    try:
+        await asyncio.wait_for(
+            asyncio.gather(stdout_task, stderr_task),
+            timeout=_EXIT_STDIO_GRACE_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        _destroy_stream(stdout)
+        _destroy_stream(stderr)
+        stdout_task.cancel()
+        stderr_task.cancel()
+        await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
+
+
+async def _force_kill_after_delay(process: asyncio.subprocess.Process) -> None:
+    await asyncio.sleep(_FORCE_KILL_DELAY_SECONDS)
+    if process.returncode is None:
+        process.kill()
+
+
+def _normalize_exit_code(code: int | None, *, killed: bool, failed: bool) -> int:
+    if failed:
+        return 1
+    if code is None:
+        return 0
+    if killed and code < 0:
+        return 0
+    return code
 
 
 async def exec_command(
     command: str,
     args: list[str],
     cwd: str,
-    options: ExecOptions | Mapping[str, Any] | None = None,
+    options: ExecOptions | None = None,
 ) -> ExecResult:
-    resolved_options = dict(options or {})
-    resolved_cwd = resolve_path(str(resolved_options.get("cwd") or cwd))
-    env = os.environ.copy()
-    env.update(resolved_options.get("env") or {})
-    input_text = resolved_options.get("input")
+    resolved_options: ExecOptions = dict(options or {})
     timeout = _resolve_timeout_seconds(resolved_options)
     signal = resolved_options.get("signal")
 
-    process = await asyncio.create_subprocess_exec(
-        command,
-        *args,
-        cwd=resolved_cwd,
-        env=env,
-        stdin=asyncio.subprocess.PIPE if input_text is not None else None,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        start_new_session=os.name != "nt",
-    )
-    if process.pid is not None:
-        track_detached_child_pid(process.pid)
+    try:
+        process = await asyncio.create_subprocess_exec(
+            command,
+            *args,
+            cwd=cwd,
+            stdin=asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except OSError:
+        return ExecResult(stdout="", stderr="", code=1, killed=False)
 
     stdout_chunks: list[bytes] = []
     stderr_chunks: list[bytes] = []
@@ -101,15 +134,24 @@ async def exec_command(
     stderr_task = asyncio.create_task(_read_stream(process.stderr, stderr_chunks))
     wait_task = asyncio.create_task(process.wait())
     abort_task = asyncio.create_task(_wait_for_abort(signal)) if signal is not None else None
-    stdin_task = None
+    force_kill_task: asyncio.Task[None] | None = None
     killed = False
+    wait_failed = False
+
+    def kill_process() -> None:
+        nonlocal force_kill_task, killed
+        if killed:
+            return
+        killed = True
+        try:
+            process.terminate()
+        except ProcessLookupError:
+            pass
+        force_kill_task = asyncio.create_task(_force_kill_after_delay(process))
 
     try:
-        if process.stdin is not None:
-            process.stdin.write(input_text.encode("utf-8"))
-            stdin_task = asyncio.create_task(process.stdin.drain())
-            await stdin_task
-            process.stdin.close()
+        if _is_aborted(signal):
+            kill_process()
 
         pending = [wait_task]
         if abort_task is not None:
@@ -120,31 +162,33 @@ async def exec_command(
             return_when=asyncio.FIRST_COMPLETED,
         )
 
-        if wait_task in done:
-            await wait_task
-        else:
-            killed = True
-            if process.pid is not None:
-                kill_process_tree(process.pid)
-            else:
-                process.kill()
-            await wait_task
+        if wait_task not in done:
+            kill_process()
 
-        await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
+        try:
+            await wait_task
+        except Exception:
+            wait_failed = True
+
+        await _wait_for_streams(stdout_task, stderr_task, process.stdout, process.stderr)
         return ExecResult(
             stdout=b"".join(stdout_chunks).decode("utf-8", errors="replace"),
             stderr=b"".join(stderr_chunks).decode("utf-8", errors="replace"),
-            code=process.returncode,
+            code=_normalize_exit_code(process.returncode, killed=killed, failed=wait_failed),
             killed=killed,
         )
     finally:
-        if stdin_task is not None:
-            await asyncio.gather(stdin_task, return_exceptions=True)
         if abort_task is not None:
             abort_task.cancel()
             await asyncio.gather(abort_task, return_exceptions=True)
-        if process.pid is not None:
-            untrack_detached_child_pid(process.pid)
+        if force_kill_task is not None:
+            force_kill_task.cancel()
+            await asyncio.gather(force_kill_task, return_exceptions=True)
+        if not stdout_task.done():
+            stdout_task.cancel()
+        if not stderr_task.done():
+            stderr_task.cancel()
+        await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
 
 
 execCommand = exec_command
@@ -153,5 +197,4 @@ __all__ = [
     "ExecOptions",
     "ExecResult",
     "execCommand",
-    "exec_command",
 ]

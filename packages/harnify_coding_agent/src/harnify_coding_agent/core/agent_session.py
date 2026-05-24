@@ -881,25 +881,76 @@ class AgentSession:
         self._baseSystemPrompt = self._rebuild_system_prompt(active_names)
         self.agent.state.systemPrompt = self._baseSystemPrompt
 
-    def sendMessage(self, message: Any, _options: dict[str, Any] | None = None) -> None:
+    async def sendCustomMessage(
+        self,
+        message: Any,
+        options: dict[str, Any] | None = None,
+    ) -> None:
+        resolved_options = dict(options or {})
         normalized = _message_dict(message)
-        self.agent.state.messages.append(normalized)
-        self._persist_message(normalized)
+        app_message = {
+            "role": "custom",
+            "customType": _message_field(normalized, "customType"),
+            "content": _message_content(normalized),
+            "display": bool(_message_field(normalized, "display")),
+            "details": _message_field(normalized, "details"),
+            "timestamp": int(time.time() * 1000),
+        }
+        deliver_as = resolved_options.get("deliverAs")
+        if deliver_as == "nextTurn":
+            self._pendingNextTurnMessages.append(app_message)
+        elif self.isStreaming:
+            if deliver_as == "followUp":
+                self.agent.followUp(app_message)
+            else:
+                self.agent.steer(app_message)
+        elif resolved_options.get("triggerTurn"):
+            await self._run_agent_prompt(app_message)
+        else:
+            self.agent.state.messages.append(app_message)
+            self.sessionManager.appendCustomMessageEntry(
+                str(app_message["customType"]),
+                app_message["content"],
+                bool(app_message["display"]),
+                app_message["details"],
+            )
+            self._emit({"type": "message_start", "message": app_message})
+            self._emit({"type": "message_end", "message": app_message})
+
+    def sendMessage(self, message: Any, options: dict[str, Any] | None = None) -> None:
+        self._spawn_background(self.sendCustomMessage(message, options))
 
     def sendUserMessage(
         self,
         content: str | list[TextContent | ImageContent | dict[str, Any]],
-        _options: dict[str, Any] | None = None,
+        options: dict[str, Any] | None = None,
     ) -> None:
+        resolved_options = dict(options or {})
         if isinstance(content, str):
-            message: dict[str, Any] = {"role": "user", "content": content, "timestamp": int(time.time() * 1000)}
+            text = content
+            images: list[ImageContent] | None = None
         else:
-            message = {
-                "role": "user",
-                "content": [_message_dict(item) for item in content],
-                "timestamp": int(time.time() * 1000),
-            }
-        self.sendMessage(message)
+            text_parts: list[str] = []
+            images = []
+            for item in content:
+                if _content_type(item) == "text":
+                    text_parts.append(str(_message_field(item, "text", "")))
+                else:
+                    images.append(item if isinstance(item, ImageContent) else ImageContent.model_validate(item))
+            text = "\n".join(text_parts)
+            if not images:
+                images = None
+        self._spawn_background(
+            self.prompt(
+                text,
+                {
+                    "expandPromptTemplates": False,
+                    "streamingBehavior": resolved_options.get("deliverAs"),
+                    "images": images,
+                    "source": "extension",
+                },
+            )
+        )
 
     def getUserMessagesForForking(self) -> list[dict[str, str]]:
         result: list[dict[str, str]] = []
@@ -938,6 +989,11 @@ class AgentSession:
         finally:
             self._bashAbortController = None
 
+        self.recordBashResult(command, result, resolved_options)
+        return result
+
+    def recordBashResult(self, command: str, result: BashResult, options: dict[str, Any] | None = None) -> None:
+        resolved_options = dict(options or {})
         bash_message = BashExecutionMessage(
             command=command,
             output=result.output,
@@ -948,9 +1004,11 @@ class AgentSession:
             timestamp=int(time.time() * 1000),
             excludeFromContext=bool(resolved_options.get("excludeFromContext")),
         )
+        if self.isStreaming:
+            self._pendingBashMessages.append(bash_message)
+            return
         self.agent.state.messages.append(bash_message)
         self.sessionManager.appendMessage(bash_message)
-        return result
 
     def abortBash(self) -> None:
         if self._bashAbortController is not None:
@@ -1312,6 +1370,7 @@ class AgentSession:
                 "toolRenderer": create_tool_html_renderer(
                     {
                         "getToolDefinition": self.getToolDefinition,
+                        "theme": theme,
                         "cwd": self.sessionManager.getCwd(),
                     }
                 ),

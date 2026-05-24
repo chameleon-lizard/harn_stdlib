@@ -741,6 +741,15 @@ class SessionBeforeTreeResult(TypedDict, total=False):
     label: str
 
 
+class ExtensionRuntimeState(Protocol):
+    flagValues: dict[str, bool | str]
+    pendingProviderRegistrations: list[PendingProviderRegistration]
+    assertActive: Callable[[], None]
+    invalidate: Callable[[str | None], None]
+    registerProvider: RegisterProviderHandler
+    unregisterProvider: UnregisterProviderHandler
+
+
 @dataclass(slots=True)
 class ExtensionRuntime:
     sendMessage: SendMessageHandler
@@ -800,9 +809,27 @@ class ExtensionError:
 
 
 class ExtensionContext(Protocol):
-    def __getitem__(self, key: str) -> Any: ...
+    ui: ExtensionUIContext
+    hasUI: bool
+    cwd: str
+    sessionManager: ReadonlySessionManager
+    modelRegistry: ModelRegistry
+    model: Model[Any] | None
+    signal: Any | None
 
-    def get(self, key: str, default: Any = None) -> Any: ...
+    def isIdle(self) -> bool: ...
+
+    def abort(self) -> None: ...
+
+    def hasPendingMessages(self) -> bool: ...
+
+    def shutdown(self) -> None: ...
+
+    def getContextUsage(self) -> ContextUsage | None: ...
+
+    def compact(self, options: CompactOptions | None = None) -> None: ...
+
+    def getSystemPrompt(self) -> str: ...
 
 
 class ExtensionCommandContext(ExtensionContext, Protocol):
@@ -817,6 +844,16 @@ class ExtensionCommandContext(ExtensionContext, Protocol):
     async def switchSession(self, sessionPath: str, options: dict[str, Any] | None = None) -> dict[str, bool]: ...
 
     async def reload(self) -> None: ...
+
+
+class ReplacedSessionContext(ExtensionCommandContext, Protocol):
+    async def sendMessage(self, message: Any, options: dict[str, Any] | None = None) -> None: ...
+
+    async def sendUserMessage(
+        self,
+        content: str | list[TextContent | ImageContent],
+        options: dict[str, Any] | None = None,
+    ) -> None: ...
 
 
 class ExtensionActions(Protocol):
@@ -860,17 +897,11 @@ class ExtensionCommandContextActions(Protocol):
 class ExtensionAPI(Protocol):
     cwd: str
     extension: Extension
-    events: Any
+    events: EventBus
 
     def on(self, event: str, handler: Callable[..., Any]) -> None: ...
 
-    def register_tool(
-        self,
-        definition: ToolDefinition[Any, Any],
-        *,
-        source_path: str | None = None,
-        source_info: SourceInfo | None = None,
-    ) -> None: ...
+    def registerTool(self, tool: ToolDefinition[Any, Any]) -> None: ...
 
     def registerCommand(
         self,
@@ -929,16 +960,6 @@ class ExtensionAPI(Protocol):
     def registerProvider(self, name: str, config: ProviderConfig) -> None: ...
 
     def unregisterProvider(self, name: str) -> None: ...
-
-    def add_skill_path(self, path: str) -> None: ...
-
-    def add_prompt_path(self, path: str) -> None: ...
-
-    def add_theme_path(self, path: str) -> None: ...
-
-    def set_system_prompt(self, prompt: str | None) -> None: ...
-
-    def append_system_prompt(self, prompt: str) -> None: ...
 
 
 type ExtensionFactory = Callable[[ExtensionAPI], Awaitable[None] | None]

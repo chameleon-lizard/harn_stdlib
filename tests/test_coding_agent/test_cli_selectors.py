@@ -138,6 +138,7 @@ async def test_select_config_initializes_theme_and_mounts_component() -> None:
 
     assert init_calls == [("light", True)]
     assert stop_calls == ["stopped"]
+    assert config_selector_module.__all__ == ["ConfigSelectorOptions", "selectConfig"]
 
 
 @pytest.mark.asyncio

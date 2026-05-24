@@ -117,6 +117,75 @@ def test_provider_auth_status_reports_models_json_command_without_executing_it(t
     assert status.source == "models_json_command"
 
 
+def test_models_json_schema_validation_reports_nested_path(tmp_path: Path) -> None:
+    models_json_path = tmp_path / "models.json"
+    _write_models_json(
+        models_json_path,
+        {
+            "demo": {
+                "headers": {
+                    "Authorization": 123,
+                }
+            }
+        },
+    )
+
+    registry = ModelRegistry.create(AuthStorage.inMemory(), str(models_json_path))
+
+    assert registry.getError() == (
+        "Invalid models.json schema:\n"
+        "  - providers.demo.headers.Authorization: Input should be a valid string\n\n"
+        f"File: {models_json_path}"
+    )
+
+
+def test_empty_headers_override_is_accepted(tmp_path: Path) -> None:
+    models_json_path = tmp_path / "models.json"
+    _write_models_json(models_json_path, {"demo": {"headers": {}}})
+
+    registry = ModelRegistry.create(AuthStorage.inMemory(), str(models_json_path))
+
+    assert registry.getError() is None
+
+
+def test_model_registry_module_exports_match_ts_surface() -> None:
+    from harnify_coding_agent.core import model_registry
+
+    assert model_registry.__all__ == [
+        "ModelRegistry",
+        "ProviderConfigInput",
+        "ResolvedRequestAuth",
+        "clearApiKeyCache",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_register_provider_accepts_oauth_objects_and_overrides_id() -> None:
+    registry = ModelRegistry.inMemory(AuthStorage.inMemory())
+
+    class DemoOAuthProvider:
+        id = "wrong-id"
+        name = "Dynamic OAuth"
+        usesCallbackServer = None
+        modifyModels = None
+
+        async def login(self, callbacks):  # pragma: no cover - not exercised
+            raise RuntimeError("unused")
+
+        async def refreshToken(self, credentials):  # pragma: no cover - not exercised
+            return credentials
+
+        def getApiKey(self, credentials):  # pragma: no cover - not exercised
+            return credentials.access
+
+    registry.registerProvider("dynamic-oauth", {"oauth": DemoOAuthProvider()})
+    try:
+        assert registry.getProviderDisplayName("dynamic-oauth") == "Dynamic OAuth"
+        assert any(provider.id == "dynamic-oauth" for provider in registry.authStorage.getOAuthProviders())
+    finally:
+        registry.unregisterProvider("dynamic-oauth")
+
+
 def test_dynamic_provider_registration_and_unregister_restores_state() -> None:
     registry = ModelRegistry.inMemory(AuthStorage.inMemory())
     registry.registerProvider(

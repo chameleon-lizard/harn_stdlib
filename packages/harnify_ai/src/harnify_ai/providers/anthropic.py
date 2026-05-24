@@ -236,7 +236,12 @@ def resolve_cache_retention(cache_retention: CacheRetention | None = None) -> Ca
     return "long" if os.environ.get("PI_CACHE_RETENTION") == "long" else "short"
 
 
-def get_anthropic_compat(model: Model) -> dict[str, bool | None]:
+def _force_adaptive_thinking(model: Model) -> bool | None:
+    compat = getattr(model, "compat", None)
+    return getattr(compat, "forceAdaptiveThinking", None)
+
+
+def get_anthropic_compat(model: Model) -> dict[str, bool]:
     compat = getattr(model, "compat", None)
     is_fireworks = model.provider == "fireworks"
     is_cloudflare_gateway_anthropic = model.provider == "cloudflare-ai-gateway" and "anthropic" in model.baseUrl
@@ -261,14 +266,13 @@ def get_anthropic_compat(model: Model) -> dict[str, bool | None]:
             if getattr(compat, "supportsCacheControlOnTools", None) is not None
             else not is_fireworks
         ),
-        "forceAdaptiveThinking": getattr(compat, "forceAdaptiveThinking", None),
     }
 
 
 def get_cache_control(model: Model, cache_retention: CacheRetention | None = None) -> dict[str, Any]:
     retention = resolve_cache_retention(cache_retention)
     if retention == "none":
-        return {"retention": retention, "cacheControl": None}
+        return {"retention": retention}
 
     compat = get_anthropic_compat(model)
     ttl = "1h" if retention == "long" and compat["supportsLongCacheRetention"] else None
@@ -335,7 +339,7 @@ def create_client(
     dynamic_headers: Mapping[str, str] | None = None,
     session_id: str | None = None,
 ) -> tuple[AsyncAnthropic, bool]:
-    needs_interleaved_beta = interleaved_thinking and get_anthropic_compat(model).get("forceAdaptiveThinking") is not True
+    needs_interleaved_beta = interleaved_thinking and _force_adaptive_thinking(model) is not True
     beta_features: list[str] = []
     if use_fine_grained_tool_streaming_beta:
         beta_features.append(FINE_GRAINED_TOOL_STREAMING_BETA)
@@ -427,7 +431,7 @@ def build_params(
     options: Any = None,
 ) -> dict[str, Any]:
     cache_state = get_cache_control(model, _option(options, "cacheRetention"))
-    cache_control = cache_state["cacheControl"]
+    cache_control = cache_state.get("cacheControl")
     params: dict[str, Any] = {
         "model": model.id,
         "messages": convert_messages(context.messages, model, is_oauth, cache_control),
@@ -477,7 +481,7 @@ def build_params(
         thinking_enabled = _option(options, "thinkingEnabled")
         if thinking_enabled:
             display = _option(options, "thinkingDisplay", "summarized")
-            if get_anthropic_compat(model).get("forceAdaptiveThinking") is True:
+            if _force_adaptive_thinking(model) is True:
                 params["thinking"] = {"type": "adaptive", "display": display}
                 effort = _option(options, "effort")
                 if effort:
@@ -1124,7 +1128,7 @@ def stream_simple_anthropic(
     if not options or not options.reasoning:
         return stream_anthropic(model, context, {**base.model_dump(), "thinkingEnabled": False})
 
-    if get_anthropic_compat(model).get("forceAdaptiveThinking") is True:
+    if _force_adaptive_thinking(model) is True:
         return stream_anthropic(
             model,
             context,

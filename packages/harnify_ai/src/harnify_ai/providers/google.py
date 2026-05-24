@@ -113,6 +113,69 @@ def _empty_usage() -> Usage:
     )
 
 
+def _create_abort_wait_task(signal: Any) -> asyncio.Task[None] | None:
+    if signal is None or not hasattr(signal, "wait"):
+        return None
+    return asyncio.create_task(signal.wait())
+
+
+async def _close_stream(stream_obj: Any) -> None:
+    if stream_obj is None:
+        return
+    for close_name in ("aclose", "close"):
+        close = getattr(stream_obj, close_name, None)
+        if callable(close):
+            try:
+                await _maybe_await(close())
+            except Exception:  # noqa: BLE001
+                return
+            return
+
+
+async def _await_with_signal(awaitable: Any, signal: Any, *, on_abort: Any = None) -> Any:
+    if _is_aborted(signal):
+        if isinstance(awaitable, asyncio.Future):
+            awaitable.cancel()
+        else:
+            close = getattr(awaitable, "close", None)
+            if callable(close):
+                close()
+        if on_abort is not None:
+            await _maybe_await(on_abort())
+        raise RuntimeError("Request was aborted")
+
+    task = asyncio.ensure_future(awaitable)
+    abort_task = _create_abort_wait_task(signal)
+    try:
+        if abort_task is not None:
+            done, _ = await asyncio.wait({task, abort_task}, return_when=asyncio.FIRST_COMPLETED)
+            if abort_task in done and not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+                if on_abort is not None:
+                    await _maybe_await(on_abort())
+                raise RuntimeError("Request was aborted")
+        return await task
+    finally:
+        if abort_task is not None:
+            abort_task.cancel()
+            await asyncio.gather(abort_task, return_exceptions=True)
+
+
+async def _iterate_async_iterable(iterable: Any, signal: Any = None, *, on_abort: Any = None):
+    iterator = iterable.__aiter__()
+    while True:
+        try:
+            item = await _await_with_signal(iterator.__anext__(), signal, on_abort=on_abort)
+        except StopAsyncIteration:
+            return
+        yield item
+
+
+def _format_google_error(error: Any) -> str:
+    return str(error) if isinstance(error, Exception) else json.dumps(error, default=str)
+
+
 def _coalesce_attr(obj: Any, *names: str) -> Any:
     for name in names:
         value = getattr(obj, name, None)
@@ -214,6 +277,8 @@ def build_params(
                 "mode": map_tool_choice(tool_choice),
             },
         }
+    else:
+        config["toolConfig"] = None
 
     thinking = _option(options, "thinking")
     if _nested_option(thinking, "enabled") and model.reasoning:
@@ -239,8 +304,10 @@ def build_params(
 def _prepare_sdk_params(params: Mapping[str, Any]) -> dict[str, Any]:
     sdk_params = dict(params)
     config = sdk_params.get("config")
-    if isinstance(config, Mapping) and "abortSignal" in config:
-        sdk_params["config"] = {key: value for key, value in config.items() if key != "abortSignal"}
+    if isinstance(config, Mapping):
+        sdk_params["config"] = {
+            key: value for key, value in config.items() if key != "abortSignal" and value is not None
+        }
     return sdk_params
 
 
@@ -254,7 +321,7 @@ def stream_google(
     async def run() -> None:
         output = AssistantMessage(
             content=[],
-            api=model.api,
+            api="google-generative-ai",
             provider=model.provider,
             model=model.id,
             usage=_empty_usage(),
@@ -282,7 +349,7 @@ def stream_google(
             stream.push(StartEvent(partial=output))
 
             current_block: TextContent | ThinkingContent | None = None
-            async for chunk in google_stream:
+            async for chunk in _iterate_async_iterable(google_stream, signal, on_abort=lambda: _close_stream(google_stream)):
                 if _is_aborted(signal):
                     raise RuntimeError("Request was aborted")
 
@@ -421,7 +488,7 @@ def stream_google(
             stream.push(DoneEvent(reason=output.stopReason, message=output))
         except Exception as error:  # noqa: BLE001
             output.stopReason = "aborted" if _is_aborted(signal) else "error"
-            output.errorMessage = str(error)
+            output.errorMessage = _format_google_error(error)
             stream.push(ErrorEvent(reason=output.stopReason, error=output))
         finally:
             aio_client = getattr(client, "aio", None)
@@ -570,24 +637,6 @@ getGoogleBudget = get_google_budget
 
 __all__ = [
     "GoogleOptions",
-    "buildParams",
-    "build_params",
-    "createClient",
-    "create_client",
-    "getDisabledThinkingConfig",
-    "getGoogleBudget",
-    "getThinkingLevel",
-    "get_disabled_thinking_config",
-    "get_google_budget",
-    "get_thinking_level",
-    "isGemini3FlashModel",
-    "isGemini3ProModel",
-    "isGemma4Model",
-    "is_gemini3_flash_model",
-    "is_gemini3_pro_model",
-    "is_gemma4_model",
     "streamGoogle",
     "streamSimpleGoogle",
-    "stream_google",
-    "stream_simple_google",
 ]

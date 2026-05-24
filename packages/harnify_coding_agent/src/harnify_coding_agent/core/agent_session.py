@@ -577,6 +577,21 @@ class AgentSession:
         self.sessionManager.appendSessionInfo((name or "").strip())
         self._emit({"type": "session_info_changed", "name": (name or "").strip() or None})
 
+    def clearQueue(self) -> dict[str, list[str]]:
+        steering = list(self._steeringMessages)
+        follow_up = list(self._followUpMessages)
+        self._steeringMessages = []
+        self._followUpMessages = []
+        self.agent.clearAllQueues()
+        self._emit_queue_update()
+        return {"steering": steering, "followUp": follow_up}
+
+    def getSteeringMessages(self) -> list[str]:
+        return list(self._steeringMessages)
+
+    def getFollowUpMessages(self) -> list[str]:
+        return list(self._followUpMessages)
+
     async def setModel(self, model: Model[Any]) -> None:
         if not self._modelRegistry.hasConfiguredAuth(model):
             raise RuntimeError(f"No API key for {model.provider}/{model.id}")

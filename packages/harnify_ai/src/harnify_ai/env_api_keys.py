@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import os
-from functools import lru_cache
 from pathlib import Path
 
 _ENV_MAP: dict[str, str] = {
     "openai": "OPENAI_API_KEY",
-    "openai-codex": "OPENAI_API_KEY",
     "azure-openai-responses": "AZURE_OPENAI_API_KEY",
     "deepseek": "DEEPSEEK_API_KEY",
     "google": "GEMINI_API_KEY",
@@ -38,14 +36,49 @@ _ENV_MAP: dict[str, str] = {
     "xiaomi-token-plan-sgp": "XIAOMI_TOKEN_PLAN_SGP_API_KEY",
 }
 
+_proc_env_cache: dict[str, str] | None = None
+_cached_vertex_adc_credentials_exists: bool | None = None
 
-@lru_cache(maxsize=1)
+
+def _get_proc_env(key: str) -> str | None:
+    global _proc_env_cache
+
+    if os.environ:
+        return None
+
+    if _proc_env_cache is None:
+        _proc_env_cache = {}
+        try:
+            data = Path("/proc/self/environ").read_text(encoding="utf-8")
+            for entry in data.split("\0"):
+                index = entry.find("=")
+                if index > 0:
+                    _proc_env_cache[entry[:index]] = entry[index + 1 :]
+        except Exception:
+            pass
+
+    return _proc_env_cache.get(key)
+
+
+def _get_env_value(key: str) -> str | None:
+    return os.environ.get(key) or _get_proc_env(key)
+
+
 def _has_vertex_adc_credentials() -> bool:
-    credentials_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-    if credentials_path:
-        return Path(credentials_path).exists()
+    global _cached_vertex_adc_credentials_exists
 
-    return Path.home().joinpath(".config", "gcloud", "application_default_credentials.json").exists()
+    if _cached_vertex_adc_credentials_exists is not None:
+        return _cached_vertex_adc_credentials_exists
+
+    credentials_path = _get_env_value("GOOGLE_APPLICATION_CREDENTIALS")
+    if credentials_path:
+        _cached_vertex_adc_credentials_exists = Path(credentials_path).exists()
+    else:
+        _cached_vertex_adc_credentials_exists = Path.home().joinpath(
+            ".config", "gcloud", "application_default_credentials.json"
+        ).exists()
+
+    return _cached_vertex_adc_credentials_exists
 
 
 def _get_api_key_env_vars(provider: str) -> tuple[str, ...] | None:
@@ -64,29 +97,29 @@ def find_env_keys(provider: str) -> list[str] | None:
     if not env_vars:
         return None
 
-    found = [env_var for env_var in env_vars if os.environ.get(env_var)]
+    found = [env_var for env_var in env_vars if _get_env_value(env_var)]
     return found or None
 
 
 def get_env_api_key(provider: str) -> str | None:
     env_keys = find_env_keys(provider)
     if env_keys and env_keys[0]:
-        return os.environ.get(env_keys[0])
+        return _get_env_value(env_keys[0])
 
     if provider == "google-vertex":
-        has_project = bool(os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCLOUD_PROJECT"))
-        has_location = bool(os.environ.get("GOOGLE_CLOUD_LOCATION"))
+        has_project = bool(_get_env_value("GOOGLE_CLOUD_PROJECT") or _get_env_value("GCLOUD_PROJECT"))
+        has_location = bool(_get_env_value("GOOGLE_CLOUD_LOCATION"))
         if _has_vertex_adc_credentials() and has_project and has_location:
             return "<authenticated>"
 
     if provider == "amazon-bedrock":
         if (
-            os.environ.get("AWS_PROFILE")
-            or (os.environ.get("AWS_ACCESS_KEY_ID") and os.environ.get("AWS_SECRET_ACCESS_KEY"))
-            or os.environ.get("AWS_BEARER_TOKEN_BEDROCK")
-            or os.environ.get("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
-            or os.environ.get("AWS_CONTAINER_CREDENTIALS_FULL_URI")
-            or os.environ.get("AWS_WEB_IDENTITY_TOKEN_FILE")
+            _get_env_value("AWS_PROFILE")
+            or (_get_env_value("AWS_ACCESS_KEY_ID") and _get_env_value("AWS_SECRET_ACCESS_KEY"))
+            or _get_env_value("AWS_BEARER_TOKEN_BEDROCK")
+            or _get_env_value("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
+            or _get_env_value("AWS_CONTAINER_CREDENTIALS_FULL_URI")
+            or _get_env_value("AWS_WEB_IDENTITY_TOKEN_FILE")
         ):
             return "<authenticated>"
 

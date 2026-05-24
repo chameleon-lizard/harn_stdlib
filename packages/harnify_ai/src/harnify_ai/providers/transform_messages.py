@@ -16,11 +16,11 @@ from harnify_ai.types import (
     UserMessage,
 )
 
-NON_VISION_USER_IMAGE_PLACEHOLDER = "(image omitted: model does not support images)"
-NON_VISION_TOOL_IMAGE_PLACEHOLDER = "(tool image omitted: model does not support images)"
+_NON_VISION_USER_IMAGE_PLACEHOLDER = "(image omitted: model does not support images)"
+_NON_VISION_TOOL_IMAGE_PLACEHOLDER = "(tool image omitted: model does not support images)"
 
 
-def replace_images_with_placeholder(content: list[TextContent | ImageContent], placeholder: str) -> list[TextContent]:
+def _replace_images_with_placeholder(content: list[TextContent | ImageContent], placeholder: str) -> list[TextContent]:
     result: list[TextContent] = []
     previous_was_placeholder = False
 
@@ -37,7 +37,7 @@ def replace_images_with_placeholder(content: list[TextContent | ImageContent], p
     return result
 
 
-def downgrade_unsupported_images(messages: list[MessageValue], model: Model) -> list[MessageValue]:
+def _downgrade_unsupported_images(messages: list[MessageValue], model: Model) -> list[MessageValue]:
     if "image" in model.input:
         return messages
 
@@ -46,7 +46,7 @@ def downgrade_unsupported_images(messages: list[MessageValue], model: Model) -> 
         if isinstance(message, UserMessage) and isinstance(message.content, list):
             downgraded.append(
                 message.model_copy(
-                    update={"content": replace_images_with_placeholder(message.content, NON_VISION_USER_IMAGE_PLACEHOLDER)}
+                    update={"content": _replace_images_with_placeholder(message.content, _NON_VISION_USER_IMAGE_PLACEHOLDER)}
                 )
             )
             continue
@@ -54,7 +54,7 @@ def downgrade_unsupported_images(messages: list[MessageValue], model: Model) -> 
         if isinstance(message, ToolResultMessage):
             downgraded.append(
                 message.model_copy(
-                    update={"content": replace_images_with_placeholder(message.content, NON_VISION_TOOL_IMAGE_PLACEHOLDER)}
+                    update={"content": _replace_images_with_placeholder(message.content, _NON_VISION_TOOL_IMAGE_PLACEHOLDER)}
                 )
             )
             continue
@@ -70,7 +70,7 @@ def transform_messages(
     normalize_tool_call_id: Callable[[str, Model, AssistantMessage], str] | None = None,
 ) -> list[MessageValue]:
     tool_call_id_map: dict[str, str] = {}
-    image_aware_messages = downgrade_unsupported_images(messages, model)
+    image_aware_messages = _downgrade_unsupported_images(messages, model)
 
     transformed: list[MessageValue] = []
     for message in image_aware_messages:
@@ -185,6 +185,9 @@ def transform_messages(
     return result
 
 
-replaceImagesWithPlaceholder = replace_images_with_placeholder
-downgradeUnsupportedImages = downgrade_unsupported_images
 transformMessages = transform_messages
+
+__all__ = [
+    "transformMessages",
+    "transform_messages",
+]

@@ -380,7 +380,7 @@ class ExtensionUIContext(Protocol):
 
     def setTitle(self, title: str) -> None: ...
 
-    async def custom(self, factory: Callable[..., Any], options: dict[str, Any] | None = None) -> Any: ...
+    async def custom(self, factory: Callable[..., Any], options: _CustomUIOptions | None = None) -> Any: ...
 
     def pasteToEditor(self, text: str) -> None: ...
 
@@ -396,11 +396,11 @@ class ExtensionUIContext(Protocol):
 
     def getEditorComponent(self) -> EditorFactory | None: ...
 
-    def getAllThemes(self) -> list[dict[str, str | None]]: ...
+    def getAllThemes(self) -> list[_ThemeInfo]: ...
 
     def getTheme(self, name: str) -> Theme | None: ...
 
-    def setTheme(self, theme: str | Theme) -> dict[str, Any]: ...
+    def setTheme(self, theme: str | Theme) -> _SetThemeResult: ...
 
     def getToolsExpanded(self) -> bool: ...
 
@@ -419,16 +419,16 @@ class ResourcesDiscoverResult(TypedDict, total=False):
     themePaths: list[str]
 
 
-class SessionStartEvent(TypedDict, total=False):
+class SessionStartEvent(TypedDict):
     type: Literal["session_start"]
     reason: Literal["startup", "reload", "new", "resume", "fork"]
-    previousSessionFile: str
+    previousSessionFile: NotRequired[str]
 
 
-class SessionBeforeSwitchEvent(TypedDict, total=False):
+class SessionBeforeSwitchEvent(TypedDict):
     type: Literal["session_before_switch"]
     reason: Literal["new", "resume"]
-    targetSessionFile: str
+    targetSessionFile: NotRequired[str]
 
 
 class SessionBeforeForkEvent(TypedDict):
@@ -437,49 +437,49 @@ class SessionBeforeForkEvent(TypedDict):
     position: Literal["before", "at"]
 
 
-class SessionBeforeCompactEvent(TypedDict, total=False):
+class SessionBeforeCompactEvent(TypedDict):
     type: Literal["session_before_compact"]
-    preparation: Any
+    preparation: CompactionPreparation
     branchEntries: list[SessionEntry]
-    customInstructions: str | None
-    signal: Any
+    customInstructions: NotRequired[str]
+    signal: AbortSignal
 
 
 class SessionCompactEvent(TypedDict):
     type: Literal["session_compact"]
-    compactionEntry: SessionEntry
+    compactionEntry: CompactionEntry
     fromExtension: bool
 
 
-class SessionShutdownEvent(TypedDict, total=False):
+class SessionShutdownEvent(TypedDict):
     type: Literal["session_shutdown"]
     reason: Literal["quit", "reload", "new", "resume", "fork"]
-    targetSessionFile: str
+    targetSessionFile: NotRequired[str]
 
 
-class TreePreparation(TypedDict, total=False):
+class TreePreparation(TypedDict):
     targetId: str
     oldLeafId: str | None
     commonAncestorId: str | None
     entriesToSummarize: list[SessionEntry]
     userWantsSummary: bool
-    customInstructions: str
-    replaceInstructions: bool
-    label: str
+    customInstructions: NotRequired[str]
+    replaceInstructions: NotRequired[bool]
+    label: NotRequired[str]
 
 
 class SessionBeforeTreeEvent(TypedDict):
     type: Literal["session_before_tree"]
     preparation: TreePreparation
-    signal: Any
+    signal: AbortSignal
 
 
-class SessionTreeEvent(TypedDict, total=False):
+class SessionTreeEvent(TypedDict):
     type: Literal["session_tree"]
     newLeafId: str | None
     oldLeafId: str | None
-    summaryEntry: SessionEntry
-    fromExtension: bool | None
+    summaryEntry: NotRequired[BranchSummaryEntry]
+    fromExtension: NotRequired[bool]
 
 
 type SessionEvent = (
@@ -510,10 +510,10 @@ class AfterProviderResponseEvent(TypedDict):
     headers: dict[str, str]
 
 
-class BeforeAgentStartEvent(TypedDict, total=False):
+class BeforeAgentStartEvent(TypedDict):
     type: Literal["before_agent_start"]
     prompt: str
-    images: list[ImageContent] | None
+    images: NotRequired[list[ImageContent]]
     systemPrompt: str
     systemPromptOptions: BuildSystemPromptOptions
 
@@ -527,13 +527,13 @@ class AgentEndEvent(TypedDict):
     messages: list[AgentMessage]
 
 
-class TurnStartEvent(TypedDict, total=False):
+class TurnStartEvent(TypedDict):
     type: Literal["turn_start"]
     turnIndex: int
     timestamp: int
 
 
-class TurnEndEvent(TypedDict, total=False):
+class TurnEndEvent(TypedDict):
     type: Literal["turn_end"]
     turnIndex: int
     message: AgentMessage
@@ -579,7 +579,7 @@ class ToolExecutionEndEvent(TypedDict):
     isError: bool
 
 
-class ModelSelectEvent(TypedDict, total=False):
+class ModelSelectEvent(TypedDict):
     type: Literal["model_select"]
     model: Model[Any]
     previousModel: Model[Any] | None
@@ -599,10 +599,10 @@ class UserBashEvent(TypedDict):
     cwd: str
 
 
-class InputEvent(TypedDict, total=False):
+class InputEvent(TypedDict):
     type: Literal["input"]
     text: str
-    images: list[ImageContent]
+    images: NotRequired[list[ImageContent]]
     source: InputSource
 
 
@@ -610,10 +610,10 @@ class InputEventContinueResult(TypedDict):
     action: Literal["continue"]
 
 
-class InputEventTransformResult(TypedDict, total=False):
+class InputEventTransformResult(TypedDict):
     action: Literal["transform"]
     text: str
-    images: list[ImageContent]
+    images: NotRequired[list[ImageContent]]
 
 
 class InputEventHandledResult(TypedDict):
@@ -794,7 +794,7 @@ class MessageEndEventResult(TypedDict, total=False):
 
 
 class BeforeAgentStartEventResult(TypedDict, total=False):
-    message: Any
+    message: _CustomMessagePayload
     systemPrompt: str
 
 

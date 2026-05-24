@@ -149,6 +149,30 @@ def test_resolve_api_key_filters_placeholders(
     assert google_vertex.resolve_api_key(options) == expected
 
 
+def test_build_params_preserves_abort_signal_for_callback_surface() -> None:
+    signal = object()
+
+    params = google_vertex.build_params(
+        _make_model(),
+        _make_context(),
+        {"signal": signal},
+    )
+
+    assert params["config"]["abortSignal"] is signal
+
+
+def test_build_params_uses_request_aborted_message_for_preaborted_signal() -> None:
+    class _Signal:
+        aborted = True
+
+    with pytest.raises(RuntimeError, match="^Request aborted$"):
+        google_vertex.build_params(
+            _make_model(),
+            _make_context(),
+            {"signal": _Signal()},
+        )
+
+
 @pytest.mark.asyncio
 async def test_stream_google_vertex_uses_adc_branch_for_placeholder_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_client = _FakeClient([_FakeChunk(candidates=[_FakeCandidate(finish_reason=_FakeFinishReason("STOP"))])])
@@ -178,6 +202,32 @@ async def test_stream_google_vertex_uses_adc_branch_for_placeholder_api_key(monk
     assert result.stopReason == "stop"
     assert calls == {"adc": 1, "api_key": 0}
     assert fake_client.aio.closed is True
+
+
+@pytest.mark.asyncio
+async def test_stream_google_vertex_strips_abort_signal_before_sdk_call() -> None:
+    captured_payload: dict[str, Any] | None = None
+    fake_client = _FakeClient([_FakeChunk(candidates=[_FakeCandidate(finish_reason=_FakeFinishReason("STOP"))])])
+    signal = object()
+
+    def on_payload(payload: dict[str, Any], _model: Model) -> None:
+        nonlocal captured_payload
+        captured_payload = payload
+
+    result = await google_vertex.stream_google_vertex(
+        _make_model(),
+        _make_context(),
+        {
+            "client": fake_client,
+            "signal": signal,
+            "onPayload": on_payload,
+        },
+    ).result()
+
+    assert result.stopReason == "stop"
+    assert captured_payload is not None
+    assert captured_payload["config"]["abortSignal"] is signal
+    assert "abortSignal" not in fake_client.aio.models.calls[0]["config"]
 
 
 @pytest.mark.asyncio

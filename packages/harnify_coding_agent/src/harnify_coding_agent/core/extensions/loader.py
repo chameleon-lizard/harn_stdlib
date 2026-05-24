@@ -66,7 +66,6 @@ class _ExtensionAPI:
         self.extension.tools[normalized_definition.name] = RegisteredTool(
             definition=normalized_definition,
             sourceInfo=source_info or self.extension.sourceInfo,
-            sourcePath=source_path,
         )
         self.runtime.refreshTools()
 

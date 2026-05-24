@@ -147,6 +147,13 @@ def test_http_dispatcher_configuration_validates_and_records_timeout() -> None:
 
     http_dispatcher.configureHttpDispatcher(60_000)
     assert http_dispatcher._get_configured_http_idle_timeout_ms() == 60_000
+    assert http_dispatcher.__all__ == [
+        "DEFAULT_HTTP_IDLE_TIMEOUT_MS",
+        "HTTP_IDLE_TIMEOUT_CHOICES",
+        "configureHttpDispatcher",
+        "formatHttpIdleTimeoutMs",
+        "parseHttpIdleTimeoutMs",
+    ]
 
     try:
         http_dispatcher.configureHttpDispatcher(-1)

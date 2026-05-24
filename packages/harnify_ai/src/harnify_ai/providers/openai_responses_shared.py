@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import AsyncIterable, Iterable
-from typing import Any
+from typing import Any, TypedDict
 
 from harnify_ai.models import calculate_cost
 from harnify_ai.providers.transform_messages import transform_messages
@@ -39,6 +39,20 @@ from harnify_ai.utils.json_parse import parse_streaming_json
 from harnify_ai.utils.sanitize_unicode import sanitize_surrogates
 
 _TOOL_CALL_ID_PART_PATTERN = re.compile(r"[^a-zA-Z0-9_-]")
+
+
+class OpenAIResponsesStreamOptions(TypedDict, total=False):
+    serviceTier: Any
+    resolveServiceTier: Any
+    applyServiceTierPricing: Any
+
+
+class ConvertResponsesMessagesOptions(TypedDict, total=False):
+    includeSystemPrompt: bool
+
+
+class ConvertResponsesToolsOptions(TypedDict, total=False):
+    strict: bool | None
 
 
 def encode_text_signature_v1(text_id: str, phase: TextSignatureV1 | str | None = None) -> str:
@@ -82,7 +96,9 @@ def _create_normalize_tool_call_id(model: Model, allowed_tool_call_providers: se
         if "|" not in tool_call_id:
             return _normalize_id_part(tool_call_id)
 
-        call_id, item_id = tool_call_id.split("|", 1)
+        parts = tool_call_id.split("|")
+        call_id = parts[0]
+        item_id = parts[1] if len(parts) > 1 else ""
         normalized_call_id = _normalize_id_part(call_id)
         is_foreign_tool_call = source.provider != model.provider or source.api != model.api
         normalized_item_id = (
@@ -99,7 +115,7 @@ def convert_responses_messages(
     model: Model,
     context: Context,
     allowed_tool_call_providers: set[str] | frozenset[str],
-    options: dict[str, Any] | None = None,
+    options: ConvertResponsesMessagesOptions | None = None,
 ) -> list[dict[str, Any]]:
     messages: list[dict[str, Any]] = []
     transformed_messages = transform_messages(
@@ -154,10 +170,7 @@ def convert_responses_messages(
             for block in assistant_message.content:
                 if block.type == "thinking":
                     if block.thinkingSignature:
-                        try:
-                            output.append(json.loads(block.thinkingSignature))
-                        except Exception:
-                            pass
+                        output.append(json.loads(block.thinkingSignature))
                 elif block.type == "text":
                     parsed_signature = parse_text_signature(block.textSignature)
                     msg_id = parsed_signature["id"] if parsed_signature else f"msg_{msg_index}"
@@ -175,7 +188,9 @@ def convert_responses_messages(
                         message_item["phase"] = phase
                     output.append(message_item)
                 elif block.type == "toolCall":
-                    call_id, _, item_id_raw = block.id.partition("|")
+                    parts = block.id.split("|")
+                    call_id = parts[0]
+                    item_id_raw = parts[1] if len(parts) > 1 else ""
                     item_id: str | None = item_id_raw or None
                     if is_different_model and item_id and item_id.startswith("fc_"):
                         item_id = None
@@ -219,7 +234,10 @@ def convert_responses_messages(
     return messages
 
 
-def convert_responses_tools(tools: Iterable[Tool], options: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+def convert_responses_tools(
+    tools: Iterable[Tool],
+    options: ConvertResponsesToolsOptions | None = None,
+) -> list[dict[str, Any]]:
     strict = False if options is None or "strict" not in options else options["strict"]
     return [
         {
@@ -256,7 +274,7 @@ async def process_responses_stream(
     output: AssistantMessage,
     stream: AssistantMessageEventStream,
     model: Model,
-    options: dict[str, Any] | None = None,
+    options: OpenAIResponsesStreamOptions | None = None,
 ) -> None:
     current_item: dict[str, Any] | None = None
     current_block: ThinkingContent | TextContent | ToolCall | None = None
@@ -309,10 +327,10 @@ async def process_responses_stream(
                 if summary:
                     last_part = summary[-1]
                     if isinstance(last_part, dict):
+                        delta = event.get("delta", "")
                         last_part["text"] = f"{last_part.get('text', '')}{event.get('delta', '')}"
-                delta = event.get("delta", "")
-                current_block.thinking += delta
-                stream.push(ThinkingDeltaEvent(contentIndex=block_index(), delta=delta, partial=output))
+                        current_block.thinking += delta
+                        stream.push(ThinkingDeltaEvent(contentIndex=block_index(), delta=delta, partial=output))
         elif event_type == "response.reasoning_summary_part.done":
             if (
                 isinstance(current_item, dict)
@@ -324,8 +342,8 @@ async def process_responses_stream(
                     last_part = summary[-1]
                     if isinstance(last_part, dict):
                         last_part["text"] = f"{last_part.get('text', '')}\n\n"
-                current_block.thinking += "\n\n"
-                stream.push(ThinkingDeltaEvent(contentIndex=block_index(), delta="\n\n", partial=output))
+                        current_block.thinking += "\n\n"
+                        stream.push(ThinkingDeltaEvent(contentIndex=block_index(), delta="\n\n", partial=output))
         elif event_type == "response.reasoning_text.delta":
             if (
                 isinstance(current_item, dict)
@@ -453,8 +471,7 @@ async def process_responses_stream(
                     output.stopReason = "toolUse"
         elif event_type == "error":
             code = event.get("code")
-            message = event.get("message") or "Unknown error"
-            raise RuntimeError(f"Error Code {code}: {message}")
+            raise RuntimeError(f"Error Code {code}: {event.get('message')}")
         elif event_type == "response.failed":
             response = event.get("response") if isinstance(event.get("response"), dict) else {}
             error = response.get("error") if isinstance(response, dict) else None
@@ -473,11 +490,17 @@ convertResponsesTools = convert_responses_tools
 processResponsesStream = process_responses_stream
 
 __all__ = [
+    "ConvertResponsesMessagesOptions",
+    "ConvertResponsesToolsOptions",
+    "OpenAIResponsesStreamOptions",
     "convertResponsesMessages",
     "convertResponsesTools",
     "encodeTextSignatureV1",
     "parseTextSignature",
     "processResponsesStream",
+    "ConvertResponsesMessagesOptions",
+    "ConvertResponsesToolsOptions",
+    "OpenAIResponsesStreamOptions",
     "convert_responses_messages",
     "convert_responses_tools",
     "encode_text_signature_v1",

@@ -446,6 +446,7 @@ async def test_generate_summary_and_compact_behaviour(registrations: list[Any]) 
     )
     result = await compact(preparation, clamp_model, "test-key", thinking_level="high")
     assert "Turn Context (split turn)" in result.summary
+    assert result.details == {"readFiles": [], "modifiedFiles": []}
     assert seen_max_tokens[0]["maxTokens"] == 128000
     assert seen_max_tokens[1]["maxTokens"] == 128000
     assert "reasoning" not in seen_max_tokens[1] or seen_max_tokens[1]["reasoning"] is None

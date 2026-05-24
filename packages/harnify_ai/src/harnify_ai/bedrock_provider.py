@@ -9,15 +9,9 @@ from harnify_ai.providers.amazon_bedrock import stream_bedrock, stream_simple_be
 streamBedrock = stream_bedrock
 streamSimpleBedrock = stream_simple_bedrock
 
-bedrock_provider_module = SimpleNamespace(
-    streamBedrock=stream_bedrock,
-    streamSimpleBedrock=stream_simple_bedrock,
+bedrockProviderModule = SimpleNamespace(
+    streamBedrock=streamBedrock,
+    streamSimpleBedrock=streamSimpleBedrock,
 )
-bedrockProviderModule = bedrock_provider_module
 
-__all__ = [
-    "bedrock_provider_module",
-    "bedrockProviderModule",
-    "streamBedrock",
-    "streamSimpleBedrock",
-]
+__all__ = ["bedrockProviderModule"]

@@ -467,13 +467,13 @@ clearApiKeyCache = clearConfigValueCache
 
 class ModelRegistry:
     def __init__(self, authStorage: AuthStorage, modelsJsonPath: str | None):
-        self.models: list[Model] = []
-        self.providerRequestConfigs: dict[str, _ProviderRequestConfig] = {}
-        self.modelRequestHeaders: dict[str, dict[str, str]] = {}
-        self.registeredProviders: dict[str, ProviderConfigInput] = {}
-        self.loadError: str | None = None
+        self._models: list[Model] = []
+        self._providerRequestConfigs: dict[str, _ProviderRequestConfig] = {}
+        self._modelRequestHeaders: dict[str, dict[str, str]] = {}
+        self._registeredProviders: dict[str, ProviderConfigInput] = {}
+        self._loadError: str | None = None
         self.authStorage = authStorage
-        self.modelsJsonPath = normalize_path(modelsJsonPath) if modelsJsonPath else None
+        self._modelsJsonPath = normalize_path(modelsJsonPath) if modelsJsonPath else None
         self._loadModels()
 
     @classmethod
@@ -485,22 +485,22 @@ class ModelRegistry:
         return cls(authStorage, None)
 
     def refresh(self) -> None:
-        self.providerRequestConfigs.clear()
-        self.modelRequestHeaders.clear()
-        self.loadError = None
+        self._providerRequestConfigs.clear()
+        self._modelRequestHeaders.clear()
+        self._loadError = None
         resetApiProviders()
         resetOAuthProviders()
         self._loadModels()
-        for provider_name, config in self.registeredProviders.items():
+        for provider_name, config in self._registeredProviders.items():
             self._applyProviderConfig(provider_name, config)
 
     def getError(self) -> str | None:
-        return self.loadError
+        return self._loadError
 
     def _loadModels(self) -> None:
-        custom = self._loadCustomModels(self.modelsJsonPath) if self.modelsJsonPath else _empty_custom_models_result()
+        custom = self._loadCustomModels(self._modelsJsonPath) if self._modelsJsonPath else _empty_custom_models_result()
         if custom.error:
-            self.loadError = custom.error
+            self._loadError = custom.error
 
         built_in_models = self._loadBuiltInModels(custom.overrides, custom.modelOverrides)
         combined = self._mergeCustomModels(built_in_models, custom.models)
@@ -517,7 +517,7 @@ class ModelRegistry:
                     OAuthCredentials.model_validate({key: value for key, value in credential.items() if key != "type"}),
                 )
 
-        self.models = combined
+        self._models = combined
 
     def _loadBuiltInModels(
         self,
@@ -707,17 +707,17 @@ class ModelRegistry:
         return models
 
     def getAll(self) -> list[Model]:
-        return self.models
+        return self._models
 
     def getAvailable(self) -> list[Model]:
-        return [model for model in self.models if self.hasConfiguredAuth(model)]
+        return [model for model in self._models if self.hasConfiguredAuth(model)]
 
     def find(self, provider: str, modelId: str) -> Model | None:
-        return next((model for model in self.models if model.provider == provider and model.id == modelId), None)
+        return next((model for model in self._models if model.provider == provider and model.id == modelId), None)
 
     def hasConfiguredAuth(self, model: Model) -> bool:
         return self.authStorage.hasAuth(model.provider) or (
-            self.providerRequestConfigs.get(model.provider, _ProviderRequestConfig()).apiKey is not None
+            self._providerRequestConfigs.get(model.provider, _ProviderRequestConfig()).apiKey is not None
         )
 
     @staticmethod
@@ -731,7 +731,7 @@ class ModelRegistry:
         if not api_key and not headers and not auth_header:
             return
 
-        self.providerRequestConfigs[providerName] = _ProviderRequestConfig(
+        self._providerRequestConfigs[providerName] = _ProviderRequestConfig(
             apiKey=cast(str | None, api_key),
             headers=cast(dict[str, str] | None, headers),
             authHeader=cast(bool | None, auth_header),
@@ -740,13 +740,13 @@ class ModelRegistry:
     def _storeModelHeaders(self, providerName: str, modelId: str, headers: dict[str, str] | None) -> None:
         key = self._getModelRequestKey(providerName, modelId)
         if not headers:
-            self.modelRequestHeaders.pop(key, None)
+            self._modelRequestHeaders.pop(key, None)
             return
-        self.modelRequestHeaders[key] = headers
+        self._modelRequestHeaders[key] = headers
 
     async def getApiKeyAndHeaders(self, model: Model) -> ResolvedRequestAuth:
         try:
-            provider_config = self.providerRequestConfigs.get(model.provider)
+            provider_config = self._providerRequestConfigs.get(model.provider)
             api_key_from_auth_storage = await self.authStorage.getApiKey(model.provider, {"includeFallback": False})
             api_key = api_key_from_auth_storage
             if api_key is None and provider_config and provider_config.apiKey:
@@ -757,7 +757,7 @@ class ModelRegistry:
                 f'provider "{model.provider}"',
             )
             model_headers = resolveHeadersOrThrow(
-                self.modelRequestHeaders.get(self._getModelRequestKey(model.provider, model.id)),
+                self._modelRequestHeaders.get(self._getModelRequestKey(model.provider, model.id)),
                 f'model "{model.provider}/{model.id}"',
             )
 
@@ -783,7 +783,7 @@ class ModelRegistry:
         if auth_status.source:
             return auth_status
 
-        provider_api_key = self.providerRequestConfigs.get(provider, _ProviderRequestConfig()).apiKey
+        provider_api_key = self._providerRequestConfigs.get(provider, _ProviderRequestConfig()).apiKey
         if not provider_api_key:
             return auth_status
         if provider_api_key.startswith("!"):
@@ -793,7 +793,7 @@ class ModelRegistry:
         return AuthStatus(configured=True, source="models_json_key")
 
     def getProviderDisplayName(self, provider: str) -> str:
-        registered_provider = self.registeredProviders.get(provider) or {}
+        registered_provider = self._registeredProviders.get(provider) or {}
         oauth_provider = next((item for item in self.authStorage.getOAuthProviders() if item.id == provider), None)
         oauth_config = registered_provider.get("oauth") if isinstance(registered_provider, dict) else None
         return (
@@ -808,7 +808,7 @@ class ModelRegistry:
         api_key = await self.authStorage.getApiKey(provider, {"includeFallback": False})
         if api_key is not None:
             return api_key
-        provider_api_key = self.providerRequestConfigs.get(provider, _ProviderRequestConfig()).apiKey
+        provider_api_key = self._providerRequestConfigs.get(provider, _ProviderRequestConfig()).apiKey
         return resolveConfigValueUncached(provider_api_key) if provider_api_key else None
 
     def isUsingOAuth(self, model: Model) -> bool:
@@ -821,15 +821,15 @@ class ModelRegistry:
         self._upsertRegisteredProvider(providerName, config)
 
     def unregisterProvider(self, providerName: str) -> None:
-        if providerName not in self.registeredProviders:
+        if providerName not in self._registeredProviders:
             return
-        self.registeredProviders.pop(providerName, None)
+        self._registeredProviders.pop(providerName, None)
         self.refresh()
 
     def _upsertRegisteredProvider(self, providerName: str, config: ProviderConfigInput) -> None:
-        existing = self.registeredProviders.get(providerName)
+        existing = self._registeredProviders.get(providerName)
         if existing is None:
-            self.registeredProviders[providerName] = config
+            self._registeredProviders[providerName] = config
             return
         for key, value in config.items():
             if value is not None:
@@ -875,12 +875,12 @@ class ModelRegistry:
 
         models = config.get("models") or []
         if models:
-            self.models = [model for model in self.models if model.provider != providerName]
+            self._models = [model for model in self._models if model.provider != providerName]
             for model_def in models:
                 api = model_def.get("api") or config.get("api")
                 self._storeModelHeaders(providerName, model_def["id"], model_def.get("headers"))
                 cost = model_def.get("cost")
-                self.models.append(
+                self._models.append(
                     Model.model_construct(
                         id=model_def["id"],
                         name=model_def.get("name"),
@@ -902,16 +902,16 @@ class ModelRegistry:
             if oauth and modify_models:
                 credential = self.authStorage.get(providerName)
                 if isinstance(credential, dict) and credential.get("type") == "oauth" and modify_models:
-                    self.models = modify_models(
-                        self.models,
+                    self._models = modify_models(
+                        self._models,
                         OAuthCredentials.model_validate({key: value for key, value in credential.items() if key != "type"}),
                     )
         elif config.get("baseUrl") or config.get("headers"):
-            self.models = [
+            self._models = [
                 model.model_copy(update={"baseUrl": _coalesce(config.get("baseUrl"), model.baseUrl)})
                 if model.provider == providerName
                 else model
-                for model in self.models
+                for model in self._models
             ]
 
 

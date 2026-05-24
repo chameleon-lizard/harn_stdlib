@@ -158,6 +158,43 @@ def test_footer_data_provider_refreshes_on_reftable_changes_without_false_notifi
         provider.dispose()
 
 
+def test_footer_data_provider_head_watcher_filters_non_head_filenames(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_dir = create_plain_repo(tmp_path)
+    watched: list[tuple[str, object]] = []
+
+    class DummyWatcher:
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(footer_data_provider_module, "close_watcher", lambda _watcher: None)
+    monkeypatch.setattr(FooterDataProvider, "_startTablesListPoll", lambda self, path: None)
+
+    def fake_watch_with_error_handler(path: str, callback: object, _on_error: object) -> DummyWatcher:
+        watched.append((path, callback))
+        return DummyWatcher()
+
+    monkeypatch.setattr(footer_data_provider_module, "watch_with_error_handler", fake_watch_with_error_handler)
+
+    provider = FooterDataProvider(str(repo_dir))
+    try:
+        refreshes: list[str] = []
+        provider.scheduleRefresh = lambda: refreshes.append("refresh")  # type: ignore[method-assign]
+        head_callback = watched[0][1]
+
+        assert callable(head_callback)
+        head_callback("change", "index")
+        assert refreshes == []
+
+        head_callback("change", None)
+        head_callback("change", "HEAD")
+        assert refreshes == ["refresh", "refresh"]
+    finally:
+        provider.dispose()
+
+
 def test_footer_data_provider_exports_match_ts_surface() -> None:
     assert footer_data_provider_module.__all__ == [
         "FooterDataProvider",

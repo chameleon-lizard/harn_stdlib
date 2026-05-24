@@ -8,7 +8,7 @@ import sys
 import uuid
 from typing import Any
 
-from harnify_coding_agent.core.output_guard import restore_stdout, take_over_stdout, write_raw_stdout
+from harnify_coding_agent.core.output_guard import restoreStdout, takeOverStdout, writeRawStdout
 from harnify_coding_agent.modes.rpc.jsonl import JsonlLineBuffer, serialize_json_line
 from harnify_coding_agent.modes.rpc.rpc_types import (
     RpcCommand,
@@ -225,14 +225,14 @@ class _RpcUIContext:
 
 
 async def run_rpc_mode(runtime_host: Any, *, input_stream: Any | None = None) -> int:
-    take_over_stdout()
+    takeOverStdout()
     session = runtime_host.session
     unsubscribe = None
     pending_extension_requests: dict[str, asyncio.Future[RpcExtensionUIResponse]] = {}
     shutdown_requested = False
 
     def output(obj: RpcResponse | RpcExtensionUIRequest | dict[str, Any]) -> None:
-        write_raw_stdout(serialize_json_line(obj))
+        writeRawStdout(serialize_json_line(obj))
 
     def success(request_id: str | None, command: str, data: Any = None) -> RpcResponse:
         response: RpcResponse = {"id": request_id, "type": "response", "command": command, "success": True}
@@ -568,7 +568,7 @@ async def run_rpc_mode(runtime_host: Any, *, input_stream: Any | None = None) ->
         if callable(unsubscribe):
             unsubscribe()
         await runtime_host.dispose()
-        restore_stdout()
+        restoreStdout()
 
 
 runRpcMode = run_rpc_mode

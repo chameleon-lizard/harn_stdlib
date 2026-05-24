@@ -840,15 +840,19 @@ async def iterate_anthropic_events(source: Any, signal: Any = None) -> AsyncIter
 
 
 async def _create_raw_response(client: Any, params: dict[str, Any], options: Any = None) -> Any:
-    timeout = (_option(options, "timeoutMs") / 1000) if _option(options, "timeoutMs") is not None else None
+    signal = _option(options, "signal")
+    request_kwargs: dict[str, Any] = {}
+    if _option(options, "timeoutMs") is not None:
+        request_kwargs["timeout"] = _option(options, "timeoutMs") / 1000
+    if _option(options, "maxRetries") is not None:
+        request_kwargs["max_retries"] = _option(options, "maxRetries")
 
     if hasattr(getattr(client, "messages", None), "with_raw_response"):
-        return await client.messages.with_raw_response.create(**params, timeout=timeout)
+        return await _await_maybe_with_signal(client.messages.with_raw_response.create(**params, **request_kwargs), signal)
 
-    created = client.messages.create(**params)
-    created = await _maybe_await(created)
+    created = await _await_maybe_with_signal(client.messages.create(**params, **request_kwargs), signal)
     if hasattr(created, "asResponse"):
-        return await _maybe_await(created.asResponse())
+        return await _await_maybe_with_signal(created.asResponse(), signal)
     return created
 
 
@@ -875,8 +879,8 @@ async def _emit_response_metadata(response: Any, options: Any, model: Model) -> 
         await _maybe_await(on_response({"status": status, "headers": headers_to_record(headers)}, model))
 
 
-async def _iter_event_objects(stream_like: Any) -> AsyncIterator[dict[str, Any]]:
-    async for event in stream_like:
+async def _iter_event_objects(stream_like: Any, signal: Any = None) -> AsyncIterator[dict[str, Any]]:
+    async for event in _iterate_async_iterable(stream_like, signal, on_abort=lambda: _close_stream(stream_like)):
         if hasattr(event, "model_dump"):
             dumped = event.model_dump()
             if isinstance(dumped, dict):
@@ -889,20 +893,6 @@ async def _iter_event_objects(stream_like: Any) -> AsyncIterator[dict[str, Any]]
             yield json.loads(json.dumps(event, default=lambda value: value.__dict__))
         except Exception as error:  # noqa: BLE001
             raise RuntimeError(f"Could not serialize Anthropic stream event: {error}") from error
-
-
-async def _iter_anthropic_stream_events(client: Any, params: dict[str, Any], options: Any, model: Model) -> AsyncIterator[dict[str, Any]]:
-    raw_response = await _create_raw_response(client, params, options)
-    await _emit_response_metadata(raw_response, options, model)
-
-    if hasattr(raw_response, "http_response") or hasattr(raw_response, "iter_lines") or hasattr(raw_response, "aiter_lines"):
-        async for event in iterate_anthropic_events(raw_response, _option(options, "signal")):
-            yield event
-        return
-
-    async for event in _iter_event_objects(raw_response):
-        yield event
-
 
 def _update_usage_from_anthropic_usage(output: AssistantMessage, usage: Mapping[str, Any], model: Model) -> None:
     input_tokens = usage.get("input_tokens")

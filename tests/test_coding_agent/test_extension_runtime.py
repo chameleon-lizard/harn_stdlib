@@ -198,6 +198,40 @@ async def test_extension_loader_and_runner_bind_real_runtime_surface() -> None:
 
 
 @pytest.mark.asyncio
+async def test_extension_api_exec_uses_shared_exec_result_and_per_call_cwd(monkeypatch: pytest.MonkeyPatch) -> None:
+    exec_calls: list[tuple[str, list[str], str, dict[str, object]]] = []
+    exec_result = exec_module.ExecResult(stdout="out", stderr="err", code=7, killed=True)
+    seen_results: list[exec_module.ExecResult] = []
+
+    async def fake_exec_command(
+        command: str,
+        args: list[str],
+        cwd: str,
+        options: dict[str, object] | None = None,
+    ) -> exec_module.ExecResult:
+        exec_calls.append((command, list(args), cwd, dict(options or {})))
+        return exec_result
+
+    monkeypatch.setattr("harnify_coding_agent.core.extensions.loader.exec_command", fake_exec_command)
+
+    async def factory(api: Any) -> None:
+        seen_results.append(await api.exec("demo", ["--flag"], {"cwd": "/override"}))
+
+    await load_extension_from_factory(
+        factory,
+        "/base",
+        create_event_bus(),
+        create_extension_runtime(),
+        extension_path="<inline:exec>",
+    )
+
+    assert exec_calls == [("demo", ["--flag"], "/override", {"cwd": "/override"})]
+    assert seen_results == [exec_result]
+    assert seen_results[0].code == 7
+    assert seen_results[0].killed is True
+
+
+@pytest.mark.asyncio
 async def test_extension_runner_emits_events_and_invalidates_context() -> None:
     errors: list[str] = []
 

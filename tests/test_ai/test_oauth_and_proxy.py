@@ -42,7 +42,14 @@ def test_http_proxy_helpers_resolve_env_and_respect_no_proxy(monkeypatch: pytest
 def test_http_proxy_helpers_reject_unsupported_proxy_protocols(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HTTPS_PROXY", "socks5://proxy.local:1080")
 
-    with pytest.raises(ValueError, match="Unsupported proxy protocol"):
+    with pytest.raises(RuntimeError, match="Unsupported proxy protocol"):
+        node_http_proxy.resolve_http_proxy_url_for_target("https://outside.example/path")
+
+
+def test_http_proxy_helpers_reject_invalid_proxy_urls(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HTTPS_PROXY", "not-a-valid-proxy")
+
+    with pytest.raises(RuntimeError, match='Invalid proxy URL "https://not-a-valid-proxy": Invalid URL'):
         node_http_proxy.resolve_http_proxy_url_for_target("https://outside.example/path")
 
 

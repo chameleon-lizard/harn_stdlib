@@ -472,13 +472,20 @@ def create_client(
     else:
         default_headers = headers
 
-    return AsyncOpenAI(
+    client = AsyncOpenAI(
         api_key=api_key,
         base_url=resolve_cloudflare_base_url(model) if is_cloudflare_provider(model.provider) else model.baseUrl,
         default_headers=default_headers,
-        timeout=(timeout_ms / 1000) if timeout_ms is not None else None,
-        max_retries=max_retries if max_retries is not None else 2,
     )
+
+    request_client_kwargs: dict[str, Any] = {}
+    if timeout_ms is not None:
+        request_client_kwargs["timeout"] = timeout_ms / 1000
+    if max_retries is not None:
+        request_client_kwargs["max_retries"] = max_retries
+    if request_client_kwargs:
+        return client.with_options(**request_client_kwargs)
+    return client
 
 
 def build_params(
@@ -967,10 +974,20 @@ def get_compat(model: Model) -> dict[str, Any]:
 
 
 async def _create_completion_stream(client: Any, params: dict[str, Any], options: Any, model: Model) -> Any:
-    timeout = (_option(options, "timeoutMs") / 1000) if _option(options, "timeoutMs") is not None else None
+    signal = _option(options, "signal")
+    request_client = client
+    request_client_kwargs: dict[str, Any] = {}
+    timeout_ms = _option(options, "timeoutMs")
+    if timeout_ms is not None:
+        request_client_kwargs["timeout"] = timeout_ms / 1000
+    max_retries = _option(options, "maxRetries")
+    if max_retries is not None:
+        request_client_kwargs["max_retries"] = max_retries
+    if request_client_kwargs and hasattr(client, "with_options"):
+        request_client = client.with_options(**request_client_kwargs)
 
-    if hasattr(getattr(getattr(client, "chat", None), "completions", None), "with_raw_response"):
-        raw_response = await client.chat.completions.with_raw_response.create(**params, timeout=timeout)
+    if hasattr(getattr(getattr(request_client, "chat", None), "completions", None), "with_raw_response"):
+        raw_response = await _await_with_signal(request_client.chat.completions.with_raw_response.create(**params), signal)
         on_response = _option(options, "onResponse")
         if callable(on_response):
             await _maybe_await(
@@ -982,12 +999,11 @@ async def _create_completion_stream(client: Any, params: dict[str, Any], options
                     model,
                 )
             )
-        return await raw_response.parse()
+        return await _await_with_signal(raw_response.parse(), signal)
 
-    created = client.chat.completions.create(**params)
-    created = await _maybe_await(created)
+    created = await _await_with_signal(request_client.chat.completions.create(**params), signal)
     if hasattr(created, "withResponse"):
-        wrapped = await _maybe_await(created.withResponse())
+        wrapped = await _await_with_signal(created.withResponse(), signal)
         on_response = _option(options, "onResponse")
         if callable(on_response):
             await _maybe_await(
@@ -1000,8 +1016,23 @@ async def _create_completion_stream(client: Any, params: dict[str, Any], options
     return created
 
 
-async def _iterate_stream(stream_obj: Any) -> AsyncIterator[dict[str, Any]]:
-    async for chunk in stream_obj:
+async def _close_stream(stream_obj: Any) -> None:
+    close = getattr(stream_obj, "close", None)
+    if callable(close):
+        try:
+            await _maybe_await(close())
+        except Exception:  # noqa: BLE001
+            return
+
+
+async def _iterate_stream(stream_obj: Any, signal: Any = None) -> AsyncIterator[dict[str, Any]]:
+    iterator = stream_obj.__aiter__()
+    while True:
+        try:
+            chunk = await _await_with_signal(iterator.__anext__(), signal, on_abort=lambda: _close_stream(stream_obj))
+        except StopAsyncIteration:
+            return
+
         if hasattr(chunk, "model_dump"):
             dumped = chunk.model_dump()
             if isinstance(dumped, dict):

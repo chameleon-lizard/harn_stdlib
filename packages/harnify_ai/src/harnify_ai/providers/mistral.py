@@ -55,6 +55,15 @@ MistralReasoningEffort = Literal["none", "high"]
 _STREAM_END = object()
 
 
+class MistralToolChoiceFunction(TypedDict):
+    name: str
+
+
+class MistralToolChoiceObject(TypedDict):
+    type: Literal["function"]
+    function: MistralToolChoiceFunction
+
+
 class MistralOptions(TypedDict, total=False):
     apiKey: str
     headers: dict[str, str]
@@ -65,7 +74,7 @@ class MistralOptions(TypedDict, total=False):
     onResponse: Any
     timeoutMs: int
     maxRetries: int
-    toolChoice: str | dict[str, str]
+    toolChoice: Literal["auto", "none", "any", "required"] | MistralToolChoiceObject
     promptMode: Literal["reasoning"]
     reasoningEffort: MistralReasoningEffort
 
@@ -619,11 +628,7 @@ async def consume_chat_stream(
             )
 
     finish_current_block(current_block)
-    finalized_indices: set[int] = set()
     for index in tool_blocks_by_key.values():
-        if index in finalized_indices:
-            continue
-        finalized_indices.add(index)
         block = output.content[index]
         if block.type != "toolCall":
             continue

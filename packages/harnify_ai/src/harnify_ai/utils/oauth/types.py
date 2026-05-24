@@ -64,14 +64,13 @@ class OAuthProviderInterface(Protocol):
     id: OAuthProviderId
     name: str
     usesCallbackServer: bool | None
+    modifyModels: Callable[[list[Model], OAuthCredentials], list[Model]] | None
 
     async def login(self, callbacks: OAuthLoginCallbacks) -> OAuthCredentials: ...
 
     async def refreshToken(self, credentials: OAuthCredentials) -> OAuthCredentials: ...
 
     def getApiKey(self, credentials: OAuthCredentials) -> str: ...
-
-    def modifyModels(self, models: list[Model], credentials: OAuthCredentials) -> list[Model]: ...
 
 
 class OAuthProviderInfo(SchemaModel):

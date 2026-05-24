@@ -488,9 +488,15 @@ def normalize_codex_status(status: Any) -> str | None:
     return status if isinstance(status, str) and status in CODEX_RESPONSE_STATUSES else None
 
 
-async def parse_sse(response: httpx.Response) -> AsyncIterator[dict[str, Any]]:
+async def parse_sse(response: httpx.Response, signal: Any = None) -> AsyncIterator[dict[str, Any]]:
     buffer = ""
-    async for chunk in response.aiter_text():
+    iterator = response.aiter_text().__aiter__()
+    while True:
+        try:
+            chunk = await _await_with_abort(iterator.__anext__(), signal, on_abort=lambda: response.aclose())
+        except StopAsyncIteration:
+            break
+
         buffer += chunk
         while True:
             separator = buffer.find("\n\n")
@@ -512,22 +518,44 @@ async def parse_sse(response: httpx.Response) -> AsyncIterator[dict[str, Any]]:
             try:
                 parsed = json.loads(data)
             except Exception as error:  # noqa: BLE001
-                raise CodexProtocolError(f"Invalid Codex SSE JSON: {error}", payload=data) from error
+                raise CodexProtocolError(
+                    f"Invalid Codex SSE JSON: {format_thrown_value(error)}",
+                    payload=data,
+                ) from error
             if isinstance(parsed, dict):
                 yield parsed
 
-    trailing = buffer.strip()
-    if trailing:
-        data_lines = [line[5:].strip() for line in trailing.split("\n") if line.startswith("data:")]
-        if data_lines:
-            data = "\n".join(data_lines).strip()
-            if data and data != "[DONE]":
-                try:
-                    parsed = json.loads(data)
-                except Exception as error:  # noqa: BLE001
-                    raise CodexProtocolError(f"Invalid Codex SSE JSON: {error}", payload=data) from error
-                if isinstance(parsed, dict):
-                    yield parsed
+
+def _get_codex_user_agent() -> str:
+    try:
+        system = platform.system().lower()
+        platform_name = "win32" if system == "windows" else system
+        arch = platform.machine().lower()
+        arch = {
+            "x86_64": "x64",
+            "amd64": "x64",
+            "i386": "ia32",
+            "i686": "ia32",
+            "aarch64": "arm64",
+        }.get(arch, arch)
+        return f"pi ({platform_name} {platform.release()}; {arch})"
+    except Exception:
+        return "pi (browser)"
+
+
+def _build_base_codex_headers(
+    model_headers: Mapping[str, str] | None,
+    option_headers: Mapping[str, str] | None,
+    account_id: str,
+    api_key: str,
+) -> dict[str, str]:
+    headers = dict(model_headers or {})
+    headers.update(dict(option_headers or {}))
+    headers["authorization"] = f"Bearer {api_key}"
+    headers["chatgpt-account-id"] = account_id
+    headers["originator"] = "pi"
+    headers["User-Agent"] = _get_codex_user_agent()
+    return headers
 
 
 async def parse_error_response(response: httpx.Response) -> dict[str, str]:

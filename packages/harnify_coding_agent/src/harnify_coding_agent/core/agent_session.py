@@ -1480,31 +1480,41 @@ class AgentSession:
 
     async def _handle_agent_event(self, event: Any, _signal: Any | None = None) -> None:
         event_type = _event_type(event)
-        if event_type == "message_start" and _message_role(_event_field(event, "message")) == "user":
+        message = _event_field(event, "message")
+        if event_type == "message_start" and _message_role(message) == "user":
             self._overflow_recovery_attempted = False
+            message_text = self._extract_user_message_text(_message_content(message))
+            if message_text:
+                if message_text in self._steeringMessages:
+                    self._steeringMessages.remove(message_text)
+                    self._emit_queue_update()
+                elif message_text in self._followUpMessages:
+                    self._followUpMessages.remove(message_text)
+                    self._emit_queue_update()
+
+        await self._emit_extension_event(event)
 
         if event_type == "agent_end":
             self._emit(_decorate_agent_end_event(event, self._will_retry_after_agent_end(event)))
-            return
+        else:
+            self._emit(event)
 
-        self._emit(event)
-
-        if event_type == "message_end":
-            message = _event_field(event, "message")
-            if message is not None:
-                self._persist_message(message)
-                assistant_message = _as_assistant_message(message)
-                if assistant_message is not None:
-                    self._lastAssistantMessage = assistant_message
-                    if assistant_message.stopReason != "error" and self._retryAttempt > 0:
-                        self._emit(
-                            {
-                                "type": "auto_retry_end",
-                                "success": True,
-                                "attempt": self._retryAttempt,
-                            }
-                        )
-                        self._retryAttempt = 0
+        if event_type == "message_end" and message is not None:
+            self._persist_message(message)
+            assistant_message = _as_assistant_message(message)
+            if assistant_message is not None:
+                self._lastAssistantMessage = assistant_message
+                if assistant_message.stopReason != "error":
+                    self._overflow_recovery_attempted = False
+                if assistant_message.stopReason != "error" and self._retryAttempt > 0:
+                    self._emit(
+                        {
+                            "type": "auto_retry_end",
+                            "success": True,
+                            "attempt": self._retryAttempt,
+                        }
+                    )
+                    self._retryAttempt = 0
 
     def _emit(self, event: Any) -> None:
         for listener in list(self._eventListeners):
@@ -1518,9 +1528,19 @@ class AgentSession:
         resolved = self._extensionRunner.get_command(command_name)
         if resolved is None or resolved.handler is None:
             return False
-        result = resolved.handler(raw_args.lstrip(), self._extensionRunner.create_command_context())
-        if inspect.isawaitable(result):
-            await result
+
+        try:
+            result = resolved.handler(raw_args.lstrip(), self._extensionRunner.create_command_context())
+            if inspect.isawaitable(result):
+                await result
+        except Exception as error:  # noqa: BLE001
+            self._extensionRunner.emit_error(
+                {
+                    "extensionPath": f"command:{command_name}",
+                    "event": "command",
+                    "error": str(error),
+                }
+            )
         return True
 
     def _persist_message(self, message: Any) -> None:
@@ -1534,6 +1554,101 @@ class AgentSession:
             )
         elif role in {"user", "assistant", "toolResult"}:
             self.sessionManager.appendMessage(_message_dict(message))
+
+    async def _emit_extension_event(self, event: Any) -> None:
+        event_type = _event_type(event)
+        if event_type == "agent_start":
+            self._turnIndex = 0
+            await self._extensionRunner.emit({"type": "agent_start"})
+        elif event_type == "agent_end":
+            await self._extensionRunner.emit(
+                {
+                    "type": "agent_end",
+                    "messages": list(_event_field(event, "messages", []) or []),
+                }
+            )
+        elif event_type == "turn_start":
+            await self._extensionRunner.emit(
+                {
+                    "type": "turn_start",
+                    "turnIndex": self._turnIndex,
+                    "timestamp": int(time.time() * 1000),
+                }
+            )
+        elif event_type == "turn_end":
+            await self._extensionRunner.emit(
+                {
+                    "type": "turn_end",
+                    "turnIndex": self._turnIndex,
+                    "message": _event_field(event, "message"),
+                    "toolResults": _event_field(event, "toolResults"),
+                }
+            )
+            self._turnIndex += 1
+        elif event_type == "message_start":
+            await self._extensionRunner.emit({"type": "message_start", "message": _event_field(event, "message")})
+        elif event_type == "message_update":
+            await self._extensionRunner.emit(
+                {
+                    "type": "message_update",
+                    "message": _event_field(event, "message"),
+                    "assistantMessageEvent": _event_field(event, "assistantMessageEvent"),
+                }
+            )
+        elif event_type == "message_end":
+            message = _event_field(event, "message")
+            replacement = await self._extensionRunner.emit_message_end({"type": "message_end", "message": message})
+            if replacement is not None and message is not None:
+                self._replace_message_in_place(message, replacement)
+        elif event_type == "tool_execution_start":
+            await self._extensionRunner.emit(
+                {
+                    "type": "tool_execution_start",
+                    "toolCallId": _event_field(event, "toolCallId"),
+                    "toolName": _event_field(event, "toolName"),
+                    "args": _event_field(event, "args"),
+                }
+            )
+        elif event_type == "tool_execution_update":
+            await self._extensionRunner.emit(
+                {
+                    "type": "tool_execution_update",
+                    "toolCallId": _event_field(event, "toolCallId"),
+                    "toolName": _event_field(event, "toolName"),
+                    "args": _event_field(event, "args"),
+                    "partialResult": _event_field(event, "partialResult"),
+                }
+            )
+        elif event_type == "tool_execution_end":
+            await self._extensionRunner.emit(
+                {
+                    "type": "tool_execution_end",
+                    "toolCallId": _event_field(event, "toolCallId"),
+                    "toolName": _event_field(event, "toolName"),
+                    "result": _event_field(event, "result"),
+                    "isError": _event_field(event, "isError"),
+                }
+            )
+
+    def _replace_message_in_place(self, target: Any, replacement: Any) -> None:
+        if target is replacement:
+            return
+        replacement_dict = _message_dict(replacement)
+        if isinstance(target, dict):
+            target.clear()
+            target.update(replacement_dict)
+            return
+        target_dict = getattr(target, "__dict__", None)
+        if isinstance(target_dict, dict):
+            target_dict.clear()
+            target_dict.update(replacement_dict)
+            fields_set = getattr(target, "__pydantic_fields_set__", None)
+            if isinstance(fields_set, set):
+                fields_set.clear()
+                fields_set.update(replacement_dict.keys())
+            return
+        for key, value in replacement_dict.items():
+            setattr(target, key, value)
 
     def _bind_extension_core(self, runner: ExtensionRunner) -> None:
         def _compact_from_extension(options: dict[str, Any] | None = None) -> None:

@@ -363,6 +363,19 @@ async def test_agent_session_context_usage_uses_shared_estimator(tmp_path: Path)
 @pytest.mark.asyncio
 async def test_agent_session_before_agent_start_preserves_explicit_empty_images(tmp_path: Path) -> None:
     seen_images: list[object] = []
+    registration = register_faux_provider(
+        {
+            "models": [
+                {
+                    "id": "empty-images-model",
+                    "reasoning": True,
+                    "contextWindow": 200_000,
+                    "maxTokens": 8_192,
+                }
+            ]
+        }
+    )
+    registration.set_responses([faux_assistant_message("ok")])
 
     def extension_factory(pi: object) -> None:
         def on_before_agent_start(event: dict[str, object], _ctx: object) -> None:
@@ -371,8 +384,8 @@ async def test_agent_session_before_agent_start_preserves_explicit_empty_images(
 
         pi.on("before_agent_start", on_before_agent_start)  # type: ignore[attr-defined]
 
-    session = await _create_loaded_session(tmp_path, extension_factories=[extension_factory])
-    session.agent.set_responses([faux_assistant_message("ok")])
+    session = await _create_loaded_session(tmp_path, extension_factories=[extension_factory], provider="faux")
+    session.agent.state.model = registration.get_model()
     try:
         await session.prompt("hello", {"images": []})
 

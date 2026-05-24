@@ -561,20 +561,35 @@ def _build_base_codex_headers(
 async def parse_error_response(response: httpx.Response) -> dict[str, str]:
     text = await response.aread()
     text_value = text.decode("utf-8", errors="replace")
+    message = text_value or response.reason_phrase or "Request failed"
+    friendly_message: str | None = None
+
     try:
         payload = json.loads(text_value)
     except Exception:
-        return {"message": text_value or f"HTTP {response.status_code}"}
+        return {"message": message}
 
     if isinstance(payload, Mapping):
         error = payload.get("error")
         if isinstance(error, Mapping):
-            message = str(error.get("message") or error.get("code") or text_value or f"HTTP {response.status_code}")
-            return {"message": message, "friendlyMessage": message}
-        message = str(payload.get("message") or text_value or f"HTTP {response.status_code}")
-        return {"message": message, "friendlyMessage": message}
+            code = str(error.get("code") or error.get("type") or "")
+            if re.search(r"usage_limit_reached|usage_not_included|rate_limit_exceeded", code, re.IGNORECASE) or response.status_code == 429:
+                plan_type = error.get("plan_type")
+                plan = f" ({str(plan_type).lower()} plan)" if isinstance(plan_type, str) and plan_type else ""
+                resets_at = error.get("resets_at")
+                mins: int | None = None
+                if isinstance(resets_at, (int, float)):
+                    mins = max(0, round((resets_at * 1000 - time.time() * 1000) / 60000))
+                when = f" Try again in ~{mins} min." if mins is not None else ""
+                friendly_message = f"You have hit your ChatGPT usage limit{plan}.{when}".strip()
+            message = str(error.get("message") or friendly_message or message)
+        elif payload.get("message") is not None:
+            message = str(payload["message"])
 
-    return {"message": text_value or f"HTTP {response.status_code}"}
+    result = {"message": message}
+    if friendly_message is not None:
+        result["friendlyMessage"] = friendly_message
+    return result
 
 
 async def _get_websocket_connector() -> Callable[..., Any] | None:

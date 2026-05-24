@@ -442,8 +442,50 @@ async def test_agent_session_runtime_honors_cancellation_and_missing_import(tmp_
     assert await runtime.newSession() == {"cancelled": True}
     assert runtime.session.sessionFile == current_file
     assert await runtime.fork("missing-entry", {"position": "at"}) == {"cancelled": True}
-    with pytest.raises(SessionImportFileNotFoundError):
+    with pytest.raises(SessionImportFileNotFoundError) as excinfo:
         await runtime.importFromJsonl(str(tmp_path / "missing.jsonl"))
+    assert excinfo.value.name == "SessionImportFileNotFoundError"
+    assert excinfo.value.filePath == os.path.abspath(str(tmp_path / "missing.jsonl"))
+
+
+@pytest.mark.asyncio
+async def test_agent_session_runtime_only_cancels_on_literal_true(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    initial_manager = SessionManager.create(str(root))
+    initial_manager.appendMessage({"role": "user", "content": "hello", "timestamp": 1})
+
+    def truthy_cancel(_event: dict[str, Any]) -> dict[str, Any]:
+        return {"cancel": 1}
+
+    runtime = await createAgentSessionRuntime(
+        _build_factory([], event_handlers={"session_before_switch": [truthy_cancel]}),
+        {
+            "cwd": str(root),
+            "agentDir": str(root),
+            "sessionManager": initial_manager,
+        },
+    )
+
+    assert await runtime.newSession() == {"cancelled": False}
+
+
+def test_agent_session_runtime_module_exports_match_ts_surface() -> None:
+    import harnify_coding_agent.core.agent_session_runtime as runtime_module
+
+    assert runtime_module.__all__ == [
+        "AgentSessionRuntime",
+        "AgentSessionRuntimeDiagnostic",
+        "AgentSessionServices",
+        "CreateAgentSessionFromServicesOptions",
+        "CreateAgentSessionRuntimeFactory",
+        "CreateAgentSessionRuntimeResult",
+        "CreateAgentSessionServicesOptions",
+        "SessionImportFileNotFoundError",
+        "createAgentSessionFromServices",
+        "createAgentSessionRuntime",
+        "createAgentSessionServices",
+    ]
 
 
 async def _async_append(target: list[Any], value: Any) -> None:

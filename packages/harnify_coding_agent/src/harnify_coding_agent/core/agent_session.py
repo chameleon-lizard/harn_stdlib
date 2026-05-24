@@ -1826,14 +1826,6 @@ class AgentSession:
             self._extensionRunnerRef["current"] = runner
         return runner
 
-    def _extension_runner_matches_resource_loader(self) -> bool:
-        extensions_result = self._resourceLoader.getExtensions()
-        if self._extensionRunner.runtime is not extensions_result.runtime:
-            return False
-        current_paths = [extension.path for extension in self._extensionRunner.extensions]
-        resource_paths = [extension.path for extension in extensions_result.extensions]
-        return current_paths == resource_paths
-
     def _register_provider(self, name: str, config: dict[str, Any]) -> None:
         self._modelRegistry.registerProvider(name, config)
         self._refresh_current_model_from_registry()

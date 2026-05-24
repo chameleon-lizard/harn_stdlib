@@ -88,8 +88,8 @@ async def _exchange_authorization_code(code: str, verifier: str, redirect_uri: s
         }
 
     data = response.json()
-    if not data.get("access_token") or not data.get("refresh_token") or not isinstance(data.get("expires_in"), int):
-        return {"type": "failed", "message": f"OpenAI Codex token exchange response missing fields: {data}"}
+    if not data.get("access_token") or not data.get("refresh_token") or not isinstance(data.get("expires_in"), (int, float)):
+        return {"type": "failed", "message": f"OpenAI Codex token exchange response missing fields: {json.dumps(data)}"}
 
     return {
         "type": "success",
@@ -121,8 +121,8 @@ async def _refresh_access_token(refresh_token: str) -> dict[str, Any]:
         }
 
     data = response.json()
-    if not data.get("access_token") or not data.get("refresh_token") or not isinstance(data.get("expires_in"), int):
-        return {"type": "failed", "message": f"OpenAI Codex token refresh response missing fields: {data}"}
+    if not data.get("access_token") or not data.get("refresh_token") or not isinstance(data.get("expires_in"), (int, float)):
+        return {"type": "failed", "message": f"OpenAI Codex token refresh response missing fields: {json.dumps(data)}"}
     return {
         "type": "success",
         "access": data["access_token"],

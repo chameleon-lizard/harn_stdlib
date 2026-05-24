@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import NotRequired, get_origin, get_type_hints
 
 import pytest
 from harnify_coding_agent.core.auth_storage import AuthStorage
@@ -162,15 +163,13 @@ def test_model_registry_module_exports_match_ts_surface() -> None:
 def test_provider_config_input_model_shape_matches_ts_required_keys() -> None:
     from harnify_coding_agent.core import model_registry
 
-    assert model_registry._ProviderModelInput.__required_keys__ == {
-        "id",
-        "name",
-        "reasoning",
-        "input",
-        "cost",
-        "contextWindow",
-        "maxTokens",
-    }
+    hints = get_type_hints(model_registry._ProviderModelInput, include_extras=True)
+
+    for key in ("id", "name", "reasoning", "input", "cost", "contextWindow", "maxTokens"):
+        assert get_origin(hints[key]) is None
+
+    for key in ("api", "baseUrl", "thinkingLevelMap", "headers", "compat"):
+        assert get_origin(hints[key]) is NotRequired
 
 
 def test_model_registry_private_helpers_are_not_public() -> None:

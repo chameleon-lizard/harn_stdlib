@@ -612,8 +612,8 @@ class AgentSession:
                 return text
         return text
 
-    def setSessionName(self, name: str | None) -> None:
-        self.sessionManager.appendSessionInfo(name or "")
+    def setSessionName(self, name: str) -> None:
+        self.sessionManager.appendSessionInfo(name)
         self._emit({"type": "session_info_changed", "name": self.sessionManager.getSessionName()})
 
     def clearQueue(self) -> dict[str, list[str]]:
@@ -1015,11 +1015,10 @@ class AgentSession:
                     "signal": self._bashAbortController.signal,
                 },
             )
+            self.recordBashResult(command, result, resolved_options)
+            return result
         finally:
             self._bashAbortController = None
-
-        self.recordBashResult(command, result, resolved_options)
-        return result
 
     def recordBashResult(self, command: str, result: BashResult, options: dict[str, Any] | None = None) -> None:
         resolved_options = dict(options or {})
@@ -1179,13 +1178,13 @@ class AgentSession:
         if targetId == old_leaf_id:
             return {"cancelled": False}
 
-        target_entry = self.sessionManager.getEntry(targetId)
-        if target_entry is None:
-            raise RuntimeError(f"Entry {targetId} not found")
-
         wants_summary = bool(resolved_options.get("summarize"))
         if wants_summary and self.model is None:
             raise RuntimeError("No model available for summarization")
+
+        target_entry = self.sessionManager.getEntry(targetId)
+        if target_entry is None:
+            raise RuntimeError(f"Entry {targetId} not found")
 
         collected = collect_entries_for_branch_summary(self.sessionManager, old_leaf_id, targetId)
         custom_instructions = resolved_options.get("customInstructions")
@@ -1522,7 +1521,7 @@ class AgentSession:
                     self._retryAttempt = 0
 
     def _emit(self, event: Any) -> None:
-        for listener in list(self._eventListeners):
+        for listener in self._eventListeners:
             listener(event)
 
     async def _try_execute_extension_command(self, text: str) -> bool:

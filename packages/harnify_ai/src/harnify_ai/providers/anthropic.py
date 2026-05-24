@@ -849,17 +849,23 @@ async def _create_raw_response(client: Any, params: dict[str, Any], options: Any
     signal = _option(options, "signal")
     request_client = client
     request_client_options: dict[str, Any] = {}
+    request_call_options: dict[str, Any] = {}
     if _option(options, "timeoutMs") is not None:
         request_client_options["timeout"] = _option(options, "timeoutMs") / 1000
     if _option(options, "maxRetries") is not None:
         request_client_options["max_retries"] = _option(options, "maxRetries")
     if request_client_options and hasattr(client, "with_options"):
         request_client = client.with_options(**request_client_options)
+    else:
+        request_call_options = request_client_options
 
     if hasattr(getattr(request_client, "messages", None), "with_raw_response"):
-        return await _await_maybe_with_signal(request_client.messages.with_raw_response.create(**params), signal)
+        return await _await_maybe_with_signal(
+            request_client.messages.with_raw_response.create(**params, **request_call_options),
+            signal,
+        )
 
-    created = await _await_maybe_with_signal(request_client.messages.create(**params), signal)
+    created = await _await_maybe_with_signal(request_client.messages.create(**params, **request_call_options), signal)
     if hasattr(created, "asResponse"):
         return await _await_maybe_with_signal(created.asResponse(), signal)
     return created

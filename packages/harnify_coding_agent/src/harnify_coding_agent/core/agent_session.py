@@ -369,12 +369,8 @@ class AgentSession:
         return unsubscribe
 
     def dispose(self) -> None:
-        self.abortRetry()
         self._extensionRunner.invalidate(_STALE_CONTEXT_MESSAGE)
         self._disconnect_from_agent()
-        if self._extensionErrorUnsubscriber is not None:
-            self._extensionErrorUnsubscriber()
-            self._extensionErrorUnsubscriber = None
         self._eventListeners = []
         cleanup_session_resources(self.sessionId)
 
@@ -1076,7 +1072,7 @@ class AgentSession:
                 last_entry = branch_entries[-1] if branch_entries else None
                 if isinstance(last_entry, dict) and last_entry.get("type") == "compaction":
                     raise RuntimeError("Already compacted")
-                raise RuntimeError("Nothing to compact")
+                raise RuntimeError("Nothing to compact (session too small)")
 
             hook_result = None
             from_hook = False
@@ -1155,7 +1151,7 @@ class AgentSession:
             return result
         except Exception as error:
             message = str(error)
-            aborted = message == "Compaction cancelled"
+            aborted = message == "Compaction cancelled" or getattr(error, "name", None) == "AbortError"
             self._emit(
                 {
                     "type": "compaction_end",

@@ -112,6 +112,19 @@ async def test_device_code_flow_uses_slow_down_timeout_message(monkeypatch: pyte
     assert sleeps == [1000, 500]
 
 
+def test_device_code_module_exports_expected_names() -> None:
+    assert device_code.__all__ == [
+        "OAuthDeviceCodeCompleteResult",
+        "OAuthDeviceCodeFailedResult",
+        "OAuthDeviceCodePendingResult",
+        "OAuthDeviceCodePollOptions",
+        "OAuthDeviceCodePollResult",
+        "OAuthDeviceCodeSlowDownResult",
+        "pollOAuthDeviceCodeFlow",
+        "poll_oauth_device_code_flow",
+    ]
+
+
 def test_oauth_page_html_matches_escape_contract() -> None:
     rendered = oauth_page.oauth_error_html(
         'Bad <state> "quote"',

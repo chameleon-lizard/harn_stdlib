@@ -27,9 +27,9 @@ from harnify_coding_agent.core.compaction.compaction import (
     generate_summary,
     get_last_assistant_usage,
     prepare_compaction,
-    serialize_conversation,
     should_compact,
 )
+from harnify_coding_agent.core.compaction.utils import serialize_conversation
 from harnify_coding_agent.core.session_manager import SessionManager, build_session_context
 
 
@@ -357,6 +357,14 @@ def test_prepare_compaction_and_serialization_behaviour() -> None:
     )
     assert prepare_compaction([], DEFAULT_COMPACTION_SETTINGS) is None
 
+    empty_summary_compaction = create_compaction_entry("", u1["id"], a1["id"])
+    preparation = prepare_compaction(
+        [u1, a1, empty_summary_compaction, u2, a2],
+        CompactionSettings(enabled=True, reserveTokens=100, keepRecentTokens=1),
+    )
+    assert preparation is not None
+    assert preparation.previousSummary == ""
+
     long_content = "x" * 5000
     result = serialize_conversation(
         [
@@ -490,6 +498,24 @@ async def test_generate_summary_and_compact_behaviour(registrations: list[Any]) 
                 settings=CompactionSettings(enabled=True, reserveTokens=2000, keepRecentTokens=20),
             ),
             history_model,
+            "test-key",
+        )
+
+    deferred_uuid_model = create_faux_model(registrations, reasoning=False)
+    registrations[-1].set_responses([faux_assistant_message("", stop_reason="error", error_message="late boom")])
+    with pytest.raises(RuntimeError, match="Summarization failed: late boom"):
+        await compact(
+            CompactionPreparation(
+                firstKeptEntryId="",
+                messagesToSummarize=messages,
+                turnPrefixMessages=[],
+                isSplitTurn=False,
+                tokensBefore=100,
+                previousSummary=None,
+                fileOps=FileOperations(),
+                settings=CompactionSettings(enabled=True, reserveTokens=2000, keepRecentTokens=20),
+            ),
+            deferred_uuid_model,
             "test-key",
         )
 
@@ -689,3 +715,27 @@ def test_get_message_from_entry_passes_raw_fields_without_python_coercion(monkey
         == "compaction"
     )
     assert captured["compaction"] == (summary, tokens_before, timestamp)
+
+
+def test_compaction_module_exports_match_ts_surface() -> None:
+    from harnify_coding_agent.core.compaction import compaction
+
+    assert compaction.__all__ == [
+        "CompactionDetails",
+        "CompactionPreparation",
+        "CompactionResult",
+        "CompactionSettings",
+        "ContextUsageEstimate",
+        "CutPointResult",
+        "DEFAULT_COMPACTION_SETTINGS",
+        "calculateContextTokens",
+        "compact",
+        "estimateContextTokens",
+        "estimateTokens",
+        "findCutPoint",
+        "findTurnStartIndex",
+        "generateSummary",
+        "getLastAssistantUsage",
+        "prepareCompaction",
+        "shouldCompact",
+    ]

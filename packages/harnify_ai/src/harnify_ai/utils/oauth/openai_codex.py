@@ -23,7 +23,7 @@ AUTHORIZE_URL = "https://auth.openai.com/oauth/authorize"
 TOKEN_URL = "https://auth.openai.com/oauth/token"
 REDIRECT_URI = "http://localhost:1455/auth/callback"
 SCOPE = "openid profile email offline_access"
-JWT_CLAIM_PATH = "https://api.openai.com/auth"
+_JWT_CLAIM_PATH = "https://api.openai.com/auth"
 
 
 def _create_state() -> str:
@@ -37,7 +37,8 @@ def _parse_authorization_input(input_text: str) -> dict[str, str | None]:
 
     try:
         parsed = urlparse(value)
-        if parsed.scheme and parsed.netloc:
+        hostname = parsed.hostname
+        if parsed.scheme and parsed.netloc and hostname and not any(character.isspace() for character in hostname):
             params = parse_qs(parsed.query)
             return {"code": params.get("code", [None])[0], "state": params.get("state", [None])[0]}
     except Exception:
@@ -68,7 +69,7 @@ def _decode_jwt(token: str) -> dict[str, Any] | None:
 
 
 async def _exchange_authorization_code(code: str, verifier: str, redirect_uri: str = REDIRECT_URI) -> dict[str, Any]:
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=None) as client:
         response = await client.post(
             TOKEN_URL,
             data={
@@ -101,7 +102,7 @@ async def _exchange_authorization_code(code: str, verifier: str, redirect_uri: s
 
 async def _refresh_access_token(refresh_token: str) -> dict[str, Any]:
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=None) as client:
             response = await client.post(
                 TOKEN_URL,
                 data={
@@ -131,7 +132,7 @@ async def _refresh_access_token(refresh_token: str) -> dict[str, Any]:
     }
 
 
-async def create_authorization_flow(originator: str = "pi") -> dict[str, str]:
+async def _create_authorization_flow(originator: str = "pi") -> dict[str, str]:
     pkce = await generate_pkce()
     verifier = pkce.verifier
     challenge = pkce.challenge
@@ -167,6 +168,14 @@ async def _start_local_oauth_server(state: str) -> _OAuthServerInfo:
     loop = asyncio.get_running_loop()
     future: asyncio.Future[dict[str, str] | None] = loop.create_future()
 
+    def _status_line(status: int) -> str:
+        reason = {
+            200: "OK",
+            400: "Bad Request",
+            404: "Not Found",
+        }.get(status, "OK")
+        return f"HTTP/1.1 {status} {reason}\r\n"
+
     async def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         try:
             request_line = await reader.readline()
@@ -193,7 +202,7 @@ async def _start_local_oauth_server(state: str) -> _OAuthServerInfo:
                 if not future.done():
                     future.set_result({"code": params["code"][0]})
             response = (
-                f"HTTP/1.1 {status} OK\r\n"
+                f"{_status_line(status)}"
                 "Content-Type: text/html; charset=utf-8\r\n"
                 f"Content-Length: {len(body.encode('utf-8'))}\r\n"
                 "Connection: close\r\n\r\n"
@@ -226,13 +235,13 @@ async def _start_local_oauth_server(state: str) -> _OAuthServerInfo:
 
 def _get_account_id(access_token: str) -> str | None:
     payload = _decode_jwt(access_token)
-    auth = payload.get(JWT_CLAIM_PATH) if payload else None
+    auth = payload.get(_JWT_CLAIM_PATH) if payload else None
     account_id = auth.get("chatgpt_account_id") if isinstance(auth, dict) else None
     return account_id if isinstance(account_id, str) and account_id else None
 
 
 async def login_openai_codex(options: dict[str, Any]) -> OAuthCredentials:
-    auth_flow = await create_authorization_flow(options.get("originator", "pi"))
+    auth_flow = await _create_authorization_flow(options.get("originator", "pi"))
     verifier = auth_flow["verifier"]
     state = auth_flow["state"]
     url = auth_flow["url"]
@@ -243,14 +252,14 @@ async def login_openai_codex(options: dict[str, Any]) -> OAuthCredentials:
     try:
         if options.get("onManualCodeInput") is not None:
             manual_code: str | None = None
-            manual_error: BaseException | None = None
+            manual_error: Exception | None = None
 
             async def manual_worker() -> None:
                 nonlocal manual_code, manual_error
                 try:
                     manual_code = await options["onManualCodeInput"]()
                 except BaseException as error:  # noqa: BLE001
-                    manual_error = error
+                    manual_error = error if isinstance(error, Exception) else RuntimeError(str(error))
                 finally:
                     server.cancelWait()
 
@@ -350,3 +359,12 @@ openai_codex_oauth_provider = _OpenAICodexOAuthProvider()
 loginOpenAICodex = login_openai_codex
 refreshOpenAICodexToken = refresh_openai_codex_token
 openaiCodexOAuthProvider = openai_codex_oauth_provider
+
+__all__ = [
+    "loginOpenAICodex",
+    "login_openai_codex",
+    "openaiCodexOAuthProvider",
+    "openai_codex_oauth_provider",
+    "refreshOpenAICodexToken",
+    "refresh_openai_codex_token",
+]

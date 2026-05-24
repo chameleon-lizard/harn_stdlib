@@ -143,7 +143,13 @@ async def test_extension_loader_and_runner_bind_real_runtime_surface() -> None:
     registered_providers: list[tuple[str, dict[str, Any]]] = []
     unregistered_providers: list[str] = []
 
-    runner = ExtensionRunner(extensions=[extension], runtime=runtime)
+    runner = ExtensionRunner(
+        extensions=[extension],
+        runtime=runtime,
+        cwd="/tmp",
+        sessionManager=None,
+        modelRegistry=None,
+    )
 
     runner.bind_core(
         {
@@ -295,7 +301,10 @@ async def test_extension_runner_emits_events_and_invalidates_context() -> None:
     )
     runner = ExtensionRunner(
         extensions=[extension],
+        runtime=create_extension_runtime(),
         cwd="runner-cwd",
+        sessionManager=None,
+        modelRegistry=None,
     )
     runner.on_error(lambda error: errors.append(error))
 
@@ -407,7 +416,13 @@ async def test_extension_runner_before_agent_start_ctx_uses_latest_system_prompt
         create_extension_runtime(),
         extension_path="<inline:before-agent>",
     )
-    runner = ExtensionRunner(extensions=[extension], cwd="runner-cwd")
+    runner = ExtensionRunner(
+        extensions=[extension],
+        runtime=create_extension_runtime(),
+        cwd="runner-cwd",
+        sessionManager=None,
+        modelRegistry=None,
+    )
     runner.bind_core(
         {
             "sendMessage": lambda message, options=None: None,
@@ -452,7 +467,13 @@ def test_extension_runner_resolves_commands_and_shortcuts_conflicts() -> None:
     extension_two = _extension_with_command_and_shortcut("<ext:two>", "demo", "ctrl+x")
     extension_reserved = _extension_with_command_and_shortcut("<ext:reserved>", "other", "ctrl+c")
 
-    runner = ExtensionRunner(extensions=[extension_one, extension_two, extension_reserved])
+    runner = ExtensionRunner(
+        extensions=[extension_one, extension_two, extension_reserved],
+        runtime=create_extension_runtime(),
+        cwd="/tmp",
+        sessionManager=None,
+        modelRegistry=None,
+    )
 
     commands = runner.get_registered_commands()
     assert [command.invocationName for command in commands] == ["demo:1", "demo:2", "other"]
@@ -486,7 +507,13 @@ async def test_extension_runner_matches_ts_nullish_and_warning_behaviour(capsys:
         extension_path="<inline:nullish>",
     )
     shortcut_extension = _extension_with_command_and_shortcut("<ext:warn>", "demo", "ctrl+c")
-    runner = ExtensionRunner(extensions=[extension, shortcut_extension], cwd="runner-cwd")
+    runner = ExtensionRunner(
+        extensions=[extension, shortcut_extension],
+        runtime=create_extension_runtime(),
+        cwd="runner-cwd",
+        sessionManager=None,
+        modelRegistry=None,
+    )
 
     runner.bind_core(
         {

@@ -152,22 +152,6 @@ class _ContextBase:
     def _extra(self, name: str, default: Any) -> Any:
         return self._extras.get(name, default)
 
-    def __getitem__(self, key: str) -> Any:
-        if key in self._extras:
-            return self._extras[key]
-        return getattr(self, key)
-
-    def get(self, key: str, default: Any = None) -> Any:
-        try:
-            return self[key]
-        except AttributeError:
-            return default
-
-    def __getattr__(self, name: str) -> Any:
-        if name in self._extras:
-            return self._extras[name]
-        raise AttributeError(name)
-
     @property
     def ui(self) -> Any:
         self._runner._assert_active()

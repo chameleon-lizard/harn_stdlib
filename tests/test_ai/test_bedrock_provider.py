@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -41,6 +42,41 @@ class _FakeBedrockClient:
     async def converse_stream(self, **kwargs: Any) -> dict[str, Any]:
         self.calls.append(kwargs)
         return self.response
+
+
+class _AbortSignal:
+    def __init__(self) -> None:
+        self.aborted = False
+        self._event = asyncio.Event()
+
+    def abort(self) -> None:
+        self.aborted = True
+        self._event.set()
+
+    def is_set(self) -> bool:
+        return self._event.is_set()
+
+    async def wait(self) -> None:
+        await self._event.wait()
+
+
+class _BlockingAsyncStream:
+    def __init__(self) -> None:
+        self._step = 0
+        self.closed = False
+
+    def __aiter__(self) -> _BlockingAsyncStream:
+        return self
+
+    async def __anext__(self) -> dict[str, Any]:
+        if self._step == 0:
+            self._step += 1
+            return {"messageStart": {"role": "assistant"}}
+        await asyncio.sleep(3600)
+        raise StopAsyncIteration
+
+    async def close(self) -> None:
+        self.closed = True
 
 
 def _usage() -> Usage:
@@ -179,6 +215,21 @@ def test_build_additional_model_request_fields_handles_xhigh_and_govcloud() -> N
     }
 
 
+def test_build_additional_model_request_fields_uses_ts_nullish_defaults() -> None:
+    model = get_model("amazon-bedrock", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
+    assert model is not None
+
+    fields = build_additional_model_request_fields(
+        model,
+        {"reasoning": "high", "thinkingDisplay": None, "interleavedThinking": None},
+    )
+
+    assert fields == {
+        "thinking": {"type": "enabled", "budget_tokens": 16384, "display": "summarized"},
+        "anthropic_beta": ["interleaved-thinking-2025-05-14"],
+    }
+
+
 def test_build_client_settings_matches_bedrock_endpoint_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
     eu_model = get_model("amazon-bedrock", "eu.anthropic.claude-sonnet-4-5-20250929-v1:0")
     us_model = get_model("amazon-bedrock", "us.anthropic.claude-opus-4-7")
@@ -202,6 +253,44 @@ def test_build_client_settings_matches_bedrock_endpoint_resolution(monkeypatch: 
     custom_settings = build_client_settings(custom_model, {"cacheRetention": "none"})
     assert custom_settings.endpoint_url == "https://bedrock-vpc.example.com"
     assert custom_settings.region_name == "us-east-2"
+
+
+@pytest.mark.asyncio
+async def test_stream_bedrock_on_payload_sees_ts_command_shape_before_request_filtering() -> None:
+    model = get_model("amazon-bedrock", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
+    assert model is not None
+
+    captured_payload: dict[str, Any] | None = None
+    fake_client = _FakeBedrockClient(
+        {
+            "ResponseMetadata": {"HTTPStatusCode": 200, "RequestId": "req_payload"},
+            "stream": [
+                {"messageStart": {"role": "assistant"}},
+                {"messageStop": {"stopReason": "end_turn"}},
+            ],
+        }
+    )
+
+    def on_payload(payload: dict[str, Any], _model: Model) -> dict[str, Any]:
+        nonlocal captured_payload
+        captured_payload = payload
+        return payload
+
+    stream = stream_bedrock(
+        model,
+        Context(messages=[{"role": "user", "content": "Hello", "timestamp": 1}]),
+        {"client": fake_client, "onPayload": on_payload},
+    )
+    result = await stream.result()
+
+    assert result.stopReason == "stop"
+    assert captured_payload is not None
+    assert "system" in captured_payload and captured_payload["system"] is None
+    assert "toolConfig" in captured_payload and captured_payload["toolConfig"] is None
+    assert "additionalModelRequestFields" in captured_payload and captured_payload["additionalModelRequestFields"] is None
+    assert "system" not in fake_client.calls[0]
+    assert "toolConfig" not in fake_client.calls[0]
+    assert "additionalModelRequestFields" not in fake_client.calls[0]
 
 
 @pytest.mark.asyncio
@@ -269,3 +358,40 @@ async def test_stream_bedrock_maps_converse_stream_events_and_response_metadata(
     assert result.usage.output == 3
     assert result.usage.totalTokens == 8
     assert response_headers == {"status": 200, "headers": {"x-amzn-requestid": "req_123"}}
+
+
+@pytest.mark.asyncio
+async def test_stream_bedrock_aborts_async_stream_iteration_and_closes_stream() -> None:
+    model = get_model("amazon-bedrock", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
+    assert model is not None
+
+    signal = _AbortSignal()
+    blocking_stream = _BlockingAsyncStream()
+    fake_client = _FakeBedrockClient(
+        {
+            "ResponseMetadata": {"HTTPStatusCode": 200, "RequestId": "req_abort"},
+            "stream": blocking_stream,
+        }
+    )
+
+    async def abort_soon() -> None:
+        await asyncio.sleep(0.01)
+        signal.abort()
+
+    asyncio.create_task(abort_soon())
+    stream = stream_bedrock(
+        model,
+        Context(messages=[{"role": "user", "content": "Hello", "timestamp": 1}]),
+        {"client": fake_client, "signal": signal},
+    )
+
+    event_types: list[str] = []
+    async for event in stream:
+        event_types.append(event.type)
+
+    result = await stream.result()
+
+    assert event_types == ["start", "error"]
+    assert result.stopReason == "aborted"
+    assert result.errorMessage == "Request was aborted"
+    assert blocking_stream.closed is True

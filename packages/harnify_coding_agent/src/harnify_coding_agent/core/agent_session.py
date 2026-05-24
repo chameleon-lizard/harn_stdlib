@@ -2226,7 +2226,7 @@ class AgentSession:
         if (
             latest_compaction is not None
             and assistant_timestamp > 0
-            and assistant_timestamp <= latest_compaction_timestamp
+            and assistant_timestamp <= latest_compaction_timestamp + 1
         ):
             return False
 
@@ -2264,7 +2264,7 @@ class AgentSession:
                 latest_compaction is not None
                 and _message_role(usage_message) == "assistant"
                 and usage_timestamp > 0
-                and usage_timestamp <= latest_compaction_timestamp
+                and usage_timestamp <= latest_compaction_timestamp + 1
             ):
                 return False
             context_tokens = estimate.tokens

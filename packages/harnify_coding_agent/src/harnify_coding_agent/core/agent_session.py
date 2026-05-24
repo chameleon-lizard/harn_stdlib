@@ -871,88 +871,68 @@ class AgentSession:
             self._extensionErrorUnsubscriber = None
 
         if not self._extension_runner_matches_resource_loader():
-            self._extensionRunner = self._create_extension_runner()
-        self._apply_extension_bindings(self._extensionRunner)
-
-        if self._extensionRunnerRef is not None:
-            self._extensionRunnerRef["current"] = self._extensionRunner
+            self._build_runtime(
+                {
+                    "activeToolNames": self.getActiveToolNames(),
+                    "flagValues": self._extensionRunner.get_flag_values(),
+                    "includeAllExtensionTools": True,
+                }
+            )
+        else:
+            self._apply_extension_bindings(self._extensionRunner)
         await self._extensionRunner.emit(dict(self._sessionStartEvent))
         await self._extend_resources_from_extensions(
             "reload" if _event_field(self._sessionStartEvent, "reason") == "reload" else "startup"
         )
-        self.refreshTools()
 
     async def reload(self) -> None:
         previous_flag_values = self._extensionRunner.get_flag_values()
-        previous_start_event = dict(self._sessionStartEvent)
-        active_tool_names = self.getActiveToolNames()
-
         await emit_session_shutdown_event(self._extensionRunner, {"type": "session_shutdown", "reason": "reload"})
-        self._extensionRunner.invalidate(_STALE_CONTEXT_MESSAGE)
-
         await self.settingsManager.reload()
-        reload_auth_storage = getattr(self._modelRegistry.authStorage, "reload", None)
-        if callable(reload_auth_storage):
-            reload_auth_storage()
-        self._modelRegistry.refresh()
+        reset_api_providers()
         await self._resourceLoader.reload()
-        _apply_extension_flag_values(self._resourceLoader, previous_flag_values)
+        self._build_runtime(
+            {
+                "activeToolNames": self.getActiveToolNames(),
+                "flagValues": previous_flag_values,
+                "includeAllExtensionTools": True,
+            }
+        )
 
-        self._initialActiveToolNames = active_tool_names
-        self._extensionRunner = self._create_extension_runner()
-        self._refresh_current_model_from_registry()
-
-        self._sessionStartEvent = {"type": "session_start", "reason": "reload"}
-        try:
-            if self._extensionBindings is not None:
-                await self.bindExtensions(self._extensionBindings)
-            else:
-                await self._extensionRunner.emit(dict(self._sessionStartEvent))
-                self.refreshTools()
-        finally:
-            self._sessionStartEvent = previous_start_event
+        has_bindings = any(
+            value is not None
+            for value in (
+                self._extensionUIContext,
+                self._extensionCommandContextActions,
+                self._extensionShutdownHandler,
+                self._extensionErrorListener,
+            )
+        )
+        if has_bindings:
+            await self._extensionRunner.emit({"type": "session_start", "reason": "reload"})
+            await self._extend_resources_from_extensions("reload")
 
     def createReplacedSessionContext(self) -> Any:
         context = self._extensionRunner.create_command_context()
-        setattr(context, "sendMessage", lambda message, options=None: self._spawn_background(self.sendCustomMessage(message, options)))
-        setattr(context, "sendUserMessage", lambda content, options=None: self.sendUserMessage(content, options))
+
+        async def _send_message(message: Any, options: dict[str, Any] | None = None) -> None:
+            await self.sendCustomMessage(message, options)
+
+        async def _send_user_message(
+            content: str | list[TextContent | ImageContent | dict[str, Any]],
+            options: dict[str, Any] | None = None,
+        ) -> None:
+            await self._send_user_message(content, options)
+
+        setattr(context, "sendMessage", _send_message)
+        setattr(context, "sendUserMessage", _send_user_message)
         return context
 
     def hasExtensionHandlers(self, eventType: str) -> bool:
         return self._extensionRunner.has_handlers(eventType)
 
     def refreshTools(self) -> None:
-        previous_registry_names = set(self._toolRegistry)
-        previous_active = self.getActiveToolNames()
-        definitions, registry = self._build_tool_registry()
-        self._toolDefinitions = definitions
-        self._toolRegistry = registry
-
-        if previous_active:
-            active_names = [name for name in previous_active if name in registry]
-        else:
-            defaults = (
-                self._initialActiveToolNames
-                if self._initialActiveToolNames is not None
-                else ["read", "bash", "edit", "write"]
-            )
-            active_names = [name for name in defaults if name in registry]
-            for name in registry:
-                if name not in _BUILTIN_TOOL_NAMES and name not in active_names:
-                    active_names.append(name)
-
-        if self._allowedToolNames is not None:
-            for name in registry:
-                if name in self._allowedToolNames and name not in active_names:
-                    active_names.append(name)
-        elif previous_active:
-            for name in registry:
-                if name not in previous_registry_names and name not in active_names:
-                    active_names.append(name)
-
-        self.agent.state.tools = [registry[name] for name in active_names if name in registry]
-        self._baseSystemPrompt = self._rebuild_system_prompt(active_names)
-        self.agent.state.systemPrompt = self._baseSystemPrompt
+        self._refresh_tool_registry()
 
     async def sendCustomMessage(
         self,
@@ -993,7 +973,7 @@ class AgentSession:
     def sendMessage(self, message: Any, options: dict[str, Any] | None = None) -> None:
         self._spawn_background(self.sendCustomMessage(message, options))
 
-    def sendUserMessage(
+    async def _send_user_message(
         self,
         content: str | list[TextContent | ImageContent | dict[str, Any]],
         options: dict[str, Any] | None = None,
@@ -1013,17 +993,22 @@ class AgentSession:
             text = "\n".join(text_parts)
             if not images:
                 images = None
-        self._spawn_background(
-            self.prompt(
-                text,
-                {
-                    "expandPromptTemplates": False,
-                    "streamingBehavior": resolved_options.get("deliverAs"),
-                    "images": images,
-                    "source": "extension",
-                },
-            )
+        await self.prompt(
+            text,
+            {
+                "expandPromptTemplates": False,
+                "streamingBehavior": resolved_options.get("deliverAs"),
+                "images": images,
+                "source": "extension",
+            },
         )
+
+    def sendUserMessage(
+        self,
+        content: str | list[TextContent | ImageContent | dict[str, Any]],
+        options: dict[str, Any] | None = None,
+    ) -> None:
+        self._spawn_background(self._send_user_message(content, options))
 
     def getUserMessagesForForking(self) -> list[dict[str, str]]:
         result: list[dict[str, str]] = []
@@ -1075,7 +1060,7 @@ class AgentSession:
             truncated=result.truncated,
             fullOutputPath=result.fullOutputPath,
             timestamp=int(time.time() * 1000),
-            excludeFromContext=bool(resolved_options.get("excludeFromContext")),
+            excludeFromContext=resolved_options.get("excludeFromContext"),
         )
         if self.isStreaming:
             self._pendingBashMessages.append(bash_message)
@@ -1095,22 +1080,17 @@ class AgentSession:
         if self._compactionAbortController is not None:
             raise RuntimeError("Compaction already in progress")
 
-        if self.isStreaming:
-            await self.abort()
-
-        if self.model is None:
-            raise RuntimeError(format_no_model_selected_message())
-
-        self._emit({"type": "compaction_start", "reason": "manual"})
+        self._disconnect_from_agent()
+        await self.abort()
         self._compactionAbortController = AbortController()
+        self._emit({"type": "compaction_start", "reason": "manual"})
 
         try:
-            auth = await self._modelRegistry.getApiKeyAndHeaders(self.model)
-            if not auth.get("ok"):
-                raise RuntimeError(str(auth.get("error") or "No auth available for compaction"))
+            if self.model is None:
+                raise RuntimeError(format_no_model_selected_message())
+
+            auth = await self._get_compaction_request_auth(self.model)
             api_key = auth.get("apiKey")
-            if not isinstance(api_key, str) or not api_key:
-                raise RuntimeError("No auth available for compaction")
 
             settings = CompactionSettings(**self.settingsManager.getCompactionSettings())
             branch_entries = self.sessionManager.getBranch()
@@ -1212,6 +1192,7 @@ class AgentSession:
             raise
         finally:
             self._compactionAbortController = None
+            self._reconnect_to_agent()
 
     def abortCompaction(self) -> None:
         if self._auto_compaction_abort_controller is not None:

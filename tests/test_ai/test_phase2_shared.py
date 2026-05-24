@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 from types import SimpleNamespace
 
 import pytest
@@ -8,7 +9,6 @@ from harnify_ai.models import get_model
 from harnify_ai.providers.openai_prompt_cache import clamp_openai_prompt_cache_key
 import harnify_ai.providers.simple_options as simple_options_provider
 import harnify_ai.providers.transform_messages as transform_messages_provider
-import harnify_ai.stream as stream_module
 from harnify_ai.api_registry import clear_api_providers
 from harnify_ai.providers.simple_options import adjust_max_tokens_for_thinking, build_base_options, clamp_reasoning
 from harnify_ai.providers.transform_messages import (
@@ -17,6 +17,8 @@ from harnify_ai.providers.transform_messages import (
 from harnify_ai.stream import complete_simple
 from harnify_ai.types import SimpleStreamOptions, validate_assistant_message_event, validate_message
 import harnify_ai.providers.register_builtins as register_builtins
+
+stream_module = importlib.import_module("harnify_ai.stream")
 
 NON_VISION_USER_IMAGE_PLACEHOLDER = "(image omitted: model does not support images)"
 

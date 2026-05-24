@@ -8,7 +8,7 @@ import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any, Literal, TypedDict, cast
+from typing import Any, Literal, NotRequired, TypedDict, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -215,19 +215,19 @@ class _CustomModelsResult:
     error: str | None = None
 
 
-class _ProviderModelInput(TypedDict, total=False):
+class _ProviderModelInput(TypedDict):
     id: str
     name: str
-    api: Api
-    baseUrl: str
     reasoning: bool
-    thinkingLevelMap: dict[str, str | None]
     input: list[Literal["text", "image"]]
     cost: dict[str, float]
     contextWindow: int | float
     maxTokens: int | float
-    headers: dict[str, str]
-    compat: Model.model_fields["compat"].annotation  # type: ignore[index]
+    api: NotRequired[Api]
+    baseUrl: NotRequired[str]
+    thinkingLevelMap: NotRequired[dict[str, str | None]]
+    headers: NotRequired[dict[str, str]]
+    compat: NotRequired[Model.model_fields["compat"].annotation]  # type: ignore[index]
 
 
 class ProviderConfigInput(TypedDict, total=False):

@@ -337,6 +337,7 @@ def test_oauth_registry_restores_built_ins_after_unregister() -> None:
 
 def test_oauth_registry_does_not_export_inline_api_key_result_type() -> None:
     assert "OAuthApiKeyResult" not in oauth_registry.__all__
+    assert "BUILT_IN_OAUTH_PROVIDERS" not in oauth_registry.__all__
 
 
 @pytest.mark.asyncio

@@ -198,6 +198,7 @@ async def test_agent_session_refreshes_extension_and_custom_tools_on_bind(tmp_pa
     assert "dynamic_tool" not in [tool.name for tool in session.getAllTools()]
 
     try:
+        await session.reload()
         await session.bindExtensions({})
 
         all_tools = session.getAllTools()
@@ -310,6 +311,7 @@ async def test_agent_session_reload_preserves_extension_flag_values_and_command_
     session = _create_session(tmp_path, extension_factories=[extension_factory])
     await session._resourceLoader.reload()
     try:
+        await session.reload()
         await session.bindExtensions({})
         session.extensionRunner.set_flag_value("plan", True)
 
@@ -384,6 +386,7 @@ async def test_agent_session_prefers_sdk_tool_over_extension_tool_with_same_name
     await session._resourceLoader.reload()
 
     try:
+        await session.reload()
         await session.bindExtensions({})
 
         shared_tools = [tool for tool in session.getAllTools() if tool.name == "shared_tool"]
@@ -475,6 +478,7 @@ async def test_agent_session_compact_allows_non_stream_simple_hook_without_api_k
     session.agent.streamFn = lambda *_args, **_kwargs: None
     session._modelRegistry.getApiKeyAndHeaders = fake_get_api_key_and_headers  # type: ignore[method-assign]
     await session._resourceLoader.reload()
+    await session.reload()
     await session.bindExtensions({})
 
     try:
@@ -710,6 +714,7 @@ async def test_agent_session_auto_compaction_uses_threshold_hook_path(tmp_path: 
     events: list[object] = []
     session.subscribe(events.append)
     await session._resourceLoader.reload()
+    await session.reload()
     await session.bindExtensions({})
 
     try:

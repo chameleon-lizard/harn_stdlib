@@ -106,6 +106,16 @@ def test_event_bus_reports_handler_errors(capsys: pytest.CaptureFixture[str]) ->
     assert "Event handler error (demo): boom" in captured.err
 
 
+def test_event_bus_module_exports_match_ts_surface() -> None:
+    from harnify_coding_agent.core import event_bus
+
+    assert event_bus.__all__ == [
+        "EventBus",
+        "EventBusController",
+        "createEventBus",
+    ]
+
+
 @pytest.mark.asyncio
 async def test_exec_command_supports_cwd_env_and_stdin(tmp_path: Path) -> None:
     result = await exec_command(

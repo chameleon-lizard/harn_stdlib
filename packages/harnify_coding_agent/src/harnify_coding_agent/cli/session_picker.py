@@ -22,6 +22,13 @@ class _SessionSelectorComponentLike(Protocol):
 async def select_session(
     currentSessionsLoader: SessionsLoader,
     allSessionsLoader: SessionsLoader,
+) -> str | None:
+    return await _select_session(currentSessionsLoader, allSessionsLoader)
+
+
+async def _select_session(
+    currentSessionsLoader: SessionsLoader,
+    allSessionsLoader: SessionsLoader,
     *,
     terminalFactory: type[ProcessTerminal] = ProcessTerminal,
     uiFactory: type[TUI] = TUI,
@@ -69,4 +76,4 @@ async def select_session(
 
 selectSession = select_session
 
-__all__ = ["SessionsLoader", "selectSession", "select_session"]
+__all__ = ["selectSession"]

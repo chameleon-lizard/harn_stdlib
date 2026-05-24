@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 import harnify_coding_agent.cli.config_selector as config_selector_module
+import harnify_coding_agent.cli.session_picker as session_picker_module
 from harnify_coding_agent.cli.config_selector import ConfigSelectorOptions, select_config
 from harnify_coding_agent.cli.session_picker import select_session
 from harnify_coding_agent.config import APP_NAME
@@ -146,7 +147,7 @@ async def test_select_session_sets_keybindings_and_returns_selected_path() -> No
     sentinel_keybindings = object()
     bound: list[object] = []
 
-    selected = await select_session(
+    selected = await session_picker_module._select_session(
         lambda _progress=None: _async_sessions([]),
         lambda _progress=None: _async_sessions([]),
         terminalFactory=_FakeTerminal,
@@ -158,6 +159,7 @@ async def test_select_session_sets_keybindings_and_returns_selected_path() -> No
 
     assert selected == "/tmp/resume.jsonl"
     assert bound == [sentinel_keybindings]
+    assert session_picker_module.__all__ == ["selectSession"]
 
 
 @pytest.mark.asyncio

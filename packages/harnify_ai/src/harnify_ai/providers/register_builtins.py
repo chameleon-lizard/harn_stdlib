@@ -27,7 +27,16 @@ _module_tasks: dict[str, asyncio.Task[LazyProviderModule]] = {}
 _bedrock_provider_module_override: LazyProviderModule | None = None
 
 
-def _create_lazy_load_error_message(model: Model, error: BaseException) -> AssistantMessage:
+def _forward_stream(target: AssistantMessageEventStream, source: AsyncIterable[Any]) -> None:
+    async def run() -> None:
+        async for event in source:
+            target.push(event)
+        target.end()
+
+    asyncio.create_task(run())
+
+
+def _create_lazy_load_error_message(model: Model, error: Any) -> AssistantMessage:
     return AssistantMessage(
         content=[],
         api=model.api,
@@ -51,18 +60,18 @@ def _create_lazy_stream(load_module: Callable[[], Awaitable[LazyProviderModule]]
     def stream(model: Model, context: Context, options: StreamOptions | None = None) -> AssistantMessageEventStream:
         outer = AssistantMessageEventStream()
 
-        async def run() -> None:
+        async def load_and_forward() -> None:
             try:
                 module = await load_module()
-                async for event in module.stream(model, context, options):
-                    outer.push(event)
-                outer.end()
-            except BaseException as error:  # noqa: BLE001
+            except Exception as error:  # noqa: BLE001
                 message = _create_lazy_load_error_message(model, error)
                 outer.push(ErrorEvent(reason="error", error=message))
                 outer.end(message)
+                return
 
-        asyncio.create_task(run())
+            _forward_stream(outer, module.stream(model, context, options))
+
+        asyncio.create_task(load_and_forward())
         return outer
 
     return stream
@@ -72,18 +81,18 @@ def _create_lazy_simple_stream(load_module: Callable[[], Awaitable[LazyProviderM
     def stream(model: Model, context: Context, options: SimpleStreamOptions | None = None) -> AssistantMessageEventStream:
         outer = AssistantMessageEventStream()
 
-        async def run() -> None:
+        async def load_and_forward() -> None:
             try:
                 module = await load_module()
-                async for event in module.streamSimple(model, context, options):
-                    outer.push(event)
-                outer.end()
-            except BaseException as error:  # noqa: BLE001
+            except Exception as error:  # noqa: BLE001
                 message = _create_lazy_load_error_message(model, error)
                 outer.push(ErrorEvent(reason="error", error=message))
                 outer.end(message)
+                return
 
-        asyncio.create_task(run())
+            _forward_stream(outer, module.streamSimple(model, context, options))
+
+        asyncio.create_task(load_and_forward())
         return outer
 
     return stream
@@ -281,3 +290,44 @@ streamOpenAICompletions = stream_openai_completions
 streamSimpleOpenAICompletions = stream_simple_openai_completions
 streamOpenAIResponses = stream_openai_responses
 streamSimpleOpenAIResponses = stream_simple_openai_responses
+
+__all__ = [
+    "registerBuiltInApiProviders",
+    "register_built_in_api_providers",
+    "resetApiProviders",
+    "reset_api_providers",
+    "setBedrockProviderModule",
+    "set_bedrock_provider_module",
+    "streamAnthropic",
+    "streamSimpleAnthropic",
+    "streamAzureOpenAIResponses",
+    "streamSimpleAzureOpenAIResponses",
+    "streamGoogle",
+    "streamSimpleGoogle",
+    "streamGoogleVertex",
+    "streamSimpleGoogleVertex",
+    "streamMistral",
+    "streamSimpleMistral",
+    "streamOpenAICodexResponses",
+    "streamSimpleOpenAICodexResponses",
+    "streamOpenAICompletions",
+    "streamSimpleOpenAICompletions",
+    "streamOpenAIResponses",
+    "streamSimpleOpenAIResponses",
+    "stream_anthropic",
+    "stream_simple_anthropic",
+    "stream_azure_openai_responses",
+    "stream_simple_azure_openai_responses",
+    "stream_google",
+    "stream_simple_google",
+    "stream_google_vertex",
+    "stream_simple_google_vertex",
+    "stream_mistral",
+    "stream_simple_mistral",
+    "stream_openai_codex_responses",
+    "stream_simple_openai_codex_responses",
+    "stream_openai_completions",
+    "stream_simple_openai_completions",
+    "stream_openai_responses",
+    "stream_simple_openai_responses",
+]

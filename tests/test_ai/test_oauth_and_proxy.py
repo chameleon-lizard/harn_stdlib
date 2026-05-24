@@ -461,9 +461,10 @@ async def test_oauth_registry_refreshes_expired_custom_credentials() -> None:
 
 
 def test_package_exports_include_oauth_helpers_and_event_streams() -> None:
-    assert hasattr(harnify_ai, "pollOAuthDeviceCodeFlow")
     assert hasattr(harnify_ai, "OAuthPrompt")
+    assert hasattr(harnify_ai, "OAuthDeviceCodeInfo")
     assert hasattr(harnify_ai, "AssistantMessageEventStream")
+    assert not hasattr(harnify_ai, "pollOAuthDeviceCodeFlow")
     assert hasattr(oauth_alias, "getOAuthProvider")
     assert hasattr(oauth_alias, "OAuthDeviceCodePollResult")
 

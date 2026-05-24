@@ -521,6 +521,8 @@ def build_params(
                 "mode": map_tool_choice(tool_choice),
             },
         }
+    else:
+        config["toolConfig"] = None
 
     thinking = _option(options, "thinking")
     if _nested_option(thinking, "enabled") and model.reasoning:
@@ -546,8 +548,10 @@ def build_params(
 def _prepare_sdk_params(params: Mapping[str, Any]) -> dict[str, Any]:
     sdk_params = dict(params)
     config = sdk_params.get("config")
-    if isinstance(config, Mapping) and "abortSignal" in config:
-        sdk_params["config"] = {key: value for key, value in config.items() if key != "abortSignal"}
+    if isinstance(config, Mapping):
+        sdk_params["config"] = {
+            key: value for key, value in config.items() if key != "abortSignal" and value is not None
+        }
     return sdk_params
 
 

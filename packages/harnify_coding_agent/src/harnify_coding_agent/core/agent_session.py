@@ -10,6 +10,7 @@ import os
 import re
 import time
 from collections.abc import Callable, Sequence
+from copy import copy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -89,7 +90,6 @@ _STALE_CONTEXT_MESSAGE = (
     "switchSession, move post-replacement work into withSession and use the ctx passed to withSession. For "
     "reload, do not use the old ctx after await ctx.reload()."
 )
-_BUILTIN_TOOL_NAMES = ("read", "bash", "edit", "write", "grep", "find", "ls")
 _THINKING_LEVELS: tuple[ThinkingLevel, ...] = ("off", "minimal", "low", "medium", "high")
 _RETRYABLE_ERROR_PATTERN = re.compile(
     r"overloaded|provider.?returned.?error|rate.?limit|too many requests|429|500|502|503|504|"

@@ -246,7 +246,7 @@ def test_create_extension_runtime_preserves_explicit_empty_provider_extension_pa
 
 @pytest.mark.asyncio
 async def test_extension_runner_emits_events_and_invalidates_context() -> None:
-    errors: list[str] = []
+    errors: list[Any] = []
 
     async def factory(api: Any) -> None:
         async def execute(tool_call_id: str, params: Any, signal: Any, on_update: Any, ctx: Any) -> AgentToolResult:
@@ -297,7 +297,7 @@ async def test_extension_runner_emits_events_and_invalidates_context() -> None:
         extensions=[extension],
         cwd="runner-cwd",
     )
-    runner.on_error(lambda error: errors.append(f"{error.event}:{error.error}"))
+    runner.on_error(lambda error: errors.append(error))
 
     runner.bind_core(
         {
@@ -379,9 +379,9 @@ async def test_extension_runner_emits_events_and_invalidates_context() -> None:
     with pytest.raises(RuntimeError):
         _ = ctx.cwd
 
-    assert any("message_end" in message for message in errors)
-    assert any("input:boom" == message for message in errors)
-    assert any(listener_error.stack for listener_error in []) is False
+    assert any(error.event == "message_end" for error in errors)
+    assert any(error.event == "input" and error.error == "boom" for error in errors)
+    assert any(error.event == "input" and error.stack for error in errors)
 
 
 @pytest.mark.asyncio

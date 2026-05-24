@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import harnify_ai.utils.oauth.pkce as pkce_module
 from harnify_ai.image_models import get_image_model, get_image_providers
 from harnify_ai.images import generate_images
 from harnify_ai.providers.faux import faux_assistant_message, faux_text, faux_thinking, register_faux_provider
@@ -118,3 +119,7 @@ async def test_generate_pkce_returns_urlsafe_values() -> None:
     assert "=" not in pkce.challenge
     assert "+" not in pkce.verifier
     assert "/" not in pkce.verifier
+
+
+def test_pkce_module_exports_expected_names() -> None:
+    assert pkce_module.__all__ == ["generatePKCE", "generate_pkce"]

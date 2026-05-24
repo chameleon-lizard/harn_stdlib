@@ -155,6 +155,13 @@ async def test_image_register_builtins_caches_lazy_import_failure(monkeypatch: p
     assert calls["count"] == 1
 
 
+def test_image_register_builtins_module_exports_expected_names() -> None:
+    assert image_register_builtins.__all__ == [
+        "generateImagesOpenRouter",
+        "registerBuiltInImagesApiProviders",
+    ]
+
+
 @pytest.mark.asyncio
 async def test_generate_pkce_returns_urlsafe_values() -> None:
     pkce = await generate_pkce()

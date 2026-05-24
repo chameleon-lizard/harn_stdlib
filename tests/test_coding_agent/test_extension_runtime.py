@@ -7,7 +7,7 @@ from harnify_agent.types import AgentToolResult
 from harnify_ai.types import TextContent
 from harnify_coding_agent.core import exec as exec_module
 from harnify_coding_agent.core import extensions as extension_package
-from harnify_coding_agent.core.event_bus import create_event_bus
+from harnify_coding_agent.core.event_bus import createEventBus
 from harnify_coding_agent.core.extensions.loader import create_extension_runtime, load_extension_from_factory
 from harnify_coding_agent.core.extensions.runner import ExtensionRunner
 from harnify_coding_agent.core.extensions import types as extension_types
@@ -125,7 +125,7 @@ async def test_extension_loader_and_runner_bind_real_runtime_surface() -> None:
         api.registerProvider("demo-provider", {"baseUrl": "https://example.test"})
 
     runtime = create_extension_runtime()
-    event_bus = create_event_bus()
+    event_bus = createEventBus()
     extension = await load_extension_from_factory(
         factory,
         "/tmp",
@@ -227,7 +227,7 @@ async def test_extension_api_exec_uses_shared_exec_result_and_per_call_cwd(monke
     await load_extension_from_factory(
         factory,
         "/base",
-        create_event_bus(),
+        createEventBus(),
         create_extension_runtime(),
         extension_path="<inline:exec>",
     )
@@ -295,7 +295,7 @@ async def test_extension_runner_emits_events_and_invalidates_context() -> None:
     extension = await load_extension_from_factory(
         factory,
         "/tmp/project",
-        create_event_bus(),
+        createEventBus(),
         create_extension_runtime(),
         extension_path="<inline:eventful>",
     )
@@ -412,7 +412,7 @@ async def test_extension_runner_before_agent_start_ctx_uses_latest_system_prompt
     extension = await load_extension_from_factory(
         factory,
         "/tmp/project",
-        create_event_bus(),
+        createEventBus(),
         create_extension_runtime(),
         extension_path="<inline:before-agent>",
     )
@@ -502,7 +502,7 @@ async def test_extension_runner_matches_ts_nullish_and_warning_behaviour(capsys:
     extension = await load_extension_from_factory(
         factory,
         "/tmp/project",
-        create_event_bus(),
+        createEventBus(),
         create_extension_runtime(),
         extension_path="<inline:nullish>",
     )
@@ -582,7 +582,7 @@ async def test_extension_runner_emit_input_returns_handled_object_verbatim() -> 
     extension = await load_extension_from_factory(
         factory,
         "/tmp/project",
-        create_event_bus(),
+        createEventBus(),
         create_extension_runtime(),
         extension_path="<inline:handled-object>",
     )

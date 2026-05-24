@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Protocol, TypedDict
 
 from harnify_coding_agent.core.diagnostics import ResourceCollision, ResourceDiagnostic
-from harnify_coding_agent.core.event_bus import create_event_bus
+from harnify_coding_agent.core.event_bus import createEventBus
 from harnify_coding_agent.core.extensions.loader import (
     create_extension_runtime,
     load_extension_from_factory,
@@ -187,7 +187,7 @@ class DefaultResourceLoader:
         self.packageManager = DefaultPackageManager(
             {"cwd": self.cwd, "agentDir": self.agentDir, "settingsManager": self.settingsManager}
         )
-        self.eventBus = options.get("eventBus") or create_event_bus()
+        self.eventBus = options.get("eventBus") or createEventBus()
         self.additionalExtensionPaths = list(options.get("additionalExtensionPaths", []))
         self.additionalSkillPaths = list(options.get("additionalSkillPaths", []))
         self.additionalPromptTemplatePaths = list(options.get("additionalPromptTemplatePaths", []))

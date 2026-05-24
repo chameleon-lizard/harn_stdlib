@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from harnify_coding_agent.config import get_agent_dir
-from harnify_coding_agent.core.event_bus import EventBusController, create_event_bus
+from harnify_coding_agent.core.event_bus import EventBusController, createEventBus
 from harnify_coding_agent.core.exec import exec_command
 from harnify_coding_agent.core.extensions.types import (
     ExecOptions,
@@ -238,7 +238,7 @@ def create_extension_runtime() -> ExtensionRuntime:
 
 
 def _default_event_bus() -> EventBusController:
-    return create_event_bus()
+    return createEventBus()
 
 
 async def load_extension_from_factory(

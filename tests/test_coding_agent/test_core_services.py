@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 from harnify_coding_agent.core.bash_executor import execute_bash_with_operations
-from harnify_coding_agent.core.event_bus import create_event_bus
+from harnify_coding_agent.core.event_bus import createEventBus
 from harnify_coding_agent.core.exec import exec_command
 from harnify_coding_agent.core.keybindings import KeybindingsManager, migrate_keybindings_config
 from harnify_coding_agent.core.output_guard import (
@@ -62,7 +62,7 @@ class _FakeBashOperations:
 
 @pytest.mark.asyncio
 async def test_event_bus_supports_sync_async_and_unsubscribe() -> None:
-    bus = create_event_bus()
+    bus = createEventBus()
     seen: list[tuple[str, int]] = []
     async_seen = asyncio.Event()
 
@@ -94,7 +94,7 @@ async def test_event_bus_supports_sync_async_and_unsubscribe() -> None:
 
 
 def test_event_bus_reports_handler_errors(capsys: pytest.CaptureFixture[str]) -> None:
-    bus = create_event_bus()
+    bus = createEventBus()
 
     def bad_handler(_data: Any) -> None:
         raise RuntimeError("boom")

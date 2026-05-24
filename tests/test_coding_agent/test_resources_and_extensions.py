@@ -199,6 +199,30 @@ async def test_extensions_and_resource_loader_compose_session_start_resources(tm
     ]
 
 
+@pytest.mark.asyncio
+async def test_extension_loader_requires_default_export_for_extension_modules(tmp_path: Path) -> None:
+    cwd = tmp_path / "workspace"
+    cwd.mkdir()
+    agent_dir = tmp_path / "agent"
+    agent_dir.mkdir()
+    extension_dir = agent_dir / "extensions" / "bad"
+    extension_dir.mkdir(parents=True)
+    (extension_dir / "index.py").write_text(
+        "async def extension_factory(api):\n    return None\n",
+        encoding="utf-8",
+    )
+
+    discovered = await discover_and_load_extensions([], str(cwd), str(agent_dir))
+
+    assert discovered.extensions == []
+    assert discovered.errors == [
+        {
+            "path": str(extension_dir / "index.py"),
+            "error": f"Extension does not export a valid factory function: {extension_dir / 'index.py'}",
+        }
+    ]
+
+
 def test_build_system_prompt_uses_context_and_skills(tmp_path: Path) -> None:
     cwd = tmp_path / "project"
     skill = Skill(

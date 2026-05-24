@@ -797,22 +797,30 @@ class AgentSession:
     async def bindExtensions(self, bindings: ExtensionBindings | dict[str, Any] | None = None) -> None:
         resolved = bindings if isinstance(bindings, ExtensionBindings) else ExtensionBindings(**(bindings or {}))
         self._extensionBindings = resolved
-        self._extensionAbortHandler = resolved.abortHandler
-        self._extensionShutdownHandler = resolved.shutdownHandler
+        if resolved.uiContext is not None:
+            self._extensionUIContext = resolved.uiContext
+        if resolved.commandContextActions is not None:
+            self._extensionCommandContextActions = resolved.commandContextActions
+        if resolved.abortHandler is not None:
+            self._extensionAbortHandler = resolved.abortHandler
+        if resolved.shutdownHandler is not None:
+            self._extensionShutdownHandler = resolved.shutdownHandler
+        if resolved.onError is not None:
+            self._extensionErrorListener = resolved.onError
         if self._extensionErrorUnsubscriber is not None:
             self._extensionErrorUnsubscriber()
             self._extensionErrorUnsubscriber = None
 
         if not self._extension_runner_matches_resource_loader():
             self._extensionRunner = self._create_extension_runner()
-        self._extensionRunner.set_ui_context(resolved.uiContext)
-        self._extensionRunner.bind_command_context(resolved.commandContextActions)
-        if resolved.onError is not None:
-            self._extensionErrorUnsubscriber = self._extensionRunner.on_error(resolved.onError)
+        self._apply_extension_bindings(self._extensionRunner)
 
         if self._extensionRunnerRef is not None:
             self._extensionRunnerRef["current"] = self._extensionRunner
         await self._extensionRunner.emit(dict(self._sessionStartEvent))
+        await self._extend_resources_from_extensions(
+            "reload" if _event_field(self._sessionStartEvent, "reason") == "reload" else "startup"
+        )
         self.refreshTools()
 
     async def reload(self) -> None:
@@ -846,7 +854,13 @@ class AgentSession:
             self._sessionStartEvent = previous_start_event
 
     def createReplacedSessionContext(self) -> Any:
-        return self._extensionRunner.create_command_context()
+        context = self._extensionRunner.create_command_context()
+        setattr(context, "sendMessage", lambda message, options=None: self._spawn_background(self.sendCustomMessage(message, options)))
+        setattr(context, "sendUserMessage", lambda content, options=None: self.sendUserMessage(content, options))
+        return context
+
+    def hasExtensionHandlers(self, eventType: str) -> bool:
+        return self._extensionRunner.has_handlers(eventType)
 
     def refreshTools(self) -> None:
         previous_registry_names = set(self._toolRegistry)

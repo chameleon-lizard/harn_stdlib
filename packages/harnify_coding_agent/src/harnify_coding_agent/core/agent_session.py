@@ -494,11 +494,9 @@ class AgentSession:
             last_assistant = self._find_last_assistant_message()
             if last_assistant is not None and await self._check_compaction(last_assistant, False):
                 try:
-                    await self._continue_agent()
-                    await self._drain_agent_event_loop()
+                    await self.agent.continue_()
                     while await self._handle_post_agent_run():
-                        await self._continue_agent()
-                        await self._drain_agent_event_loop()
+                        await self.agent.continue_()
                 finally:
                     self._flush_pending_bash_messages()
 
@@ -2075,10 +2073,8 @@ class AgentSession:
     async def _run_agent_prompt(self, messages: AgentMessage | list[AgentMessage]) -> None:
         try:
             await self.agent.prompt(messages)
-            await self._drain_agent_event_loop()
             while await self._handle_post_agent_run():
-                await self._continue_agent()
-                await self._drain_agent_event_loop()
+                await self.agent.continue_()
         finally:
             self._flush_pending_bash_messages()
 
@@ -2186,15 +2182,6 @@ class AgentSession:
             self.sessionManager.appendMessage(bash_message)
         self._pendingBashMessages = []
 
-    async def _drain_agent_event_loop(self) -> None:
-        for _ in range(5):
-            if self._lastAssistantMessage is not None:
-                return
-            await asyncio.sleep(0)
-
-    async def _continue_agent(self) -> None:
-        await self.agent.continue_()
-
     async def _check_compaction(
         self,
         assistant_message: AssistantMessage,
@@ -2222,7 +2209,7 @@ class AgentSession:
         if (
             latest_compaction is not None
             and assistant_timestamp > 0
-            and assistant_timestamp <= latest_compaction_timestamp + 1
+            and assistant_timestamp <= latest_compaction_timestamp
         ):
             return False
 
@@ -2260,7 +2247,7 @@ class AgentSession:
                 latest_compaction is not None
                 and _message_role(usage_message) == "assistant"
                 and usage_timestamp > 0
-                and usage_timestamp <= latest_compaction_timestamp + 1
+                and usage_timestamp <= latest_compaction_timestamp
             ):
                 return False
             context_tokens = estimate.tokens

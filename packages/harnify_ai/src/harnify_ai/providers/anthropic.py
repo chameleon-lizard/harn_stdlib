@@ -485,7 +485,7 @@ def build_params(
             else:
                 params["thinking"] = {
                     "type": "enabled",
-                    "budget_tokens": _option(options, "thinkingBudgetTokens", 1024),
+                    "budget_tokens": _option(options, "thinkingBudgetTokens") or 1024,
                     "display": display,
                 }
         elif thinking_enabled is False:
@@ -558,8 +558,7 @@ def convert_messages(
 
                 if block.type == "thinking":
                     if block.redacted:
-                        if block.thinkingSignature:
-                            blocks.append({"type": "redacted_thinking", "data": block.thinkingSignature})
+                        blocks.append({"type": "redacted_thinking", "data": block.thinkingSignature or ""})
                         continue
                     if not block.thinking.strip():
                         continue

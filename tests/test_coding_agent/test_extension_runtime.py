@@ -5,9 +5,48 @@ from typing import Any
 import pytest
 from harnify_agent.types import AgentToolResult
 from harnify_ai.types import TextContent
+from harnify_coding_agent.core import exec as exec_module
 from harnify_coding_agent.core.extensions.loader import create_extension_runtime, load_extension_from_factory
 from harnify_coding_agent.core.extensions.runner import ExtensionRunner
+from harnify_coding_agent.core.extensions import types as extension_types
 from harnify_coding_agent.core.extensions.types import ToolDefinition
+
+
+def test_extension_types_exports_include_ts_surface_restorations() -> None:
+    for name in [
+        "AgentToolResult",
+        "AgentToolUpdateCallback",
+        "AppKeybinding",
+        "AutocompleteProviderFactory",
+        "EditorFactory",
+        "ExecOptions",
+        "ExecResult",
+        "ExtensionRuntimeState",
+        "ExtensionUIDialogOptions",
+        "ExtensionWidgetOptions",
+        "KeybindingsManager",
+        "ReplacedSessionContext",
+        "TerminalInputHandler",
+        "WidgetPlacement",
+        "WorkingIndicatorOptions",
+        "defineTool",
+        "isBashToolResult",
+        "isEditToolResult",
+        "isFindToolResult",
+        "isGrepToolResult",
+        "isLsToolResult",
+        "isReadToolResult",
+        "isToolCallEventType",
+        "isWriteToolResult",
+    ]:
+        assert name in extension_types.__all__
+
+    assert extension_types.ExecOptions is exec_module.ExecOptions
+    assert extension_types.ExecResult is exec_module.ExecResult
+    assert extension_types.defineTool({"demo": True}) == {"demo": True}
+    assert extension_types.isToolCallEventType("bash", {"toolName": "bash"}) is True
+    assert extension_types.isBashToolResult({"toolName": "bash"}) is True
+    assert extension_types.isWriteToolResult({"toolName": "write"}) is True
 
 
 @pytest.mark.asyncio

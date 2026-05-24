@@ -339,7 +339,7 @@ def find_cut_point(
     )
 
 
-def create_summarization_options(
+def _create_summarization_options(
     model: Model[Any],
     max_tokens: int,
     api_key: str | None,
@@ -353,7 +353,7 @@ def create_summarization_options(
     return options
 
 
-async def complete_summarization(
+async def _complete_summarization(
     model: Model[Any],
     context: dict[str, Any],
     options: SimpleStreamOptions,
@@ -384,23 +384,23 @@ async def generate_summary(
         model.maxTokens if model.maxTokens > 0 else math.inf,
     )
 
-    base_prompt = UPDATE_SUMMARIZATION_PROMPT if previous_summary else SUMMARIZATION_PROMPT
+    base_prompt = _UPDATE_SUMMARIZATION_PROMPT if previous_summary else _SUMMARIZATION_PROMPT
     if custom_instructions:
         base_prompt = f"{base_prompt}\n\nAdditional focus: {custom_instructions}"
 
-    conversation_text = serialize_conversation(convert_to_llm(current_messages))
+    conversation_text = _serialize_conversation(convert_to_llm(current_messages))
     prompt_text = f"<conversation>\n{conversation_text}\n</conversation>\n\n"
     if previous_summary:
         prompt_text += f"<previous-summary>\n{previous_summary}\n</previous-summary>\n\n"
     prompt_text += base_prompt
 
-    response = await complete_summarization(
+    response = await _complete_summarization(
         model,
         {
-            "systemPrompt": SUMMARIZATION_SYSTEM_PROMPT,
+            "systemPrompt": _SUMMARIZATION_SYSTEM_PROMPT,
             "messages": [UserMessage(content=[{"type": "text", "text": prompt_text}], timestamp=_timestamp_ms())],
         },
-        create_summarization_options(model, int(max_tokens), api_key, headers, signal, thinking_level),
+        _create_summarization_options(model, int(max_tokens), api_key, headers, signal, thinking_level),
         stream_fn,
     )
     if response.stopReason == "error":

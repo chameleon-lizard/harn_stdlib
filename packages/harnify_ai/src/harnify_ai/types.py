@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from copy import deepcopy
 from typing import Any, Annotated, Literal, TypeAlias
 
@@ -526,6 +526,9 @@ def validate_assistant_message_event(value: Any) -> AssistantMessageEventValue:
 
 from harnify_ai.utils.event_stream import AssistantMessageEventStream
 
+StreamFunction: TypeAlias = Callable[[Model, Context, StreamOptions | None], AssistantMessageEventStream]
+ImagesFunction: TypeAlias = Callable[[ImagesModel, ImagesContext, ImagesOptions | None], Awaitable[AssistantImages]]
+
 
 __all__ = [
     "ASSISTANT_CONTENT_ADAPTER",
@@ -545,6 +548,7 @@ __all__ = [
     "DoneEvent",
     "ErrorEvent",
     "ImageContent",
+    "ImagesFunction",
     "ImagesApi",
     "ImagesContext",
     "ImagesModel",
@@ -570,6 +574,7 @@ __all__ = [
     "SimpleStreamOptions",
     "StartEvent",
     "StopReason",
+    "StreamFunction",
     "StreamOptions",
     "TextContent",
     "TextSignatureV1",

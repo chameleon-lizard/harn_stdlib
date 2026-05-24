@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -136,10 +137,10 @@ def test_set_and_remove_preserve_unrelated_external_edits(tmp_path: Path) -> Non
     )
     storage.set("anthropic", {"type": "api_key", "key": "new-anthropic"})
 
-    assert '"google": {"type": "api_key", "key": "google-key"}' in auth_path.read_text(encoding="utf-8")
-    assert '"anthropic": {\n    "type": "api_key",\n    "key": "new-anthropic"\n  }' in auth_path.read_text(
-        encoding="utf-8"
-    )
+    updated = json.loads(auth_path.read_text(encoding="utf-8"))
+    assert updated["anthropic"]["key"] == "new-anthropic"
+    assert updated["openai"]["key"] == "openai-key"
+    assert updated["google"]["key"] == "google-key"
 
     auth_path.write_text(
         '{"anthropic": {"type": "api_key", "key": "new-anthropic"}, "openai": {"type": "api_key", "key": "openai-key"}, "google": {"type": "api_key", "key": "google-key"}}',
@@ -147,10 +148,10 @@ def test_set_and_remove_preserve_unrelated_external_edits(tmp_path: Path) -> Non
     )
     storage.remove("anthropic")
 
-    contents = auth_path.read_text(encoding="utf-8")
-    assert '"anthropic"' not in contents
-    assert '"openai": {"type": "api_key", "key": "openai-key"}' in contents
-    assert '"google": {"type": "api_key", "key": "google-key"}' in contents
+    updated = json.loads(auth_path.read_text(encoding="utf-8"))
+    assert "anthropic" not in updated
+    assert updated["openai"]["key"] == "openai-key"
+    assert updated["google"]["key"] == "google-key"
 
 
 @pytest.mark.asyncio

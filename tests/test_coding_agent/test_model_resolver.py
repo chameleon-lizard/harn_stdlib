@@ -9,6 +9,7 @@ from harnify_coding_agent.core.model_resolver import (
     findInitialModel,
     parseModelPattern,
     resolveCliModel,
+    restoreModelFromSession,
 )
 
 
@@ -106,3 +107,122 @@ async def test_find_initial_model_prefers_known_provider_defaults() -> None:
     assert result.model is not None
     assert result.model.provider == "vercel-ai-gateway"
     assert result.model.id == defaultModelPerProvider["vercel-ai-gateway"]
+
+
+@pytest.mark.asyncio
+async def test_find_initial_model_cli_error_exits_like_ts(capsys: pytest.CaptureFixture[str]) -> None:
+    class Registry:
+        def getAll(self):
+            return []
+
+    with pytest.raises(SystemExit) as exc_info:
+        await findInitialModel(
+            {
+                "cliProvider": "unknown",
+                "cliModel": "ghost",
+                "scopedModels": [],
+                "isContinuing": False,
+                "modelRegistry": Registry(),
+            }
+        )
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "No models available." in captured.err
+    assert captured.out == ""
+
+
+@pytest.mark.asyncio
+async def test_restore_model_from_session_uses_stdout_for_success_and_fallback(capsys: pytest.CaptureFixture[str]) -> None:
+    restored = _model("anthropic", "claude-opus-4-7")
+    fallback = _model("openai", "gpt-4o")
+
+    @dataclass
+    class Registry:
+        restored_model: Model | None
+        available: list[Model]
+
+        def find(self, provider: str, model_id: str) -> Model | None:
+            if self.restored_model and self.restored_model.provider == provider and self.restored_model.id == model_id:
+                return self.restored_model
+            return None
+
+        def hasConfiguredAuth(self, model: Model) -> bool:
+            return self.restored_model is not None and model.id == self.restored_model.id
+
+        def getAvailable(self) -> list[Model]:
+            return self.available
+
+    restored_result = await restoreModelFromSession(
+        "anthropic",
+        "claude-opus-4-7",
+        None,
+        True,
+        Registry(restored_model=restored, available=[fallback]),
+    )
+    restored_captured = capsys.readouterr()
+
+    assert restored_result["model"] is restored
+    assert restored_result["fallbackMessage"] is None
+    assert "Restored model: anthropic/claude-opus-4-7" in restored_captured.out
+    assert restored_captured.err == ""
+
+    fallback_result = await restoreModelFromSession(
+        "anthropic",
+        "missing",
+        None,
+        True,
+        Registry(restored_model=None, available=[fallback]),
+    )
+    fallback_captured = capsys.readouterr()
+
+    assert fallback_result["model"] is fallback
+    assert fallback_result["fallbackMessage"] == (
+        "Could not restore model anthropic/missing (model no longer exists). Using openai/gpt-4o."
+    )
+    assert "Falling back to: openai/gpt-4o" in fallback_captured.out
+    assert "Warning: Could not restore model anthropic/missing (model no longer exists)." in fallback_captured.err
+
+
+@pytest.mark.asyncio
+async def test_restore_model_from_session_returns_no_fallback_message_when_no_models_available(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    @dataclass
+    class Registry:
+        def find(self, provider: str, model_id: str) -> Model | None:
+            return None
+
+        def hasConfiguredAuth(self, model: Model) -> bool:
+            return False
+
+        def getAvailable(self) -> list[Model]:
+            return []
+
+    result = await restoreModelFromSession("anthropic", "missing", None, True, Registry())
+    captured = capsys.readouterr()
+
+    assert result == {"model": None, "fallbackMessage": None}
+    assert captured.out == ""
+    assert "Warning: Could not restore model anthropic/missing (model no longer exists)." in captured.err
+
+
+def test_model_resolver_exports_match_ts_surface() -> None:
+    from harnify_coding_agent.core import model_resolver
+
+    assert model_resolver.__all__ == [
+        "InitialModelResult",
+        "ParsedModelResult",
+        "ResolveCliModelResult",
+        "ScopedModel",
+        "defaultModelPerProvider",
+        "findExactModelReferenceMatch",
+        "findInitialModel",
+        "parseModelPattern",
+        "resolveCliModel",
+        "resolveModelScope",
+        "restoreModelFromSession",
+    ]
+    assert not hasattr(model_resolver, "buildFallbackModel")
+    assert not hasattr(model_resolver, "tryMatchModel")
+    assert not hasattr(model_resolver, "isAlias")

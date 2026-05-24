@@ -128,11 +128,11 @@ async def test_extensions_and_resource_loader_compose_session_start_resources(tm
 
     extension_dir = agent_dir / "extensions" / "demo"
     extension_dir.mkdir()
-    skill_dir = tmp_path / "extension-skill"
-    skill_dir.mkdir()
+    skill_dir = agent_dir / "skills" / "extension-skill"
+    skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text("---\ndescription: Extension skill\n---\n# ext", encoding="utf-8")
-    prompt_dir = tmp_path / "extension-prompts"
-    prompt_dir.mkdir()
+    prompt_dir = agent_dir / "prompts"
+    prompt_dir.mkdir(parents=True)
     (prompt_dir / "summarize.md").write_text("---\ndescription: Prompt\n---\nSummarize $1", encoding="utf-8")
 
     (extension_dir / "index.py").write_text(
@@ -146,7 +146,7 @@ async def test_extensions_and_resource_loader_compose_session_start_resources(tm
             "            content=[TextContent(text=ctx['cwd'])],\n"
             "            details={'seen': params['value']},\n"
             "        )\n"
-            "    api.register_tool(\n"
+            "    api.registerTool(\n"
             "        ToolDefinition(\n"
             "            name='demo',\n"
             "            label='Demo',\n"
@@ -156,8 +156,6 @@ async def test_extensions_and_resource_loader_compose_session_start_resources(tm
             "        )\n"
             "    )\n"
             "    api.registerCommand('demo-cmd', {'description': 'cmd', 'handler': lambda args, ctx: None})\n"
-            f"    api.add_skill_path({str(skill_dir)!r})\n"
-            f"    api.add_prompt_path({str(prompt_dir)!r})\n"
         ),
         encoding="utf-8",
     )

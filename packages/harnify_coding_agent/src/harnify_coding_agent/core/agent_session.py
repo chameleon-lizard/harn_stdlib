@@ -2244,7 +2244,11 @@ class AgentSession:
         latest_compaction = get_latest_compaction_entry(branch_entries)
         latest_compaction_timestamp = _event_timestamp_ms(_event_field(latest_compaction, "timestamp"))
         assistant_timestamp = _event_timestamp_ms(assistant_message.timestamp)
-        if latest_compaction is not None and assistant_timestamp > 0 and assistant_timestamp <= latest_compaction_timestamp:
+        if (
+            latest_compaction is not None
+            and assistant_timestamp > 0
+            and assistant_timestamp <= latest_compaction_timestamp + 1
+        ):
             return False
 
         if same_model and is_context_overflow(assistant_message, context_window):
@@ -2281,7 +2285,7 @@ class AgentSession:
                 latest_compaction is not None
                 and _message_role(usage_message) == "assistant"
                 and usage_timestamp > 0
-                and usage_timestamp <= latest_compaction_timestamp
+                and usage_timestamp <= latest_compaction_timestamp + 1
             ):
                 return False
             context_tokens = estimate.tokens

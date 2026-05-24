@@ -560,7 +560,8 @@ def build_params(
                 else reasoning_effort
             }
         elif model.thinkingLevelMap and model.thinkingLevelMap.get("off") is not None:
-            params["reasoning"] = {"effort": model.thinkingLevelMap.get("off") or "none"}
+            off_value = model.thinkingLevelMap.get("off")
+            params["reasoning"] = {"effort": "none" if off_value is None else off_value}
     elif compat.get("thinkingFormat") == "together" and model.reasoning:
         params["reasoning"] = {"enabled": bool(reasoning_effort)}
         if reasoning_effort and compat.get("supportsReasoningEffort"):

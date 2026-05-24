@@ -86,6 +86,69 @@ _API_VERSION_PATTERN = re.compile(r"^v\d+(?:beta\d*)?$")
 _PLACEHOLDER_API_KEY_PATTERN = re.compile(r"^<[^>]+>$")
 
 
+def _create_abort_wait_task(signal: Any) -> asyncio.Task[None] | None:
+    if signal is None or not hasattr(signal, "wait"):
+        return None
+    return asyncio.create_task(signal.wait())
+
+
+async def _close_stream(stream_obj: Any) -> None:
+    if stream_obj is None:
+        return
+    for close_name in ("aclose", "close"):
+        close = getattr(stream_obj, close_name, None)
+        if callable(close):
+            try:
+                await _maybe_await(close())
+            except Exception:  # noqa: BLE001
+                return
+            return
+
+
+async def _await_with_signal(awaitable: Any, signal: Any, *, on_abort: Any = None) -> Any:
+    if _is_aborted(signal):
+        if isinstance(awaitable, asyncio.Future):
+            awaitable.cancel()
+        else:
+            close = getattr(awaitable, "close", None)
+            if callable(close):
+                close()
+        if on_abort is not None:
+            await _maybe_await(on_abort())
+        raise RuntimeError("Request was aborted")
+
+    task = asyncio.ensure_future(awaitable)
+    abort_task = _create_abort_wait_task(signal)
+    try:
+        if abort_task is not None:
+            done, _ = await asyncio.wait({task, abort_task}, return_when=asyncio.FIRST_COMPLETED)
+            if abort_task in done and not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+                if on_abort is not None:
+                    await _maybe_await(on_abort())
+                raise RuntimeError("Request was aborted")
+        return await task
+    finally:
+        if abort_task is not None:
+            abort_task.cancel()
+            await asyncio.gather(abort_task, return_exceptions=True)
+
+
+async def _iterate_async_iterable(iterable: Any, signal: Any = None, *, on_abort: Any = None):
+    iterator = iterable.__aiter__()
+    while True:
+        try:
+            item = await _await_with_signal(iterator.__anext__(), signal, on_abort=on_abort)
+        except StopAsyncIteration:
+            return
+        yield item
+
+
+def _format_google_vertex_error(error: Any) -> str:
+    return str(error) if isinstance(error, Exception) else json.dumps(error, default=str)
+
+
 def stream_google_vertex(
     model: Model,
     context: Context,
@@ -96,7 +159,7 @@ def stream_google_vertex(
     async def run() -> None:
         output = AssistantMessage(
             content=[],
-            api=model.api,
+            api="google-vertex",
             provider=model.provider,
             model=model.id,
             usage=_empty_usage(),
@@ -134,7 +197,7 @@ def stream_google_vertex(
             stream.push(StartEvent(partial=output))
 
             current_block: TextContent | ThinkingContent | None = None
-            async for chunk in google_stream:
+            async for chunk in _iterate_async_iterable(google_stream, signal, on_abort=lambda: _close_stream(google_stream)):
                 if _is_aborted(signal):
                     raise RuntimeError("Request was aborted")
 
@@ -273,7 +336,7 @@ def stream_google_vertex(
             stream.push(DoneEvent(reason=output.stopReason, message=output))
         except Exception as error:  # noqa: BLE001
             output.stopReason = "aborted" if _is_aborted(signal) else "error"
-            output.errorMessage = str(error)
+            output.errorMessage = _format_google_vertex_error(error)
             stream.push(ErrorEvent(reason=output.stopReason, error=output))
         finally:
             aio_client = getattr(client, "aio", None)
@@ -526,35 +589,7 @@ getDisabledThinkingConfig = get_disabled_thinking_config
 getGemini3ThinkingLevel = get_gemini3_thinking_level
 
 __all__ = [
-    "API_VERSION",
-    "GCP_VERTEX_CREDENTIALS_MARKER",
     "GoogleVertexOptions",
-    "baseUrlIncludesApiVersion",
-    "base_url_includes_api_version",
-    "buildHttpOptions",
-    "buildParams",
-    "build_http_options",
-    "build_params",
-    "createClient",
-    "createClientWithApiKey",
-    "create_client",
-    "create_client_with_api_key",
-    "getDisabledThinkingConfig",
-    "getGemini3ThinkingLevel",
-    "get_disabled_thinking_config",
-    "get_gemini3_thinking_level",
-    "isPlaceholderApiKey",
-    "is_placeholder_api_key",
-    "resolveApiKey",
-    "resolveCustomBaseUrl",
-    "resolveLocation",
-    "resolveProject",
-    "resolve_api_key",
-    "resolve_custom_base_url",
-    "resolve_location",
-    "resolve_project",
     "streamGoogleVertex",
     "streamSimpleGoogleVertex",
-    "stream_google_vertex",
-    "stream_simple_google_vertex",
 ]

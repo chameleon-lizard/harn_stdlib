@@ -658,11 +658,11 @@ def _decode_websocket_data(data: Any) -> str | None:
     if isinstance(data, str):
         return data
     if isinstance(data, bytes):
-        return data.decode("utf-8")
+        return data.decode("utf-8", errors="replace")
     if isinstance(data, bytearray):
-        return bytes(data).decode("utf-8")
+        return bytes(data).decode("utf-8", errors="replace")
     if isinstance(data, memoryview):
-        return data.tobytes().decode("utf-8")
+        return data.tobytes().decode("utf-8", errors="replace")
     return None
 
 
@@ -671,14 +671,11 @@ def _request_body_without_input(body: dict[str, Any]) -> dict[str, Any]:
 
 
 def _response_inputs_equal(a: Any, b: Any) -> bool:
-    return json.dumps(a or [], sort_keys=True) == json.dumps(b or [], sort_keys=True)
+    return json.dumps(a or []) == json.dumps(b or [])
 
 
 def _request_bodies_match_except_input(a: dict[str, Any], b: dict[str, Any]) -> bool:
-    return json.dumps(_request_body_without_input(a), sort_keys=True) == json.dumps(
-        _request_body_without_input(b),
-        sort_keys=True,
-    )
+    return json.dumps(_request_body_without_input(a)) == json.dumps(_request_body_without_input(b))
 
 
 def _get_cached_websocket_input_delta(

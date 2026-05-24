@@ -295,17 +295,20 @@ async def process_responses_stream(
             if not isinstance(item, dict):
                 continue
             item_type = item.get("type")
-            current_item = item
-            current_tool_partial_json = ""
             if item_type == "reasoning":
+                current_item = item
+                current_tool_partial_json = ""
                 current_block = ThinkingContent(thinking="")
                 blocks.append(current_block)
                 stream.push(ThinkingStartEvent(contentIndex=block_index(), partial=output))
             elif item_type == "message":
+                current_item = item
+                current_tool_partial_json = ""
                 current_block = TextContent(text="")
                 blocks.append(current_block)
                 stream.push(TextStartEvent(contentIndex=block_index(), partial=output))
             elif item_type == "function_call":
+                current_item = item
                 current_tool_partial_json = item.get("arguments") or ""
                 current_block = ToolCall(
                     id=f"{item.get('call_id', '')}|{item.get('id', '')}",

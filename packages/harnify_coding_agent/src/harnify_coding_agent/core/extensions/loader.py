@@ -133,7 +133,8 @@ class _ExtensionAPI:
     async def exec(self, command: str, args: list[str], options: ExecOptions | None = None) -> ExecResult:
         self.runtime.assertActive()
         resolved_options: ExecOptions = dict(options or {})
-        resolved_cwd = str(resolved_options.get("cwd") or self.cwd)
+        cwd_override = resolved_options.get("cwd")
+        resolved_cwd = self.cwd if cwd_override is None else str(cwd_override)
         return await exec_command(command, args, resolved_cwd, resolved_options)
 
     def getActiveTools(self) -> list[str]:
@@ -225,7 +226,7 @@ def create_extension_runtime() -> ExtensionRuntime:
             PendingProviderRegistration(
                 name=name,
                 config=config,
-                extensionPath=extension_path or "<unknown>",
+                extensionPath="<unknown>" if extension_path is None else extension_path,
             )
         ),
         unregisterProvider=lambda name, _extension_path=None: runtime.pendingProviderRegistrations.__setitem__(

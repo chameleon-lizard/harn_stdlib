@@ -123,17 +123,11 @@ async def _await_with_signal(request_factory: Callable[[], Any], signal: Any) ->
             return await request_task
 
         request_task.cancel()
-        try:
-            await request_task
-        except Exception:
-            pass
+        await asyncio.gather(request_task, return_exceptions=True)
         raise RuntimeError("Request aborted")
     finally:
         abort_task.cancel()
-        try:
-            await abort_task
-        except Exception:
-            pass
+        await asyncio.gather(abort_task, return_exceptions=True)
 
 
 def _create_client(

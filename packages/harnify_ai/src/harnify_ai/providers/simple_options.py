@@ -9,7 +9,7 @@ from harnify_ai.types import Model, SimpleStreamOptions, StreamOptions, Thinking
 
 def build_base_options(_model: Model, options: SimpleStreamOptions | None = None, api_key: str | None = None) -> StreamOptions:
     if options is None:
-        return StreamOptions(apiKey=api_key)
+        return StreamOptions(apiKey=api_key or None)
 
     return StreamOptions(
         temperature=options.temperature,

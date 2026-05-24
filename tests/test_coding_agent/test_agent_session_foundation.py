@@ -710,11 +710,11 @@ async def test_agent_session_auto_compaction_uses_threshold_hook_path(tmp_path: 
 
     session = _create_session(tmp_path, provider="faux", extension_factories=[extension_factory])
     session.agent.state.model = model
-    session.settingsManager.settings["compaction"] = {"enabled": True, "reserveTokens": 1_000, "keepRecentTokens": 0}
     events: list[object] = []
     session.subscribe(events.append)
     await session._resourceLoader.reload()
     await session.reload()
+    session.settingsManager.settings["compaction"] = {"enabled": True, "reserveTokens": 1_000, "keepRecentTokens": 0}
     await session.bindExtensions({})
 
     try:

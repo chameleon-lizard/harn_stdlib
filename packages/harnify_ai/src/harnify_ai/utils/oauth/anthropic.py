@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import binascii
 import json
 import os
 import time
+import traceback
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
@@ -91,6 +91,8 @@ def _format_error_details(error: Any) -> str:
             details.append(f"errno={errno}")
         if cause is not None:
             details.append(f"cause={_format_error_details(cause)}")
+        if error.__traceback__ is not None:
+            details.append(f"stack={''.join(traceback.format_exception(type(error), error, error.__traceback__)).rstrip()}")
         return "; ".join(details)
     return str(error)
 
@@ -135,6 +137,16 @@ async def _start_callback_server(expected_state: str) -> _CallbackServerInfo:
                 f"Content-Length: {len(body.encode('utf-8'))}\r\n"
                 "Connection: close\r\n\r\n"
                 f"{body}"
+            )
+            writer.write(response.encode("utf-8"))
+            await writer.drain()
+        except Exception:
+            response = (
+                "HTTP/1.1 500 Internal Server Error\r\n"
+                "Content-Type: text/plain; charset=utf-8\r\n"
+                "Content-Length: 14\r\n"
+                "Connection: close\r\n\r\n"
+                "Internal error"
             )
             writer.write(response.encode("utf-8"))
             await writer.drain()
@@ -247,7 +259,7 @@ async def login_anthropic(options: dict[str, Any]) -> OAuthCredentials:
                 if parsed["state"] and parsed["state"] != verifier:
                     raise RuntimeError("OAuth state mismatch")
                 code = parsed["code"]
-                state = parsed["state"] or verifier
+                state = parsed["state"] if parsed["state"] is not None else verifier
 
             if not code:
                 await manual_task
@@ -258,7 +270,7 @@ async def login_anthropic(options: dict[str, Any]) -> OAuthCredentials:
                     if parsed["state"] and parsed["state"] != verifier:
                         raise RuntimeError("OAuth state mismatch")
                     code = parsed["code"]
-                    state = parsed["state"] or verifier
+                    state = parsed["state"] if parsed["state"] is not None else verifier
         else:
             result = await server.wait_for_code()
             if result and result.get("code"):
@@ -271,7 +283,7 @@ async def login_anthropic(options: dict[str, Any]) -> OAuthCredentials:
             if parsed["state"] and parsed["state"] != verifier:
                 raise RuntimeError("OAuth state mismatch")
             code = parsed["code"]
-            state = parsed["state"] or verifier
+            state = parsed["state"] if parsed["state"] is not None else verifier
 
         if not code:
             raise RuntimeError("Missing authorization code")

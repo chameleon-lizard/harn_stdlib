@@ -538,7 +538,7 @@ async def test_extension_runner_matches_ts_nullish_and_warning_behaviour(capsys:
     assert "conflicts with built-in shortcut" in warning_output
 
     runner.invalidate()
-    with pytest.raises(RuntimeError, match=r"ctx\\.newSession\\(\\)") as excinfo:
+    with pytest.raises(RuntimeError, match=r"ctx\.newSession\(\)") as excinfo:
         _ = runner.create_context().cwd
     assert "withSession" in str(excinfo.value)
 

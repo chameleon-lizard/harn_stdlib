@@ -275,3 +275,51 @@ async def test_export_from_file_missing_input_raises_runtime_error(tmp_path: Pat
 
     with pytest.raises(RuntimeError, match=rf"File not found: {re.escape(str(missing))}"):
         await export_from_file(str(missing))
+
+
+@pytest.mark.asyncio
+async def test_export_session_to_html_preserves_empty_rendered_tool_result_strings(tmp_path: Path) -> None:
+    cwd = tmp_path / "workspace"
+    cwd.mkdir()
+    session_dir = tmp_path / "sessions"
+    session_manager = SessionManager.create(str(cwd), str(session_dir))
+    session_manager.appendMessage(
+        {
+            "role": "assistant",
+            "content": [{"type": "toolCall", "id": "tool-2", "name": "custom", "arguments": {}}],
+        }
+    )
+    session_manager.appendMessage(
+        {
+            "role": "toolResult",
+            "toolCallId": "tool-2",
+            "toolName": "custom",
+            "content": [{"type": "text", "text": "done"}],
+            "details": {},
+            "isError": False,
+        }
+    )
+
+    class _EmptyRenderer:
+        def renderCall(self, _toolCallId: str, _toolName: str, _args: Any) -> str | None:
+            return "<div>call</div>"
+
+        def renderResult(
+            self,
+            _toolCallId: str,
+            _toolName: str,
+            _result: list[dict[str, Any]],
+            _details: Any,
+            _isError: bool,
+        ) -> Any:
+            return type("Rendered", (), {"collapsed": "", "expanded": ""})()
+
+    output_path = await export_session_to_html(
+        session_manager,
+        None,
+        {"toolRenderer": _EmptyRenderer(), "outputPath": str(tmp_path / "empty-rendered.html")},
+    )
+    payload = _extract_session_payload(Path(output_path).read_text(encoding="utf-8"))
+
+    assert payload["renderedTools"]["tool-2"]["resultHtmlCollapsed"] == ""
+    assert payload["renderedTools"]["tool-2"]["resultHtmlExpanded"] == ""

@@ -266,9 +266,9 @@ def pre_render_custom_tools(
             )
             if rendered:
                 merged: RenderedToolHtml = dict(existing or {})
-                if rendered.collapsed:
+                if rendered.collapsed is not None:
                     merged["resultHtmlCollapsed"] = rendered.collapsed
-                if rendered.expanded:
+                if rendered.expanded is not None:
                     merged["resultHtmlExpanded"] = rendered.expanded
                 rendered_tools[tool_call_id] = merged
 

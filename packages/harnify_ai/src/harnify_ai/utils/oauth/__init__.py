@@ -41,13 +41,13 @@ from harnify_ai.utils.oauth.types import (
     OAuthSelectPrompt,
 )
 
-BUILT_IN_OAUTH_PROVIDERS: list[OAuthProviderInterface] = [
+_BUILT_IN_OAUTH_PROVIDERS: list[OAuthProviderInterface] = [
     anthropicOAuthProvider,
     githubCopilotOAuthProvider,
     openaiCodexOAuthProvider,
 ]
 
-_oauth_provider_registry: dict[str, OAuthProviderInterface] = {provider.id: provider for provider in BUILT_IN_OAUTH_PROVIDERS}
+_oauth_provider_registry: dict[str, OAuthProviderInterface] = {provider.id: provider for provider in _BUILT_IN_OAUTH_PROVIDERS}
 
 
 class _OAuthApiKeyResult(TypedDict):
@@ -64,7 +64,7 @@ def register_oauth_provider(provider: OAuthProviderInterface) -> None:
 
 
 def unregister_oauth_provider(provider_id: str) -> None:
-    built_in = next((provider for provider in BUILT_IN_OAUTH_PROVIDERS if provider.id == provider_id), None)
+    built_in = next((provider for provider in _BUILT_IN_OAUTH_PROVIDERS if provider.id == provider_id), None)
     if built_in is not None:
         _oauth_provider_registry[provider_id] = built_in
         return
@@ -73,7 +73,7 @@ def unregister_oauth_provider(provider_id: str) -> None:
 
 def reset_oauth_providers() -> None:
     _oauth_provider_registry.clear()
-    for provider in BUILT_IN_OAUTH_PROVIDERS:
+    for provider in _BUILT_IN_OAUTH_PROVIDERS:
         _oauth_provider_registry[provider.id] = provider
 
 
@@ -124,7 +124,6 @@ refreshOAuthToken = refresh_oauth_token
 getOAuthApiKey = get_oauth_api_key
 
 __all__ = [
-    "BUILT_IN_OAUTH_PROVIDERS",
     "OAuthAuthInfo",
     "OAuthCredentials",
     "OAuthDeviceCodeCompleteResult",

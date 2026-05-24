@@ -94,7 +94,7 @@ class _FauxTokenSizeOptions(TypedDict, total=False):
 class RegisterFauxProviderOptions(TypedDict, total=False):
     api: str
     provider: str
-    models: list[FauxModelDefinition | dict[str, Any]]
+    models: list[FauxModelDefinition]
     tokensPerSecond: int
     tokenSize: _FauxTokenSizeOptions
 
@@ -125,7 +125,7 @@ class FauxProviderRegistration:
     _unregister: Any
 
     def getModel(self, modelId: str | None = None) -> Model | None:
-        if modelId is None:
+        if not modelId:
             return self.models[0]
         return next((candidate for candidate in self.models if candidate.id == modelId), None)
 

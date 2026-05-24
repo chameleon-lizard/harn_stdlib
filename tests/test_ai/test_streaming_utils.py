@@ -4,6 +4,7 @@ import asyncio
 
 import pytest
 
+import harnify_ai.utils.event_stream as event_stream_utils
 from harnify_ai.types import validate_assistant_message_event
 from harnify_ai.utils.event_stream import AssistantMessageEventStream, EventStream
 from harnify_ai.utils.json_parse import parse_json_with_repair, parse_streaming_json
@@ -59,19 +60,14 @@ async def test_event_stream_delivers_waiting_consumer_and_final_result() -> None
 
 
 @pytest.mark.asyncio
-async def test_event_stream_requires_explicit_end_after_complete_event() -> None:
+async def test_event_stream_finishes_after_complete_event_without_explicit_end() -> None:
     stream = EventStream[str, str](lambda event: event == "done", lambda event: event.upper())
     consumer = asyncio.create_task(anext(stream.__aiter__()))
 
     stream.push("done")
     assert await consumer == "done"
 
-    drain = asyncio.create_task(anext(stream.__aiter__(), "sentinel"))
-    await asyncio.sleep(0)
-    assert not drain.done()
-
-    stream.end("DONE")
-    assert await drain == "sentinel"
+    assert await asyncio.wait_for(anext(stream.__aiter__(), "sentinel"), timeout=1) == "sentinel"
     assert await stream.result() == "DONE"
 
 
@@ -111,3 +107,12 @@ def test_parse_streaming_json_recovers_partial_nested_objects() -> None:
     assert parse_streaming_json('{"tool":{"x":1') == {"tool": {"x": 1}}
     assert parse_streaming_json(None) == {}
     assert parse_streaming_json("") == {}
+
+
+def test_event_stream_module_exports_expected_names() -> None:
+    assert event_stream_utils.__all__ == [
+        "AssistantMessageEventStream",
+        "EventStream",
+        "createAssistantMessageEventStream",
+        "create_assistant_message_event_stream",
+    ]

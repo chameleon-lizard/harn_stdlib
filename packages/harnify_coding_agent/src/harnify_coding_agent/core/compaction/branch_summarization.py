@@ -28,12 +28,12 @@ from harnify_coding_agent.core.messages import (
 )
 from harnify_coding_agent.core.session_manager import ReadonlySessionManager, SessionEntry
 
-BRANCH_SUMMARY_PREAMBLE = """The user explored a different conversation branch before returning here.
+_BRANCH_SUMMARY_PREAMBLE = """The user explored a different conversation branch before returning here.
 Summary of that exploration:
 
 """
 
-BRANCH_SUMMARY_PROMPT = """Create a structured summary of this conversation branch for context when returning later.
+_BRANCH_SUMMARY_PROMPT = """Create a structured summary of this conversation branch for context when returning later.
 
 Use this EXACT format:
 
@@ -183,14 +183,14 @@ async def generate_branch_summary(
     preparation = prepare_branch_entries(entries, token_budget)
 
     if not preparation.messages:
-        return BranchSummaryResult(summary="No content to summarize", readFiles=[], modifiedFiles=[])
+        return BranchSummaryResult(summary="No content to summarize")
 
     if options.replaceInstructions and options.customInstructions:
         instructions = options.customInstructions
     elif options.customInstructions:
-        instructions = f"{BRANCH_SUMMARY_PROMPT}\n\nAdditional focus: {options.customInstructions}"
+        instructions = f"{_BRANCH_SUMMARY_PROMPT}\n\nAdditional focus: {options.customInstructions}"
     else:
-        instructions = BRANCH_SUMMARY_PROMPT
+        instructions = _BRANCH_SUMMARY_PROMPT
 
     prompt_text = (
         "<conversation>\n"
@@ -215,7 +215,7 @@ async def generate_branch_summary(
     if response.stopReason == "error":
         return BranchSummaryResult(error=response.errorMessage or "Summarization failed")
 
-    summary = BRANCH_SUMMARY_PREAMBLE + _assistant_text(response)
+    summary = _BRANCH_SUMMARY_PREAMBLE + _assistant_text(response)
     file_lists = compute_file_lists(preparation.fileOps)
     summary += format_file_operations(file_lists["readFiles"], file_lists["modifiedFiles"])
     return BranchSummaryResult(
@@ -234,23 +234,23 @@ def _get_message_from_entry(entry: SessionEntry) -> AgentMessage | None:
         return message
     if entry_type == "custom_message":
         return create_custom_message(
-            str(entry.get("customType")),
+            entry.get("customType"),
             entry.get("content"),
-            bool(entry.get("display")),
+            entry.get("display"),
             entry.get("details"),
-            str(entry.get("timestamp")),
+            entry.get("timestamp"),
         )
     if entry_type == "branch_summary":
         return create_branch_summary_message(
-            str(entry.get("summary")),
-            str(entry.get("fromId")),
-            str(entry.get("timestamp")),
+            entry.get("summary"),
+            entry.get("fromId"),
+            entry.get("timestamp"),
         )
     if entry_type == "compaction":
         return create_compaction_summary_message(
-            str(entry.get("summary")),
-            int(entry.get("tokensBefore", 0)),
-            str(entry.get("timestamp")),
+            entry.get("summary"),
+            entry.get("tokensBefore"),
+            entry.get("timestamp"),
         )
     return None
 
@@ -286,17 +286,13 @@ generateBranchSummary = generate_branch_summary
 prepareBranchEntries = prepare_branch_entries
 
 __all__ = [
-    "BRANCH_SUMMARY_PREAMBLE",
-    "BRANCH_SUMMARY_PROMPT",
     "BranchPreparation",
     "BranchSummaryDetails",
     "BranchSummaryResult",
     "CollectEntriesResult",
+    "FileOperations",
     "GenerateBranchSummaryOptions",
     "collectEntriesForBranchSummary",
-    "collect_entries_for_branch_summary",
     "generateBranchSummary",
-    "generate_branch_summary",
     "prepareBranchEntries",
-    "prepare_branch_entries",
 ]

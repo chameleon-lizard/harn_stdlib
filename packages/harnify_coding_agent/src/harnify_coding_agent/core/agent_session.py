@@ -1834,8 +1834,8 @@ class AgentSession:
             definitions[name] = _ToolDefinitionEntry(
                 definition=definition,
                 sourceInfo=source_info,
-                promptSnippet=definition.description,
-                promptGuidelines=[],
+                promptSnippet=self._normalize_prompt_snippet(_definition_attr(definition, "promptSnippet")),
+                promptGuidelines=self._normalize_prompt_guidelines(_definition_attr(definition, "promptGuidelines")),
             )
             registry[name] = wrap_tool_definition(definition)
 

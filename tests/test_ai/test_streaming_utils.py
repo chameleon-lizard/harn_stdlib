@@ -5,6 +5,7 @@ import asyncio
 import pytest
 
 import harnify_ai.utils.event_stream as event_stream_utils
+import harnify_ai.utils.json_parse as json_parse_utils
 from harnify_ai.types import validate_assistant_message_event
 from harnify_ai.utils.event_stream import AssistantMessageEventStream, EventStream
 from harnify_ai.utils.json_parse import parse_json_with_repair, parse_streaming_json
@@ -105,6 +106,8 @@ def test_parse_json_with_repair_handles_invalid_escapes_and_control_characters()
 
 def test_parse_streaming_json_recovers_partial_nested_objects() -> None:
     assert parse_streaming_json('{"tool":{"x":1') == {"tool": {"x": 1}}
+    assert parse_streaming_json('"abc') == "abc"
+    assert parse_streaming_json('"') == ""
     assert parse_streaming_json(None) == {}
     assert parse_streaming_json("") == {}
 
@@ -115,4 +118,12 @@ def test_event_stream_module_exports_expected_names() -> None:
         "EventStream",
         "createAssistantMessageEventStream",
         "create_assistant_message_event_stream",
+    ]
+
+
+def test_json_parse_module_exports_expected_names() -> None:
+    assert json_parse_utils.__all__ == [
+        "repairJson",
+        "parseJsonWithRepair",
+        "parseStreamingJson",
     ]

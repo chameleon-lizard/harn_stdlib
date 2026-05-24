@@ -102,6 +102,29 @@ def _partial_parse_json(json_string: str) -> Any:
     )
 
 
+def _recover_partial_top_level_string(json_string: str) -> str | None:
+    trimmed = json_string.lstrip()
+    if not trimmed or trimmed[0] != '"':
+        return None
+    if trimmed.rstrip().endswith('"'):
+        return None
+    try:
+        recovered = parse_json_with_repair(f'{json_string}"')
+    except Exception:
+        return None
+    return recovered if isinstance(recovered, str) else None
+
+
+def _coalesce_partial_parse_result(result: Any, partial_json: str) -> Any:
+    if result is None:
+        return {}
+    if result == "":
+        recovered = _recover_partial_top_level_string(partial_json)
+        if recovered is not None:
+            return recovered
+    return result
+
+
 def parse_streaming_json(partial_json: str | None) -> TJson:
     if partial_json is None or partial_json.strip() == "":
         return {}
@@ -111,11 +134,11 @@ def parse_streaming_json(partial_json: str | None) -> TJson:
     except Exception:
         try:
             result = _partial_parse_json(partial_json)
-            return result if result is not None and result != "" else {}
+            return _coalesce_partial_parse_result(result, partial_json)
         except Exception:
             try:
                 result = _partial_parse_json(repair_json(partial_json))
-                return result if result is not None and result != "" else {}
+                return _coalesce_partial_parse_result(result, partial_json)
             except Exception:
                 return {}
 
@@ -125,10 +148,7 @@ parseJsonWithRepair = parse_json_with_repair
 parseStreamingJson = parse_streaming_json
 
 __all__ = [
+    "repairJson",
     "parseJsonWithRepair",
     "parseStreamingJson",
-    "parse_json_with_repair",
-    "parse_streaming_json",
-    "repairJson",
-    "repair_json",
 ]

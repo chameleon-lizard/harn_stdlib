@@ -8,12 +8,13 @@ from harnify_ai.models import get_model
 from harnify_ai.providers.openai_prompt_cache import clamp_openai_prompt_cache_key
 from harnify_ai.providers.simple_options import adjust_max_tokens_for_thinking, build_base_options, clamp_reasoning
 from harnify_ai.providers.transform_messages import (
-    NON_VISION_USER_IMAGE_PLACEHOLDER,
     transform_messages,
 )
 from harnify_ai.stream import complete_simple
 from harnify_ai.types import SimpleStreamOptions, validate_assistant_message_event, validate_message
 import harnify_ai.providers.register_builtins as register_builtins
+
+NON_VISION_USER_IMAGE_PLACEHOLDER = "(image omitted: model does not support images)"
 
 
 def _usage_payload() -> dict[str, object]:

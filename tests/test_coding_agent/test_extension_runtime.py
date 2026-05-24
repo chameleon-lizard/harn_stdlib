@@ -7,6 +7,7 @@ from harnify_agent.types import AgentToolResult
 from harnify_ai.types import TextContent
 from harnify_coding_agent.core import exec as exec_module
 from harnify_coding_agent.core import extensions as extension_package
+from harnify_coding_agent.core.event_bus import create_event_bus
 from harnify_coding_agent.core.extensions.loader import create_extension_runtime, load_extension_from_factory
 from harnify_coding_agent.core.extensions.runner import ExtensionRunner
 from harnify_coding_agent.core.extensions import types as extension_types
@@ -124,10 +125,12 @@ async def test_extension_loader_and_runner_bind_real_runtime_surface() -> None:
         api.registerProvider("demo-provider", {"baseUrl": "https://example.test"})
 
     runtime = create_extension_runtime()
+    event_bus = create_event_bus()
     extension = await load_extension_from_factory(
         factory,
         "/tmp",
-        runtime=runtime,
+        event_bus,
+        runtime,
         extension_path="<inline:demo>",
     )
 
@@ -236,7 +239,13 @@ async def test_extension_runner_emits_events_and_invalidates_context() -> None:
         api.on("message_end", lambda event, ctx: {"message": {"role": "user", "text": "bad-role"}})
         api.on("input", lambda event, ctx: (_ for _ in ()).throw(RuntimeError("boom")))
 
-    extension = await load_extension_from_factory(factory, "/tmp/project", extension_path="<inline:eventful>")
+    extension = await load_extension_from_factory(
+        factory,
+        "/tmp/project",
+        create_event_bus(),
+        create_extension_runtime(),
+        extension_path="<inline:eventful>",
+    )
     runner = ExtensionRunner(
         extensions=[extension],
         contextFactory=lambda: {"cwd": "runner-cwd"},
@@ -342,7 +351,13 @@ async def test_extension_runner_before_agent_start_ctx_uses_latest_system_prompt
         api.on("before_agent_start", first_handler)
         api.on("before_agent_start", second_handler)
 
-    extension = await load_extension_from_factory(factory, "/tmp/project", extension_path="<inline:before-agent>")
+    extension = await load_extension_from_factory(
+        factory,
+        "/tmp/project",
+        create_event_bus(),
+        create_extension_runtime(),
+        extension_path="<inline:before-agent>",
+    )
     runner = ExtensionRunner(extensions=[extension], contextFactory=lambda: {"cwd": "runner-cwd"})
     runner.bind_core(
         {

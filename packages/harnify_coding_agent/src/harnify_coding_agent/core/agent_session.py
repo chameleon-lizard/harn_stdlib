@@ -1737,6 +1737,42 @@ class AgentSession:
             setattr(target, key, value)
 
     def _bind_extension_core(self, runner: ExtensionRunner) -> None:
+        def _emit_runtime_error(event: str, error: Exception) -> None:
+            runner.emit_error(
+                ExtensionError(
+                    extensionPath="<runtime>",
+                    event=event,
+                    error=str(error),
+                )
+            )
+
+        def _send_message_from_runtime(message: Any, options: dict[str, Any] | None = None) -> None:
+            async def _run() -> None:
+                try:
+                    await self.sendCustomMessage(message, options)
+                except Exception as error:  # noqa: BLE001
+                    _emit_runtime_error(
+                        "send_message",
+                        error if isinstance(error, Exception) else RuntimeError(str(error)),
+                    )
+
+            self._spawn_background(_run())
+
+        def _send_user_message_from_runtime(
+            content: str | list[TextContent | ImageContent | dict[str, Any]],
+            options: dict[str, Any] | None = None,
+        ) -> None:
+            async def _run() -> None:
+                try:
+                    await self._send_user_message(content, options)
+                except Exception as error:  # noqa: BLE001
+                    _emit_runtime_error(
+                        "send_user_message",
+                        error if isinstance(error, Exception) else RuntimeError(str(error)),
+                    )
+
+            self._spawn_background(_run())
+
         def _compact_from_extension(options: dict[str, Any] | None = None) -> None:
             async def _run() -> None:
                 try:
@@ -1758,8 +1794,8 @@ class AgentSession:
 
         runner.bind_core(
             {
-                "sendMessage": self.sendMessage,
-                "sendUserMessage": self.sendUserMessage,
+                "sendMessage": _send_message_from_runtime,
+                "sendUserMessage": _send_user_message_from_runtime,
                 "appendEntry": lambda customType, data=None: self.sessionManager.appendCustomEntry(customType, data),
                 "setSessionName": self.setSessionName,
                 "getSessionName": self.sessionManager.getSessionName,
@@ -1767,7 +1803,7 @@ class AgentSession:
                 "getActiveTools": self.getActiveToolNames,
                 "getAllTools": self.getAllTools,
                 "setActiveTools": self.setActiveToolsByName,
-                "refreshTools": self.refreshTools,
+                "refreshTools": lambda: self._refresh_tool_registry(),
                 "getCommands": self.getSlashCommands,
                 "setModel": self._set_model_if_configured,
                 "getThinkingLevel": lambda: self.thinkingLevel,
@@ -1790,8 +1826,11 @@ class AgentSession:
             },
         )
 
-    def _create_extension_runner(self) -> ExtensionRunner:
+    def _create_extension_runner(self, flag_values: dict[str, bool | str] | None = None) -> ExtensionRunner:
         extensions_result = self._resourceLoader.getExtensions()
+        if flag_values:
+            for name, value in flag_values.items():
+                extensions_result.runtime.flagValues[name] = value
         runner = ExtensionRunner(
             extensions=list(extensions_result.extensions),
             runtime=extensions_result.runtime,
@@ -1834,6 +1873,130 @@ class AgentSession:
         if refreshed_model is None or refreshed_model == current_model:
             return
         self.agent.state.model = refreshed_model
+
+    def _refresh_tool_registry(self, options: dict[str, Any] | None = None) -> None:
+        resolved_options = dict(options or {})
+        previous_registry_names = set(self._toolRegistry)
+        previous_active_tool_names = self.getActiveToolNames()
+
+        def is_allowed_tool(name: str) -> bool:
+            return self._allowedToolNames is None or name in self._allowedToolNames
+
+        registered_tools = self._extensionRunner.get_all_registered_tools()
+        all_custom_tools: list[tuple[Any, SourceInfo]] = [
+            *( (tool.definition, tool.sourceInfo) for tool in registered_tools ),
+            *(
+                (
+                    definition
+                    if isinstance(definition, ToolDefinition)
+                    else create_tool_definition_from_agent_tool(definition),
+                    create_synthetic_source_info(f"<sdk:{definition.name}>", {"source": "sdk"}),
+                )
+                for definition in self._customTools
+            ),
+        ]
+        all_custom_tools = [
+            (definition, source_info)
+            for definition, source_info in all_custom_tools
+            if is_allowed_tool(definition.name)
+        ]
+
+        definition_registry: dict[str, _ToolDefinitionEntry] = {}
+        for name, definition in self._baseToolDefinitions.items():
+            if not is_allowed_tool(name):
+                continue
+            definition_registry[name] = _ToolDefinitionEntry(
+                definition=definition,
+                sourceInfo=create_synthetic_source_info(f"<builtin:{name}>", {"source": "builtin"}),
+                promptSnippet=self._normalize_prompt_snippet(_definition_attr(definition, "promptSnippet")),
+                promptGuidelines=self._normalize_prompt_guidelines(_definition_attr(definition, "promptGuidelines")),
+            )
+        for definition, source_info in all_custom_tools:
+            definition_registry[definition.name] = _ToolDefinitionEntry(
+                definition=definition,
+                sourceInfo=source_info,
+                promptSnippet=self._normalize_prompt_snippet(_definition_attr(definition, "promptSnippet")),
+                promptGuidelines=self._normalize_prompt_guidelines(_definition_attr(definition, "promptGuidelines")),
+            )
+        self._toolDefinitions = definition_registry
+
+        tool_registry: dict[str, AgentTool] = {}
+        for name, definition in self._baseToolDefinitions.items():
+            if is_allowed_tool(name):
+                tool_registry[name] = wrap_tool_definition(definition, ctx_factory=self._extensionRunner.create_context)
+        for definition, _source_info in all_custom_tools:
+            tool_registry[definition.name] = wrap_tool_definition(
+                definition,
+                ctx_factory=self._extensionRunner.create_context,
+            )
+        self._toolRegistry = tool_registry
+
+        if "activeToolNames" in resolved_options:
+            next_active_tool_names = list(resolved_options["activeToolNames"] or [])
+        else:
+            next_active_tool_names = list(previous_active_tool_names)
+        next_active_tool_names = [name for name in next_active_tool_names if is_allowed_tool(name)]
+
+        if self._allowedToolNames is not None:
+            for tool_name in self._toolRegistry:
+                if tool_name in self._allowedToolNames:
+                    next_active_tool_names.append(tool_name)
+        elif resolved_options.get("includeAllExtensionTools"):
+            for definition, _source_info in all_custom_tools:
+                next_active_tool_names.append(definition.name)
+        elif "activeToolNames" not in resolved_options:
+            for tool_name in self._toolRegistry:
+                if tool_name not in previous_registry_names:
+                    next_active_tool_names.append(tool_name)
+
+        active_tool_names: list[str] = []
+        seen: set[str] = set()
+        for name in next_active_tool_names:
+            if name in self._toolRegistry and name not in seen:
+                seen.add(name)
+                active_tool_names.append(name)
+        self.setActiveToolsByName(active_tool_names)
+
+    def _build_runtime(self, options: dict[str, Any] | None = None) -> None:
+        resolved_options = dict(options or {})
+        auto_resize_images = self.settingsManager.getImageAutoResize()
+        shell_command_prefix = self.settingsManager.getShellCommandPrefix()
+        shell_path = self.settingsManager.getShellPath()
+
+        if self._baseToolsOverride:
+            base_tool_definitions = {
+                name: create_tool_definition_from_agent_tool(tool)
+                for name, tool in self._baseToolsOverride.items()
+            }
+        else:
+            base_tool_definitions = create_all_tool_definitions(
+                self._cwd,
+                {
+                    "read": {"autoResizeImages": auto_resize_images},
+                    "bash": {"commandPrefix": shell_command_prefix, "shellPath": shell_path},
+                },
+            )
+
+        self._baseToolDefinitions = dict(base_tool_definitions)
+        self._extensionRunner = self._create_extension_runner(resolved_options.get("flagValues"))
+        self._apply_extension_bindings(self._extensionRunner)
+
+        default_active_tool_names = (
+            list(self._baseToolsOverride)
+            if self._baseToolsOverride
+            else ["read", "bash", "edit", "write"]
+        )
+        base_active_tool_names = (
+            list(resolved_options["activeToolNames"])
+            if "activeToolNames" in resolved_options and resolved_options["activeToolNames"] is not None
+            else default_active_tool_names
+        )
+        self._refresh_tool_registry(
+            {
+                "activeToolNames": base_active_tool_names,
+                "includeAllExtensionTools": resolved_options.get("includeAllExtensionTools"),
+            }
+        )
 
     def _build_tool_registry(self) -> tuple[dict[str, _ToolDefinitionEntry], dict[str, AgentTool]]:
         definitions: dict[str, _ToolDefinitionEntry] = {}

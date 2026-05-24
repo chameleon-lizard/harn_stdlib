@@ -109,8 +109,8 @@ class ParsedSkillBlock:
     userMessage: str | None = None
 
 
-type AgentSessionEvent = Any
-type AgentSessionEventListener = Callable[[AgentSessionEvent], None]
+AgentSessionEvent = Any
+AgentSessionEventListener = Callable[[AgentSessionEvent], None]
 
 
 @dataclass(slots=True)

@@ -83,6 +83,7 @@ def test_cli_package_entrypoint_wraps_async_main(monkeypatch) -> None:
     assert seen["title"] == "pi"
     assert seen["warnings"] is True
     assert seen["dispatcher"] is True
+    assert cli_package.__all__ == ["main"]
 
 
 def test_http_dispatcher_configuration_validates_and_records_timeout() -> None:

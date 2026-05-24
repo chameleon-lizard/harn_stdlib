@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from typing import Any
 
 DEFAULT_HTTP_IDLE_TIMEOUT_MS = 300_000

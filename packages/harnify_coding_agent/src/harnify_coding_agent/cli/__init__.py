@@ -7,14 +7,6 @@ import os
 import sys
 import warnings
 
-from harnify_coding_agent.cli.args import ArgDiagnostic, Args, parse_args, print_help
-from harnify_coding_agent.cli.file_processor import (
-    ProcessedFiles,
-    ProcessFileOptions,
-    process_file_arguments,
-)
-from harnify_coding_agent.cli.initial_message import InitialMessageResult, build_initial_message
-from harnify_coding_agent.cli.list_models import list_models
 from harnify_coding_agent.config import APP_NAME
 from harnify_coding_agent.core.http_dispatcher import configure_http_dispatcher
 
@@ -51,20 +43,4 @@ def main(argv: list[str] | None = None) -> int:
     resolved_argv = list(sys.argv[1:] if argv is None else argv)
     return asyncio.run(_invoke_main(resolved_argv))
 
-
-run = main
-
-__all__ = [
-    "ArgDiagnostic",
-    "Args",
-    "InitialMessageResult",
-    "ProcessFileOptions",
-    "ProcessedFiles",
-    "build_initial_message",
-    "list_models",
-    "main",
-    "parse_args",
-    "print_help",
-    "process_file_arguments",
-    "run",
-]
+__all__ = ["main"]

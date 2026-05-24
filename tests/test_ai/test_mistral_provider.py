@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -105,8 +106,10 @@ async def test_stream_simple_mistral_uses_reasoning_effort_for_small_models(monk
 
     assert result.stopReason == "stop"
     assert captured_payload is not None
-    assert captured_payload["reasoning_effort"] == "high"
-    assert "prompt_mode" not in captured_payload
+    assert captured_payload["reasoningEffort"] == "high"
+    assert "promptMode" not in captured_payload
+    assert fake_client.chat.calls[0]["reasoning_effort"] == "high"
+    assert "prompt_mode" not in fake_client.chat.calls[0]
 
 
 @pytest.mark.asyncio
@@ -131,8 +134,59 @@ async def test_stream_simple_mistral_uses_prompt_mode_for_magistral_models(monke
 
     assert result.stopReason == "stop"
     assert captured_payload is not None
-    assert captured_payload["prompt_mode"] == "reasoning"
-    assert "reasoning_effort" not in captured_payload
+    assert captured_payload["promptMode"] == "reasoning"
+    assert "reasoningEffort" not in captured_payload
+    assert fake_client.chat.calls[0]["prompt_mode"] == "reasoning"
+    assert "reasoning_effort" not in fake_client.chat.calls[0]
+
+
+def test_build_request_options_matches_upstream_surface() -> None:
+    signal = object()
+    model = _make_model("mistral-small-2603")
+    model.headers = {"x-model": "1"}
+
+    request_options = mistral_provider.build_request_kwargs(
+        model,
+        {"signal": signal, "headers": {"x-option": "2"}, "sessionId": "session-1"},
+    )
+
+    assert request_options == {
+        "signal": signal,
+        "retries": {"strategy": "none"},
+        "headers": {"x-model": "1", "x-option": "2", "x-affinity": "session-1"},
+    }
+
+
+def test_to_chat_messages_uses_upstream_key_casing() -> None:
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "hello"},
+                {"type": "image", "mimeType": "image/png", "data": "abc"},
+            ],
+            "timestamp": 1,
+        },
+        {
+            "role": "assistant",
+            "content": [{"type": "toolCall", "id": "call-1", "name": "calc", "arguments": {"a": 1}}],
+            "timestamp": 2,
+        },
+        {
+            "role": "tool",
+            "toolCallId": "call-1",
+            "toolName": "calc",
+            "content": [{"type": "image", "mimeType": "image/png", "data": "xyz"}],
+            "timestamp": 3,
+        },
+    ]
+
+    chat_messages = mistral_provider.to_chat_messages(messages, supports_images=True)
+
+    assert chat_messages[0]["content"][1] == {"type": "image_url", "imageUrl": "data:image/png;base64,abc"}
+    assert chat_messages[1]["toolCalls"][0]["function"]["arguments"] == '{"a": 1}'
+    assert chat_messages[2]["toolCallId"] == "call-1"
+    assert chat_messages[2]["content"][1] == {"type": "image_url", "imageUrl": "data:image/png;base64,xyz"}
 
 
 def test_to_function_tools_serializes_parameters_schema() -> None:
@@ -249,3 +303,22 @@ async def test_stream_mistral_maps_text_and_tool_call_deltas() -> None:
     assert result.usage.input == 5
     assert result.usage.output == 3
     assert result.usage.totalTokens == 8
+
+
+@pytest.mark.asyncio
+async def test_stream_mistral_returns_aborted_result_for_preaborted_signal() -> None:
+    fake_client = _FakeClient([_FakeEvent(_FakeChunk(id="resp_abort", choices=[_FakeChoice(_FakeDelta(), "stop")]))])
+    signal = asyncio.Event()
+    signal.set()
+
+    stream = mistral_provider.stream_mistral(
+        _make_model("mistral-small-2603"),
+        _make_context(),
+        {"apiKey": "test-key", "client": fake_client, "signal": signal},
+    )
+
+    result = await stream.result()
+
+    assert result.stopReason == "aborted"
+    assert result.errorMessage == "Request was aborted"
+    assert fake_client.chat.calls == []

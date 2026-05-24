@@ -899,24 +899,26 @@ async def _start_websocket_output_on_first_event(
         yield event
 
 
-def extract_account_id(token: str) -> str | None:
+def extract_account_id(token: str) -> str:
     parts = token.split(".")
-    if len(parts) < 2:
-        return None
+    if len(parts) != 3:
+        raise RuntimeError("Failed to extract accountId from token")
     payload = parts[1]
     payload += "=" * (-len(payload) % 4)
     try:
         decoded = base64.urlsafe_b64decode(payload.encode("ascii"))
         data = json.loads(decoded.decode("utf-8"))
-    except Exception:
-        return None
+    except Exception as error:
+        raise RuntimeError("Failed to extract accountId from token") from error
     if not isinstance(data, Mapping):
-        return None
+        raise RuntimeError("Failed to extract accountId from token")
     auth_claim = data.get(JWT_CLAIM_PATH)
     if not isinstance(auth_claim, Mapping):
-        return None
+        raise RuntimeError("Failed to extract accountId from token")
     account_id = auth_claim.get("chatgpt_account_id")
-    return str(account_id) if isinstance(account_id, str) else None
+    if not isinstance(account_id, str) or not account_id:
+        raise RuntimeError("Failed to extract accountId from token")
+    return account_id
 
 
 def create_codex_request_id() -> str:
@@ -926,41 +928,35 @@ def create_codex_request_id() -> str:
 def build_sse_headers(
     model_headers: Mapping[str, str] | None,
     option_headers: Mapping[str, str] | None,
-    account_id: str | None,
+    account_id: str,
     api_key: str,
     session_id: str | None = None,
 ) -> dict[str, str]:
-    headers: dict[str, str] = {
-        "accept": "text/event-stream",
-        "content-type": "application/json",
-        "authorization": f"Bearer {api_key}",
-        "OpenAI-Beta": "responses=experimental",
-        "originator": "pi",
-    }
-    if account_id:
-        headers["chatgpt-account-id"] = account_id
+    headers = _build_base_codex_headers(model_headers, option_headers, account_id, api_key)
+    headers["OpenAI-Beta"] = "responses=experimental"
+    headers["accept"] = "text/event-stream"
+    headers["content-type"] = "application/json"
     if session_id:
         headers["session_id"] = session_id
         headers["x-client-request-id"] = session_id
-    if model_headers:
-        headers.update(dict(model_headers))
-    if option_headers:
-        headers.update(dict(option_headers))
     return headers
 
 
 def build_websocket_headers(
     model_headers: Mapping[str, str] | None,
     option_headers: Mapping[str, str] | None,
-    account_id: str | None,
+    account_id: str,
     api_key: str,
     request_id: str,
 ) -> dict[str, str]:
-    headers = build_sse_headers(model_headers, option_headers, account_id, api_key, request_id)
+    headers = _build_base_codex_headers(model_headers, option_headers, account_id, api_key)
     headers.pop("accept", None)
     headers.pop("content-type", None)
+    headers.pop("OpenAI-Beta", None)
     headers.pop("openai-beta", None)
     headers["OpenAI-Beta"] = OPENAI_BETA_RESPONSES_WEBSOCKETS
+    headers["x-client-request-id"] = request_id
+    headers["session_id"] = request_id
     return headers
 
 

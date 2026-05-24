@@ -168,7 +168,8 @@ def faux_thinking(thinking: str) -> ThinkingContent:
 
 def faux_tool_call(name: str, arguments_: dict[str, Any], options: dict[str, str] | None = None) -> ToolCall:
     options = options or {}
-    return ToolCall(id=options.get("id", _random_id("tool")), name=name, arguments=arguments_)
+    tool_id = options["id"] if "id" in options and options["id"] is not None else _random_id("tool")
+    return ToolCall(id=tool_id, name=name, arguments=arguments_)
 
 
 def _normalize_faux_assistant_content(content: str | FauxContentBlock | list[FauxContentBlock]) -> list[FauxContentBlock]:
@@ -196,8 +197,12 @@ def faux_assistant_message(
         if legacy_name in legacy_kwargs and ts_name not in options_map:
             options_map[ts_name] = legacy_kwargs[legacy_name]
 
-    stop_reason = options_map["stopReason"] if "stopReason" in options_map else "stop"
-    timestamp = options_map["timestamp"] if "timestamp" in options_map else int(time.time() * 1000)
+    stop_reason = options_map.get("stopReason")
+    if stop_reason is None:
+        stop_reason = "stop"
+    timestamp = options_map.get("timestamp")
+    if timestamp is None:
+        timestamp = int(time.time() * 1000)
     return AssistantMessage(
         content=_normalize_faux_assistant_content(content),
         api=DEFAULT_API,
@@ -307,9 +312,9 @@ def _with_usage_estimate(
     input_tokens = prompt_tokens
     cache_read = 0
     cache_write = 0
-    session_id = options.sessionId if options else None
+    session_id = _option(options, "sessionId")
 
-    if session_id and (options.cacheRetention if options else None) != "none":
+    if session_id and _option(options, "cacheRetention") != "none":
         previous_prompt = prompt_cache.get(session_id)
         if previous_prompt is not None:
             cached_chars = _common_prefix_length(previous_prompt, prompt_text)

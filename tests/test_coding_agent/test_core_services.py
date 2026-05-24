@@ -16,11 +16,11 @@ from harnify_coding_agent.core.event_bus import createEventBus
 from harnify_coding_agent.core.exec import exec_command
 from harnify_coding_agent.core.keybindings import KeybindingsManager, migrateKeybindingsConfig
 from harnify_coding_agent.core.output_guard import (
-    flush_raw_stdout,
-    is_stdout_taken_over,
-    restore_stdout,
-    take_over_stdout,
-    write_raw_stdout,
+    flushRawStdout,
+    isStdoutTakenOver,
+    restoreStdout,
+    takeOverStdout,
+    writeRawStdout,
 )
 from harnify_coding_agent.core.tools.truncate import DEFAULT_MAX_BYTES
 
@@ -341,22 +341,24 @@ async def test_output_guard_redirects_stdout_but_preserves_raw_stdout(monkeypatc
     monkeypatch.setattr(sys, "stderr", stderr)
 
     try:
-        take_over_stdout()
-        assert is_stdout_taken_over() is True
+        takeOverStdout()
+        assert isStdoutTakenOver() is True
+        assert sys.stdout is stdout
 
         print("redirected", end="")
-        write_raw_stdout("raw")
-        await flush_raw_stdout()
+        writeRawStdout("raw")
+        await flushRawStdout()
 
         assert stderr.getvalue() == "redirected"
         assert stdout.getvalue() == "raw"
+        assert callable(stdout.write)
 
-        restore_stdout()
-        assert is_stdout_taken_over() is False
+        restoreStdout()
+        assert isStdoutTakenOver() is False
         print("after", end="")
         assert stdout.getvalue() == "rawafter"
     finally:
-        restore_stdout()
+        restoreStdout()
 
 
 def test_keybindings_manager_loads_migrated_config(tmp_path: Path) -> None:

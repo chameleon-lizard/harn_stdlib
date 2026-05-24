@@ -1620,7 +1620,7 @@ class AgentSession:
         if extension_path.startswith("<"):
             return f"extension:{extension_path.replace('<', '').replace('>', '')}"
         base = os.path.basename(extension_path)
-        return f"extension:{re.sub(r'\\.(ts|js)$', '', base)}"
+        return f"extension:{re.sub(r'[.](ts|js)$', '', base)}"
 
     async def _emit_extension_event(self, event: Any) -> None:
         event_type = _event_type(event)

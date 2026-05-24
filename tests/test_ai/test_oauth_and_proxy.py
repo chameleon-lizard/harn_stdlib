@@ -137,6 +137,15 @@ def test_oauth_page_html_matches_escape_contract() -> None:
     assert "<div class=\"details\">details &amp; more &#39;text&#39;</div>" in rendered
 
 
+def test_oauth_page_module_exports_expected_names() -> None:
+    assert oauth_page.__all__ == [
+        "oauthErrorHtml",
+        "oauthSuccessHtml",
+        "oauth_error_html",
+        "oauth_success_html",
+    ]
+
+
 def test_github_copilot_helpers_normalize_domains_and_base_urls() -> None:
     assert github_copilot.normalize_domain("company.ghe.com") == "company.ghe.com"
     assert github_copilot.normalize_domain("https://company.ghe.com/login") == "company.ghe.com"

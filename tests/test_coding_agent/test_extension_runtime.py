@@ -295,7 +295,7 @@ async def test_extension_runner_emits_events_and_invalidates_context() -> None:
     )
     runner = ExtensionRunner(
         extensions=[extension],
-        contextFactory=lambda: {"cwd": "runner-cwd"},
+        cwd="runner-cwd",
     )
     runner.on_error(lambda error: errors.append(f"{error.event}:{error.error}"))
 
@@ -335,6 +335,7 @@ async def test_extension_runner_emits_events_and_invalidates_context() -> None:
     assert ctx.signal == "signal"
     assert ctx.isIdle() is False
     assert ctx.hasPendingMessages() is True
+    assert ctx.ui.theme is not None
 
     assert await runner.emit_context([{"role": "user"}]) == [{"role": "user"}, {"role": "user", "content": "x"}]
     assert await runner.emit_before_provider_request({"a": 1}) == {"wrapped": {"a": 1}}
@@ -380,6 +381,7 @@ async def test_extension_runner_emits_events_and_invalidates_context() -> None:
 
     assert any("message_end" in message for message in errors)
     assert any("input:boom" == message for message in errors)
+    assert any(listener_error.stack for listener_error in []) is False
 
 
 @pytest.mark.asyncio
@@ -405,7 +407,7 @@ async def test_extension_runner_before_agent_start_ctx_uses_latest_system_prompt
         create_extension_runtime(),
         extension_path="<inline:before-agent>",
     )
-    runner = ExtensionRunner(extensions=[extension], contextFactory=lambda: {"cwd": "runner-cwd"})
+    runner = ExtensionRunner(extensions=[extension], cwd="runner-cwd")
     runner.bind_core(
         {
             "sendMessage": lambda message, options=None: None,

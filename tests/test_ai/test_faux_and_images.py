@@ -69,13 +69,43 @@ async def test_image_registry_and_generate_images_facade_use_lazy_provider_modul
     monkeypatch.setattr(
         image_register_builtins.importlib,
         "import_module",
-        lambda name: SimpleNamespace(generate_images_openrouter=fake_generate_images_openrouter),
+        lambda name: SimpleNamespace(generateImagesOpenRouter=fake_generate_images_openrouter),
     )
 
     output = await generate_images(model, {"input": [{"type": "text", "text": "draw a cat"}]})  # type: ignore[arg-type]
 
     assert output.stopReason == "stop"
     assert output.output[0].text == "caption"
+
+
+@pytest.mark.asyncio
+async def test_image_register_builtins_caches_lazy_import_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    model = get_image_model("openrouter", "google/gemini-2.5-flash-image")
+    assert model is not None
+
+    calls = {"count": 0}
+
+    def fail_import(name: str) -> None:
+        calls["count"] += 1
+        raise RuntimeError("boom")
+
+    image_register_builtins._openrouter_images_provider_module = None
+    monkeypatch.setattr(image_register_builtins.importlib, "import_module", fail_import)
+
+    first = await image_register_builtins.generate_images_openrouter(
+        model,
+        {"input": [{"type": "text", "text": "draw a cat"}]},  # type: ignore[arg-type]
+    )
+    second = await image_register_builtins.generate_images_openrouter(
+        model,
+        {"input": [{"type": "text", "text": "draw a cat"}]},  # type: ignore[arg-type]
+    )
+
+    assert first.stopReason == "error"
+    assert first.errorMessage == "boom"
+    assert second.stopReason == "error"
+    assert second.errorMessage == "boom"
+    assert calls["count"] == 1
 
 
 @pytest.mark.asyncio

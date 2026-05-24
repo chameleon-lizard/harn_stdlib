@@ -1441,6 +1441,8 @@ class AgentSession:
         for message in reversed(self.messages):
             if _message_role(message) != "assistant":
                 continue
+            if _message_field(message, "stopReason") == "aborted" and not _message_content(message):
+                continue
             content = _message_content(message)
             if not isinstance(content, list):
                 continue
@@ -1450,7 +1452,7 @@ class AgentSession:
                 if _content_type(block) == "text"
             )
             if text:
-                return text
+                return text.strip() or None
         return None
 
     def getContextUsage(self) -> dict[str, float | int | None] | None:

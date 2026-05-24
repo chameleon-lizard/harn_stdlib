@@ -9,7 +9,6 @@ import math
 import os
 import re
 import time
-from copy import copy
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -903,7 +902,8 @@ class AgentSession:
 
     def createReplacedSessionContext(self) -> Any:
         context = self._extensionRunner.create_command_context()
-        replaced_context = copy(context)
+        replaced_context = object.__new__(type(context))
+        replaced_context.__dict__.update(context.__dict__)
         setattr(replaced_context, "sendMessage", self.sendMessage)
         setattr(replaced_context, "sendUserMessage", self.sendUserMessage)
         return replaced_context
@@ -1405,7 +1405,7 @@ class AgentSession:
 
     def exportToJsonl(self, outputPath: str | None = None) -> str:
         resolved_output = outputPath or (
-            f"session-{datetime.now(UTC).isoformat().replace(':', '-').replace('.', '-')}.jsonl"
+            f"session-{datetime.now(UTC).isoformat(timespec='milliseconds').replace(':', '-').replace('.', '-')}.jsonl"
         )
         file_path = resolve_path(resolved_output, os.getcwd())
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -1414,7 +1414,7 @@ class AgentSession:
             "type": "session",
             "version": CURRENT_SESSION_VERSION,
             "id": self.sessionManager.getSessionId(),
-            "timestamp": datetime.now(UTC).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
             "cwd": self.sessionManager.getCwd(),
         }
 

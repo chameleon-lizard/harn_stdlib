@@ -9,6 +9,9 @@ from harnify_tui.fuzzy import fuzzy_filter
 
 from harnify_coding_agent.core.auth_guidance import format_no_models_available_message
 
+_YELLOW = "\x1b[33m"
+_RESET = "\x1b[0m"
+
 
 def format_token_count(count: int) -> str:
     if count >= 1_000_000:
@@ -23,6 +26,13 @@ def format_token_count(count: int) -> str:
 async def list_models(
     model_registry: object,
     search_pattern: str | None = None,
+) -> None:
+    await _list_models(model_registry, search_pattern)
+
+
+async def _list_models(
+    model_registry: object,
+    search_pattern: str | None = None,
     *,
     stream: TextIO | None = None,
     error_stream: TextIO | None = None,
@@ -32,7 +42,7 @@ async def list_models(
 
     load_error = getattr(model_registry, "getError", lambda: None)()
     if load_error:
-        err.write(f"Warning: errors loading models.json:\n{load_error}\n")
+        err.write(f"{_YELLOW}Warning: errors loading models.json:\n{load_error}{_RESET}\n")
 
     models = list(model_registry.getAvailable())
     if not models:
@@ -101,4 +111,4 @@ async def list_models(
 formatTokenCount = format_token_count
 listModels = list_models
 
-__all__ = ["formatTokenCount", "format_token_count", "listModels", "list_models"]
+__all__ = ["listModels"]

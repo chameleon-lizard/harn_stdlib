@@ -7,6 +7,7 @@ import pytest
 from harnify_ai.types import Model
 import harnify_coding_agent.cli.file_processor as file_processor_module
 import harnify_coding_agent.cli.initial_message as initial_message_module
+import harnify_coding_agent.cli.list_models as list_models_module
 from harnify_coding_agent.cli.args import parse_args, print_help
 from harnify_coding_agent.cli.file_processor import process_file_arguments
 from harnify_coding_agent.cli.initial_message import build_initial_message
@@ -179,13 +180,31 @@ async def test_list_models_formats_rows_and_searches() -> None:
             ]
 
     out = io.StringIO()
-    await list_models(Registry(), "sonnet", stream=out)
+    await list_models_module._list_models(Registry(), "sonnet", stream=out)
 
     rendered = out.getvalue()
     assert "provider" in rendered
     assert "claude-sonnet-4-5" in rendered
     assert "200K" in rendered
     assert "gpt-4o-mini" not in rendered
+    assert list_models_module.__all__ == ["listModels"]
+
+
+@pytest.mark.asyncio
+async def test_list_models_warns_in_yellow_when_registry_load_fails() -> None:
+    class Registry:
+        def getError(self):
+            return "broken"
+
+        def getAvailable(self):
+            return [_model("anthropic", "claude-sonnet-4-5")]
+
+    out = io.StringIO()
+    err = io.StringIO()
+
+    await list_models_module._list_models(Registry(), stream=out, error_stream=err)
+
+    assert err.getvalue() == "\x1b[33mWarning: errors loading models.json:\nbroken\x1b[0m\n"
 
 
 def test_config_helpers_point_at_bundled_assets() -> None:

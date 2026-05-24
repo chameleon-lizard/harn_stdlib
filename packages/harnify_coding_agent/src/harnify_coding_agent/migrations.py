@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from harnify_coding_agent.config import CONFIG_DIR_NAME, get_agent_dir, get_bin_dir
-from harnify_coding_agent.core.keybindings import migrate_keybindings_config
+from harnify_coding_agent.core.keybindings import migrateKeybindingsConfig
 from harnify_coding_agent.core.session_manager import get_default_session_dir
 
 MIGRATION_GUIDE_URL = (
@@ -108,7 +108,7 @@ def migrate_keybindings_config_file() -> None:
         return
     if not isinstance(parsed, dict):
         return
-    migration = migrate_keybindings_config(parsed)
+    migration = migrateKeybindingsConfig(parsed)
     if not migration["migrated"]:
         return
     config_path.write_text(json.dumps(migration["config"], indent=2) + "\n", encoding="utf-8")

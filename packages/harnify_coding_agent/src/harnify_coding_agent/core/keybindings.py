@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 import os
 from typing import Any
+from typing import Literal
 
 from harnify_tui import (
     TUI_KEYBINDINGS,
+    Keybinding,
     KeybindingDefinition,
     KeybindingDefinitions,
     KeybindingsConfig,
@@ -18,6 +20,51 @@ from harnify_tui import (
 )
 
 from harnify_coding_agent.config import get_agent_dir
+
+type AppKeybinding = Literal[
+    "app.interrupt",
+    "app.clear",
+    "app.exit",
+    "app.suspend",
+    "app.thinking.cycle",
+    "app.model.cycleForward",
+    "app.model.cycleBackward",
+    "app.model.select",
+    "app.tools.expand",
+    "app.thinking.toggle",
+    "app.session.toggleNamedFilter",
+    "app.editor.external",
+    "app.message.followUp",
+    "app.message.dequeue",
+    "app.clipboard.pasteImage",
+    "app.session.new",
+    "app.session.tree",
+    "app.session.fork",
+    "app.session.resume",
+    "app.tree.foldOrUp",
+    "app.tree.unfoldOrDown",
+    "app.tree.editLabel",
+    "app.tree.toggleLabelTimestamp",
+    "app.session.togglePath",
+    "app.session.toggleSort",
+    "app.session.rename",
+    "app.session.delete",
+    "app.session.deleteNoninvasive",
+    "app.models.save",
+    "app.models.enableAll",
+    "app.models.clearAll",
+    "app.models.toggleProvider",
+    "app.models.reorderUp",
+    "app.models.reorderDown",
+    "app.tree.filter.default",
+    "app.tree.filter.noTools",
+    "app.tree.filter.userOnly",
+    "app.tree.filter.labeledOnly",
+    "app.tree.filter.all",
+    "app.tree.filter.cycleForward",
+    "app.tree.filter.cycleBackward",
+]
+type AppKeybindings = dict[AppKeybinding, Literal[True]]
 
 KEYBINDINGS: KeybindingDefinitions = {
     **TUI_KEYBINDINGS,
@@ -67,7 +114,7 @@ KEYBINDINGS: KeybindingDefinitions = {
     "app.tree.filter.cycleBackward": KeybindingDefinition("shift+ctrl+o", "Tree filter: cycle backward"),
 }
 
-KEYBINDING_NAME_MIGRATIONS = {
+_KEYBINDING_NAME_MIGRATIONS = {
     "cursorUp": "tui.editor.cursorUp",
     "cursorDown": "tui.editor.cursorDown",
     "cursorLeft": "tui.editor.cursorLeft",
@@ -160,12 +207,12 @@ def _order_keybindings_config(config: dict[str, Any]) -> dict[str, Any]:
     return ordered
 
 
-def migrate_keybindings_config(raw_config: dict[str, Any]) -> dict[str, Any]:
+def migrateKeybindingsConfig(raw_config: dict[str, Any]) -> dict[str, Any]:
     config: dict[str, Any] = {}
     migrated = False
 
     for key, value in raw_config.items():
-        next_key = KEYBINDING_NAME_MIGRATIONS.get(key, key)
+        next_key = _KEYBINDING_NAME_MIGRATIONS.get(key, key)
         if next_key != key:
             migrated = True
         if key != next_key and next_key in raw_config:
@@ -203,7 +250,7 @@ class KeybindingsManager(TuiKeybindingsManager):
             return
         self.setUserBindings(self._load_from_file(self.configPath))
 
-    def get_effective_config(self) -> KeybindingsConfig:
+    def getEffectiveConfig(self) -> KeybindingsConfig:
         return self.getResolvedBindings()
 
     @staticmethod
@@ -211,22 +258,16 @@ class KeybindingsManager(TuiKeybindingsManager):
         raw_config = _load_raw_config(path)
         if raw_config is None:
             return {}
-        migrated = migrate_keybindings_config(raw_config)["config"]
+        migrated = migrateKeybindingsConfig(raw_config)["config"]
         return _to_keybindings_config(migrated)
 
-    getEffectiveConfig = get_effective_config
-
-
-migrateKeybindingsConfig = migrate_keybindings_config
-
 __all__ = [
+    "AppKeybinding",
+    "AppKeybindings",
     "KEYBINDINGS",
-    "KEYBINDING_NAME_MIGRATIONS",
+    "Keybinding",
     "KeyId",
-    "KeybindingDefinition",
-    "KeybindingDefinitions",
     "KeybindingsConfig",
     "KeybindingsManager",
     "migrateKeybindingsConfig",
-    "migrate_keybindings_config",
 ]

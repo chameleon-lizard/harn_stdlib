@@ -14,7 +14,7 @@ import pytest
 from harnify_coding_agent.core.bash_executor import execute_bash_with_operations
 from harnify_coding_agent.core.event_bus import createEventBus
 from harnify_coding_agent.core.exec import exec_command
-from harnify_coding_agent.core.keybindings import KeybindingsManager, migrate_keybindings_config
+from harnify_coding_agent.core.keybindings import KeybindingsManager, migrateKeybindingsConfig
 from harnify_coding_agent.core.output_guard import (
     flush_raw_stdout,
     is_stdout_taken_over,
@@ -378,13 +378,13 @@ def test_keybindings_manager_loads_migrated_config(tmp_path: Path) -> None:
         "tui.select.confirm": "enter",
         "app.interrupt": "ctrl+x",
     }
-    effective = keybindings.get_effective_config()
+    effective = keybindings.getEffectiveConfig()
     assert effective["tui.select.confirm"] == "enter"
     assert effective["app.interrupt"] == "ctrl+x"
 
 
 def test_migrate_keybindings_config_prefers_namespaced_entries() -> None:
-    migrated = migrate_keybindings_config(
+    migrated = migrateKeybindingsConfig(
         {
             "expandTools": "ctrl+x",
             "app.tools.expand": "ctrl+y",

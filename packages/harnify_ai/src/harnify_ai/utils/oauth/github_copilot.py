@@ -48,7 +48,17 @@ def _get_base_url_from_token(token: str) -> str | None:
     match = re.search(r"proxy-ep=([^;]+)", token)
     if not match:
         return None
-    return f"https://{match.group(1).replace('proxy.', 'api.', 1)}"
+    return f"https://{re.sub(r'^proxy\\.', 'api.', match.group(1))}"
+
+
+def _signal_aborted(signal: Any) -> bool:
+    if signal is None:
+        return False
+    if hasattr(signal, "aborted"):
+        return bool(signal.aborted)
+    if hasattr(signal, "is_set"):
+        return bool(signal.is_set())
+    return False
 
 
 def get_github_copilot_base_url(token: str | None = None, enterprise_domain: str | None = None) -> str:
@@ -83,6 +93,19 @@ async def _start_device_flow(domain: str) -> dict[str, Any]:
     )
     if not isinstance(data, dict):
         raise RuntimeError("Invalid device code response")
+    device_code = data.get("device_code")
+    user_code = data.get("user_code")
+    verification_uri = data.get("verification_uri")
+    interval = data.get("interval")
+    expires_in = data.get("expires_in")
+    if (
+        not isinstance(device_code, str)
+        or not isinstance(user_code, str)
+        or not isinstance(verification_uri, str)
+        or (interval is not None and not isinstance(interval, (int, float)))
+        or not isinstance(expires_in, (int, float))
+    ):
+        raise RuntimeError("Invalid device code response fields")
     return data
 
 
@@ -138,8 +161,10 @@ async def refresh_github_copilot_token(refresh_token: str, enterprise_domain: st
             **COPILOT_HEADERS,
         },
     )
-    if not isinstance(raw, dict) or not isinstance(raw.get("token"), str) or not isinstance(raw.get("expires_at"), (int, float)):
+    if not isinstance(raw, dict):
         raise RuntimeError("Invalid Copilot token response")
+    if not isinstance(raw.get("token"), str) or not isinstance(raw.get("expires_at"), (int, float)):
+        raise RuntimeError("Invalid Copilot token response fields")
     return OAuthCredentials(
         refresh=refresh_token,
         access=raw["token"],
@@ -199,7 +224,7 @@ async def login_github_copilot(options: dict[str, Any]) -> OAuthCredentials:
     )
 
     signal = options.get("signal")
-    if signal is not None and hasattr(signal, "is_set") and signal.is_set():
+    if _signal_aborted(signal):
         raise RuntimeError("Login cancelled")
 
     trimmed = input_text.strip()

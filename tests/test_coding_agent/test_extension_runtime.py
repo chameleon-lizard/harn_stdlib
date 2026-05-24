@@ -6,6 +6,7 @@ import pytest
 from harnify_agent.types import AgentToolResult
 from harnify_ai.types import TextContent
 from harnify_coding_agent.core import exec as exec_module
+from harnify_coding_agent.core import extensions as extension_package
 from harnify_coding_agent.core.extensions.loader import create_extension_runtime, load_extension_from_factory
 from harnify_coding_agent.core.extensions.runner import ExtensionRunner
 from harnify_coding_agent.core.extensions import types as extension_types
@@ -47,6 +48,42 @@ def test_extension_types_exports_include_ts_surface_restorations() -> None:
     assert extension_types.isToolCallEventType("bash", {"toolName": "bash"}) is True
     assert extension_types.isBashToolResult({"toolName": "bash"}) is True
     assert extension_types.isWriteToolResult({"toolName": "write"}) is True
+
+
+def test_extension_package_exports_match_curated_ts_surface() -> None:
+    for name in (
+        "SlashCommandInfo",
+        "SlashCommandSource",
+        "SourceInfo",
+        "createExtensionRuntime",
+        "discoverAndLoadExtensions",
+        "loadExtensionFromFactory",
+        "loadExtensions",
+        "ExtensionErrorListener",
+        "ExtensionRunner",
+        "ForkHandler",
+        "NavigateTreeHandler",
+        "NewSessionHandler",
+        "ShutdownHandler",
+        "SwitchSessionHandler",
+        "defineTool",
+        "wrapRegisteredTool",
+        "wrapRegisteredTools",
+    ):
+        assert name in extension_package.__all__
+
+    for name in (
+        "ReloadHandler",
+        "create_extension_runtime",
+        "discover_and_load_extensions",
+        "load_extension_from_factory",
+        "load_extensions",
+        "wrap_registered_tool",
+        "wrap_registered_tools",
+        "ExtensionRuntimeState",
+        "ToolRenderContext",
+    ):
+        assert name not in extension_package.__all__
 
 
 @pytest.mark.asyncio

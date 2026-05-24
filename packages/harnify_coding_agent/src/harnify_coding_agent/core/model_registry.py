@@ -6,23 +6,31 @@ import copy
 import json
 import os
 import re
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, Literal, TypedDict, cast
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from harnify_ai.api_registry import ApiProvider, register_api_provider
 from harnify_ai.models import get_models, get_providers
+from harnify_ai.oauth import OAuthProviderInterface, registerOAuthProvider, resetOAuthProviders
 from harnify_ai.providers.register_builtins import resetApiProviders
 from harnify_ai.types import (
     AnthropicMessagesCompat,
+    Api,
+    AssistantMessageEventStream,
+    Context,
     Model,
     ModelCost,
     OpenAICompletionsCompat,
     OpenAIResponsesCompat,
+    SimpleStreamOptions,
 )
-from harnify_ai.utils.event_stream import AssistantMessageEventStream
-from harnify_ai.utils.oauth import OAuthCredentials, registerOAuthProvider, resetOAuthProviders
+from harnify_ai.utils.oauth.types import OAuthCredentials
 
-from harnify_coding_agent.config import get_models_path
+from harnify_coding_agent.config import get_agent_dir
 from harnify_coding_agent.core.provider_display_names import BUILT_IN_PROVIDER_DISPLAY_NAMES
 from harnify_coding_agent.core.resolve_config_value import (
     clearConfigValueCache,
@@ -34,31 +42,222 @@ from harnify_coding_agent.utils.paths import normalize_path
 
 from .auth_storage import AuthStatus, AuthStorage
 
-type ProviderCompat = dict[str, Any] | OpenAICompletionsCompat | OpenAIResponsesCompat | AnthropicMessagesCompat
+type _ProviderCompat = dict[str, Any] | OpenAICompletionsCompat | OpenAIResponsesCompat | AnthropicMessagesCompat
+
+
+class _ConfigModel(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+
+class _PercentileCutoffsSchema(_ConfigModel):
+    p50: float | None = None
+    p75: float | None = None
+    p90: float | None = None
+    p99: float | None = None
+
+
+class _OpenRouterRoutingSortSchema(_ConfigModel):
+    by: str | None = None
+    partition: str | None = None
+
+
+class _OpenRouterRoutingMaxPriceSchema(_ConfigModel):
+    prompt: float | str | None = None
+    completion: float | str | None = None
+    image: float | str | None = None
+    audio: float | str | None = None
+    request: float | str | None = None
+
+
+class _OpenRouterRoutingSchema(_ConfigModel):
+    allow_fallbacks: bool | None = None
+    require_parameters: bool | None = None
+    data_collection: Literal["deny", "allow"] | None = None
+    zdr: bool | None = None
+    enforce_distillable_text: bool | None = None
+    order: list[str] | None = None
+    only: list[str] | None = None
+    ignore: list[str] | None = None
+    quantizations: list[str] | None = None
+    sort: str | _OpenRouterRoutingSortSchema | None = None
+    max_price: _OpenRouterRoutingMaxPriceSchema | None = None
+    preferred_min_throughput: float | _PercentileCutoffsSchema | None = None
+    preferred_max_latency: float | _PercentileCutoffsSchema | None = None
+
+
+class _VercelGatewayRoutingSchema(_ConfigModel):
+    only: list[str] | None = None
+    order: list[str] | None = None
+
+
+class _ThinkingLevelMapSchema(_ConfigModel):
+    off: str | None = None
+    minimal: str | None = None
+    low: str | None = None
+    medium: str | None = None
+    high: str | None = None
+    xhigh: str | None = None
+
+
+class _ModelCostSchema(_ConfigModel):
+    input: float
+    output: float
+    cacheRead: float
+    cacheWrite: float
+
+
+class _PartialModelCostSchema(_ConfigModel):
+    input: float | None = None
+    output: float | None = None
+    cacheRead: float | None = None
+    cacheWrite: float | None = None
+
+
+class _OpenAICompletionsCompatSchema(_ConfigModel):
+    supportsStore: bool | None = None
+    supportsDeveloperRole: bool | None = None
+    supportsReasoningEffort: bool | None = None
+    supportsUsageInStreaming: bool | None = None
+    maxTokensField: Literal["max_completion_tokens", "max_tokens"] | None = None
+    requiresToolResultName: bool | None = None
+    requiresAssistantAfterToolResult: bool | None = None
+    requiresThinkingAsText: bool | None = None
+    requiresReasoningContentOnAssistantMessages: bool | None = None
+    thinkingFormat: Literal[
+        "openai",
+        "openrouter",
+        "together",
+        "deepseek",
+        "zai",
+        "qwen",
+        "qwen-chat-template",
+    ] | None = None
+    cacheControlFormat: Literal["anthropic"] | None = None
+    openRouterRouting: _OpenRouterRoutingSchema | None = None
+    vercelGatewayRouting: _VercelGatewayRoutingSchema | None = None
+    supportsStrictMode: bool | None = None
+    supportsLongCacheRetention: bool | None = None
+
+
+class _OpenAIResponsesCompatSchema(_ConfigModel):
+    sendSessionIdHeader: bool | None = None
+    supportsLongCacheRetention: bool | None = None
+
+
+class _AnthropicMessagesCompatSchema(_ConfigModel):
+    supportsEagerToolInputStreaming: bool | None = None
+    supportsLongCacheRetention: bool | None = None
+    sendSessionAffinityHeaders: bool | None = None
+    supportsCacheControlOnTools: bool | None = None
+    forceAdaptiveThinking: bool | None = None
+
+
+class _ModelDefinitionSchema(_ConfigModel):
+    id: str = Field(min_length=1)
+    name: str | None = Field(default=None, min_length=1)
+    api: str | None = Field(default=None, min_length=1)
+    baseUrl: str | None = Field(default=None, min_length=1)
+    reasoning: bool | None = None
+    thinkingLevelMap: _ThinkingLevelMapSchema | None = None
+    input: list[Literal["text", "image"]] | None = None
+    cost: _ModelCostSchema | None = None
+    contextWindow: float | None = None
+    maxTokens: float | None = None
+    headers: dict[str, str] | None = None
+    compat: dict[str, Any] | None = None
+
+
+class _ModelOverrideSchema(_ConfigModel):
+    name: str | None = Field(default=None, min_length=1)
+    reasoning: bool | None = None
+    thinkingLevelMap: _ThinkingLevelMapSchema | None = None
+    input: list[Literal["text", "image"]] | None = None
+    cost: _PartialModelCostSchema | None = None
+    contextWindow: float | None = None
+    maxTokens: float | None = None
+    headers: dict[str, str] | None = None
+    compat: dict[str, Any] | None = None
+
+
+class _ProviderConfigSchema(_ConfigModel):
+    name: str | None = Field(default=None, min_length=1)
+    baseUrl: str | None = Field(default=None, min_length=1)
+    apiKey: str | None = Field(default=None, min_length=1)
+    api: str | None = Field(default=None, min_length=1)
+    headers: dict[str, str] | None = None
+    compat: dict[str, Any] | None = None
+    authHeader: bool | None = None
+    models: list[_ModelDefinitionSchema] | None = None
+    modelOverrides: dict[str, _ModelOverrideSchema] | None = None
+
+
+class _ModelsConfigSchema(_ConfigModel):
+    providers: dict[str, _ProviderConfigSchema]
 
 
 @dataclass(slots=True)
-class ProviderOverride:
+class _ProviderOverride:
     baseUrl: str | None = None
-    compat: ProviderCompat | None = None
+    compat: _ProviderCompat | None = None
 
 
 @dataclass(slots=True)
-class ProviderRequestConfig:
+class _ProviderRequestConfig:
     apiKey: str | None = None
     headers: dict[str, str] | None = None
     authHeader: bool | None = None
 
 
 @dataclass(slots=True)
-class CustomModelsResult:
+class _CustomModelsResult:
     models: list[Model]
-    overrides: dict[str, ProviderOverride]
+    overrides: dict[str, _ProviderOverride]
     modelOverrides: dict[str, dict[str, dict[str, Any]]]
     error: str | None = None
 
 
-def _dump_compat(compat: ProviderCompat | None) -> dict[str, Any]:
+class _ProviderModelInput(TypedDict, total=False):
+    id: str
+    name: str
+    api: Api
+    baseUrl: str
+    reasoning: bool
+    thinkingLevelMap: dict[str, str | None]
+    input: list[Literal["text", "image"]]
+    cost: dict[str, float]
+    contextWindow: int | float
+    maxTokens: int | float
+    headers: dict[str, str]
+    compat: Model.model_fields["compat"].annotation  # type: ignore[index]
+
+
+class ProviderConfigInput(TypedDict, total=False):
+    name: str
+    baseUrl: str
+    apiKey: str
+    api: Api
+    streamSimple: Callable[[Model, Context, SimpleStreamOptions | None], AssistantMessageEventStream]
+    headers: dict[str, str]
+    authHeader: bool
+    oauth: OAuthProviderInterface | Mapping[str, Any]
+    models: list[_ProviderModelInput]
+
+
+class _ResolvedRequestAuthOk(TypedDict):
+    ok: Literal[True]
+    apiKey: str | None
+    headers: dict[str, str] | None
+
+
+class _ResolvedRequestAuthError(TypedDict):
+    ok: Literal[False]
+    error: str
+
+
+type ResolvedRequestAuth = _ResolvedRequestAuthOk | _ResolvedRequestAuthError
+
+
+def _dump_compat(compat: _ProviderCompat | None) -> dict[str, Any]:
     if compat is None:
         return {}
     if hasattr(compat, "model_dump"):
@@ -66,7 +265,7 @@ def _dump_compat(compat: ProviderCompat | None) -> dict[str, Any]:
     return dict(compat)
 
 
-def _coerce_compat(compat: ProviderCompat | None) -> ProviderCompat | None:
+def _coerce_compat(compat: _ProviderCompat | None) -> _ProviderCompat | None:
     if compat is None:
         return None
     if hasattr(compat, "model_dump"):
@@ -74,7 +273,7 @@ def _coerce_compat(compat: ProviderCompat | None) -> ProviderCompat | None:
     if not isinstance(compat, dict):
         return compat
     compat_dict = dict(compat)
-    if any(key in compat_dict for key in ("sendSessionIdHeader",)):
+    if "sendSessionIdHeader" in compat_dict:
         return OpenAIResponsesCompat.model_validate(compat_dict)
     if any(
         key in compat_dict
@@ -82,13 +281,14 @@ def _coerce_compat(compat: ProviderCompat | None) -> ProviderCompat | None:
             "supportsEagerToolInputStreaming",
             "supportsCacheControlOnTools",
             "forceAdaptiveThinking",
+            "sendSessionAffinityHeaders",
         )
     ):
         return AnthropicMessagesCompat.model_validate(compat_dict)
     return OpenAICompletionsCompat.model_validate(compat_dict)
 
 
-def _merge_compat(baseCompat: ProviderCompat | None, overrideCompat: ProviderCompat | None) -> ProviderCompat | None:
+def _merge_compat(baseCompat: _ProviderCompat | None, overrideCompat: _ProviderCompat | None) -> _ProviderCompat | None:
     if overrideCompat is None:
         return baseCompat
     base = _dump_compat(baseCompat)
@@ -127,7 +327,85 @@ def _apply_model_override(model: Model, override: dict[str, Any]) -> Model:
     return model.model_copy(update=update)
 
 
-def stripJsonComments(value: str) -> str:
+def _format_validation_path(parts: tuple[Any, ...]) -> str:
+    path = ".".join(str(part) for part in parts if part != "")
+    return path or "root"
+
+
+def _validation_messages(error: ValidationError, prefix: tuple[Any, ...] = ()) -> list[str]:
+    messages: list[str] = []
+    for item in error.errors(include_url=False):
+        loc = prefix + tuple(item.get("loc", ()))
+        messages.append(f"{_format_validation_path(loc)}: {item['msg']}")
+    return messages
+
+
+def _validate_compat_schema(value: Any, prefix: tuple[Any, ...]) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, dict):
+        return [f"{_format_validation_path(prefix)}: Input should be a valid dictionary"]
+    schema: type[BaseModel]
+    if any(
+        key in value
+        for key in (
+            "supportsEagerToolInputStreaming",
+            "supportsCacheControlOnTools",
+            "forceAdaptiveThinking",
+            "sendSessionAffinityHeaders",
+        )
+    ):
+        schema = _AnthropicMessagesCompatSchema
+    elif "sendSessionIdHeader" in value:
+        schema = _OpenAIResponsesCompatSchema
+    else:
+        schema = _OpenAICompletionsCompatSchema
+    try:
+        schema.model_validate(value)
+    except ValidationError as error:
+        return _validation_messages(error, prefix)
+    return []
+
+
+def _validate_models_config(parsed: Any) -> list[str]:
+    try:
+        _ModelsConfigSchema.model_validate(parsed)
+    except ValidationError as error:
+        return _validation_messages(error)
+
+    errors: list[str] = []
+    providers = parsed.get("providers") if isinstance(parsed, dict) else None
+    if not isinstance(providers, dict):
+        return errors
+
+    for provider_name, provider_config in providers.items():
+        if not isinstance(provider_config, dict):
+            continue
+        errors.extend(_validate_compat_schema(provider_config.get("compat"), ("providers", provider_name, "compat")))
+
+        models = provider_config.get("models")
+        if isinstance(models, list):
+            for index, model_def in enumerate(models):
+                if isinstance(model_def, dict):
+                    errors.extend(
+                        _validate_compat_schema(model_def.get("compat"), ("providers", provider_name, "models", index, "compat"))
+                    )
+
+        model_overrides = provider_config.get("modelOverrides")
+        if isinstance(model_overrides, dict):
+            for model_id, model_override in model_overrides.items():
+                if isinstance(model_override, dict):
+                    errors.extend(
+                        _validate_compat_schema(
+                            model_override.get("compat"),
+                            ("providers", provider_name, "modelOverrides", model_id, "compat"),
+                        )
+                    )
+
+    return errors
+
+
+def _strip_json_comments(value: str) -> str:
     without_comments = re.sub(
         r'"(?:\\.|[^"\\])*"|//[^\n]*',
         lambda match: match.group(0) if match.group(0).startswith('"') else "",
@@ -140,8 +418,49 @@ def stripJsonComments(value: str) -> str:
     )
 
 
-def emptyCustomModelsResult(error: str | None = None) -> CustomModelsResult:
-    return CustomModelsResult(models=[], overrides={}, modelOverrides={}, error=error)
+def _empty_custom_models_result(error: str | None = None) -> _CustomModelsResult:
+    return _CustomModelsResult(models=[], overrides={}, modelOverrides={}, error=error)
+
+
+def _coalesce[T](value: T | None, fallback: T) -> T:
+    return fallback if value is None else value
+
+
+def _build_oauth_provider(provider_name: str, oauth: OAuthProviderInterface | Mapping[str, Any]) -> OAuthProviderInterface:
+    if isinstance(oauth, Mapping):
+        name = oauth["name"]
+        uses_callback_server = oauth.get("usesCallbackServer")
+        modify_models = oauth.get("modifyModels")
+        login = oauth["login"]
+        refresh_token = oauth["refreshToken"]
+        get_api_key = oauth["getApiKey"]
+    else:
+        name = oauth.name
+        uses_callback_server = getattr(oauth, "usesCallbackServer", None)
+        modify_models = getattr(oauth, "modifyModels", None)
+        login = oauth.login
+        refresh_token = oauth.refreshToken
+        get_api_key = oauth.getApiKey
+    return cast(
+        OAuthProviderInterface,
+        SimpleNamespace(
+            id=provider_name,
+            name=name,
+            usesCallbackServer=uses_callback_server,
+            modifyModels=modify_models,
+            login=login,
+            refreshToken=refresh_token,
+            getApiKey=get_api_key,
+        ),
+    )
+
+
+def _oauth_name(value: Any) -> str | None:
+    if isinstance(value, Mapping):
+        name = value.get("name")
+    else:
+        name = getattr(value, "name", None)
+    return name if isinstance(name, str) else None
 
 
 clearApiKeyCache = clearConfigValueCache
@@ -150,9 +469,9 @@ clearApiKeyCache = clearConfigValueCache
 class ModelRegistry:
     def __init__(self, authStorage: AuthStorage, modelsJsonPath: str | None):
         self.models: list[Model] = []
-        self.providerRequestConfigs: dict[str, ProviderRequestConfig] = {}
+        self.providerRequestConfigs: dict[str, _ProviderRequestConfig] = {}
         self.modelRequestHeaders: dict[str, dict[str, str]] = {}
-        self.registeredProviders: dict[str, dict[str, Any]] = {}
+        self.registeredProviders: dict[str, ProviderConfigInput] = {}
         self.loadError: str | None = None
         self.authStorage = authStorage
         self.modelsJsonPath = normalize_path(modelsJsonPath) if modelsJsonPath else None
@@ -160,7 +479,7 @@ class ModelRegistry:
 
     @classmethod
     def create(cls, authStorage: AuthStorage, modelsJsonPath: str | None = None) -> ModelRegistry:
-        return cls(authStorage, modelsJsonPath or get_models_path())
+        return cls(authStorage, modelsJsonPath or os.path.join(get_agent_dir(), "models.json"))
 
     @classmethod
     def inMemory(cls, authStorage: AuthStorage) -> ModelRegistry:
@@ -173,18 +492,14 @@ class ModelRegistry:
         resetApiProviders()
         resetOAuthProviders()
         self.loadModels()
-        for provider_name, config in list(self.registeredProviders.items()):
+        for provider_name, config in self.registeredProviders.items():
             self.applyProviderConfig(provider_name, config)
 
     def getError(self) -> str | None:
         return self.loadError
 
     def loadModels(self) -> None:
-        if self.modelsJsonPath:
-            custom = self.loadCustomModels(self.modelsJsonPath)
-        else:
-            custom = emptyCustomModelsResult()
-
+        custom = self.loadCustomModels(self.modelsJsonPath) if self.modelsJsonPath else _empty_custom_models_result()
         if custom.error:
             self.loadError = custom.error
 
@@ -207,7 +522,7 @@ class ModelRegistry:
 
     def loadBuiltInModels(
         self,
-        overrides: dict[str, ProviderOverride],
+        overrides: dict[str, _ProviderOverride],
         modelOverrides: dict[str, dict[str, dict[str, Any]]],
     ) -> list[Model]:
         result: list[Model] = []
@@ -220,7 +535,7 @@ class ModelRegistry:
                 if provider_override is not None:
                     updated = updated.model_copy(
                         update={
-                            "baseUrl": provider_override.baseUrl or updated.baseUrl,
+                            "baseUrl": _coalesce(provider_override.baseUrl, updated.baseUrl),
                             "compat": _merge_compat(updated.compat, provider_override.compat),
                         }
                     )
@@ -248,32 +563,27 @@ class ModelRegistry:
                 merged[existing_index] = custom_model
         return merged
 
-    def loadCustomModels(self, modelsJsonPath: str) -> CustomModelsResult:
+    def loadCustomModels(self, modelsJsonPath: str) -> _CustomModelsResult:
         if not os.path.exists(modelsJsonPath):
-            return emptyCustomModelsResult()
+            return _empty_custom_models_result()
 
         try:
             with open(modelsJsonPath, encoding="utf-8") as handle:
-                parsed = json.loads(stripJsonComments(handle.read()))
+                parsed = json.loads(_strip_json_comments(handle.read()))
 
-            providers = parsed.get("providers")
-            if not isinstance(providers, dict):
-                return emptyCustomModelsResult(
-                    "Invalid models.json schema:\n"
-                    "  - providers: must be an object\n\n"
-                    f"File: {modelsJsonPath}"
-                )
+            errors = _validate_models_config(parsed)
+            if errors:
+                rendered = "\n".join(f"  - {message}" for message in errors)
+                return _empty_custom_models_result(f"Invalid models.json schema:\n{rendered}\n\nFile: {modelsJsonPath}")
 
+            providers = parsed["providers"]
             self.validateConfig(providers)
-            overrides: dict[str, ProviderOverride] = {}
+            overrides: dict[str, _ProviderOverride] = {}
             model_overrides: dict[str, dict[str, dict[str, Any]]] = {}
 
             for provider_name, provider_config in providers.items():
-                if not isinstance(provider_config, dict):
-                    raise ValueError(f"Provider {provider_name}: config must be an object.")
-
-                if provider_config.get("baseUrl") or provider_config.get("compat"):
-                    overrides[provider_name] = ProviderOverride(
+                if provider_config.get("baseUrl") is not None or provider_config.get("compat") is not None:
+                    overrides[provider_name] = _ProviderOverride(
                         baseUrl=provider_config.get("baseUrl"),
                         compat=_coerce_compat(provider_config.get("compat")),
                     )
@@ -287,37 +597,34 @@ class ModelRegistry:
                         if isinstance(model_override, dict):
                             self.storeModelHeaders(provider_name, model_id, model_override.get("headers"))
 
-            return CustomModelsResult(
+            return _CustomModelsResult(
                 models=self.parseModels(providers),
                 overrides=overrides,
                 modelOverrides=model_overrides,
                 error=None,
             )
         except json.JSONDecodeError as error:
-            return emptyCustomModelsResult(f"Failed to parse models.json: {error}\n\nFile: {modelsJsonPath}")
+            return _empty_custom_models_result(f"Failed to parse models.json: {error.msg}\n\nFile: {modelsJsonPath}")
         except Exception as error:  # noqa: BLE001
-            return emptyCustomModelsResult(f"Failed to load models.json: {error}\n\nFile: {modelsJsonPath}")
+            return _empty_custom_models_result(f"Failed to load models.json: {error}\n\nFile: {modelsJsonPath}")
 
     def validateConfig(self, providers: dict[str, Any]) -> None:
         built_in_providers = set(get_providers())
         for provider_name, provider_config in providers.items():
-            if not isinstance(provider_config, dict):
-                raise ValueError(f"Provider {provider_name}: config must be an object.")
             is_built_in = provider_name in built_in_providers
+            has_provider_api = bool(provider_config.get("api"))
             models = provider_config.get("models") or []
-            has_model_overrides = bool(provider_config.get("modelOverrides"))
+            has_model_overrides = bool(provider_config.get("modelOverrides")) and len(provider_config["modelOverrides"]) > 0
 
-            if not isinstance(models, list):
-                raise ValueError(f"Provider {provider_name}: models must be an array.")
-
-            if not models:
-                has_override_fields = any(
-                    provider_config.get(key) for key in ("baseUrl", "headers", "compat")
-                )
-                if not has_override_fields and not has_model_overrides:
+            if len(models) == 0:
+                if (
+                    provider_config.get("baseUrl") is None
+                    and provider_config.get("headers") is None
+                    and provider_config.get("compat") is None
+                    and not has_model_overrides
+                ):
                     raise ValueError(
-                        f'Provider {provider_name}: must specify "baseUrl", "headers", "compat", '
-                        '"modelOverrides", or "models".'
+                        f'Provider {provider_name}: must specify "baseUrl", "headers", "compat", "modelOverrides", or "models".'
                     )
             elif not is_built_in:
                 if not provider_config.get("baseUrl"):
@@ -326,14 +633,10 @@ class ModelRegistry:
                     raise ValueError(f'Provider {provider_name}: "apiKey" is required when defining custom models.')
 
             for model_def in models:
-                if not isinstance(model_def, dict):
-                    raise ValueError(f"Provider {provider_name}: model entries must be objects.")
-                has_provider_api = bool(provider_config.get("api"))
                 has_model_api = bool(model_def.get("api"))
                 if not has_provider_api and not has_model_api and not is_built_in:
                     raise ValueError(
-                        f'Provider {provider_name}, model {model_def.get("id")}: no "api" specified. '
-                        "Set at provider or model level."
+                        f'Provider {provider_name}, model {model_def.get("id")}: no "api" specified. Set at provider or model level.'
                     )
                 if not model_def.get("id"):
                     raise ValueError(f'Provider {provider_name}: model missing "id"')
@@ -360,45 +663,44 @@ class ModelRegistry:
             return defaults
 
         for provider_name, provider_config in providers.items():
-            if not isinstance(provider_config, dict):
-                continue
             model_defs = provider_config.get("models") or []
-            if not isinstance(model_defs, list) or not model_defs:
+            if not model_defs:
                 continue
 
             built_in_defaults = get_built_in_defaults(provider_name)
             for model_def in model_defs:
-                if not isinstance(model_def, dict):
+                api = _coalesce(model_def.get("api"), _coalesce(provider_config.get("api"), (built_in_defaults or {}).get("api")))
+                if api is None:
                     continue
-                api = model_def.get("api") or provider_config.get("api") or (built_in_defaults or {}).get("api")
-                if not api:
-                    continue
-                base_url = (
-                    model_def.get("baseUrl")
-                    or provider_config.get("baseUrl")
-                    or (built_in_defaults or {}).get("baseUrl")
+                base_url = _coalesce(
+                    model_def.get("baseUrl"),
+                    _coalesce(provider_config.get("baseUrl"), (built_in_defaults or {}).get("baseUrl")),
                 )
-                if not base_url:
+                if base_url is None:
                     continue
+
                 compat = _merge_compat(
                     _coerce_compat(provider_config.get("compat")),
                     _coerce_compat(model_def.get("compat")),
                 )
                 self.storeModelHeaders(provider_name, model_def["id"], model_def.get("headers"))
-                cost = model_def.get("cost") or {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}
+                cost = model_def.get("cost")
+                if cost is None:
+                    cost = {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}
+
                 models.append(
                     Model(
                         id=model_def["id"],
-                        name=model_def.get("name") or model_def["id"],
+                        name=_coalesce(model_def.get("name"), model_def["id"]),
                         api=api,
                         provider=provider_name,
                         baseUrl=base_url,
-                        reasoning=bool(model_def.get("reasoning", False)),
+                        reasoning=_coalesce(model_def.get("reasoning"), False),
                         thinkingLevelMap=model_def.get("thinkingLevelMap"),
-                        input=model_def.get("input") or ["text"],
+                        input=_coalesce(model_def.get("input"), ["text"]),
                         cost=ModelCost.model_validate(cost),
-                        contextWindow=model_def.get("contextWindow", 128000),
-                        maxTokens=model_def.get("maxTokens", 16384),
+                        contextWindow=_coalesce(model_def.get("contextWindow"), 128000),
+                        maxTokens=_coalesce(model_def.get("maxTokens"), 16384),
                         headers=None,
                         compat=compat,
                     )
@@ -406,7 +708,7 @@ class ModelRegistry:
         return models
 
     def getAll(self) -> list[Model]:
-        return list(self.models)
+        return self.models
 
     def getAvailable(self) -> list[Model]:
         return [model for model in self.models if self.hasConfiguredAuth(model)]
@@ -416,20 +718,24 @@ class ModelRegistry:
 
     def hasConfiguredAuth(self, model: Model) -> bool:
         return self.authStorage.hasAuth(model.provider) or (
-            self.providerRequestConfigs.get(model.provider, ProviderRequestConfig()).apiKey is not None
+            self.providerRequestConfigs.get(model.provider, _ProviderRequestConfig()).apiKey is not None
         )
 
     @staticmethod
     def getModelRequestKey(provider: str, modelId: str) -> str:
         return f"{provider}:{modelId}"
 
-    def storeProviderRequestConfig(self, providerName: str, config: dict[str, Any]) -> None:
-        if not any(config.get(key) is not None for key in ("apiKey", "headers", "authHeader")):
+    def storeProviderRequestConfig(self, providerName: str, config: Mapping[str, Any]) -> None:
+        api_key = config.get("apiKey")
+        headers = config.get("headers")
+        auth_header = config.get("authHeader")
+        if not api_key and not headers and not auth_header:
             return
-        self.providerRequestConfigs[providerName] = ProviderRequestConfig(
-            apiKey=config.get("apiKey"),
-            headers=copy.deepcopy(config.get("headers")),
-            authHeader=config.get("authHeader"),
+
+        self.providerRequestConfigs[providerName] = _ProviderRequestConfig(
+            apiKey=cast(str | None, api_key),
+            headers=copy.deepcopy(headers),
+            authHeader=cast(bool | None, auth_header),
         )
 
     def storeModelHeaders(self, providerName: str, modelId: str, headers: dict[str, str] | None) -> None:
@@ -439,7 +745,7 @@ class ModelRegistry:
             return
         self.modelRequestHeaders[key] = copy.deepcopy(headers)
 
-    async def getApiKeyAndHeaders(self, model: Model) -> dict[str, Any]:
+    async def getApiKeyAndHeaders(self, model: Model) -> ResolvedRequestAuth:
         try:
             provider_config = self.providerRequestConfigs.get(model.provider)
             api_key_from_auth_storage = await self.authStorage.getApiKey(model.provider, {"includeFallback": False})
@@ -455,7 +761,8 @@ class ModelRegistry:
                 self.modelRequestHeaders.get(self.getModelRequestKey(model.provider, model.id)),
                 f'model "{model.provider}/{model.id}"',
             )
-            headers = None
+
+            headers: dict[str, str] | None = None
             if model.headers or provider_headers or model_headers:
                 headers = {**(model.headers or {}), **(provider_headers or {}), **(model_headers or {})}
 
@@ -467,17 +774,17 @@ class ModelRegistry:
             return {
                 "ok": True,
                 "apiKey": api_key,
-                "headers": headers if headers else None,
+                "headers": headers if headers and len(headers) > 0 else None,
             }
         except Exception as error:  # noqa: BLE001
             return {"ok": False, "error": str(error)}
 
     def getProviderAuthStatus(self, provider: str) -> AuthStatus:
         auth_status = self.authStorage.getAuthStatus(provider)
-        if auth_status.source is not None:
+        if auth_status.source:
             return auth_status
 
-        provider_api_key = self.providerRequestConfigs.get(provider, ProviderRequestConfig()).apiKey
+        provider_api_key = self.providerRequestConfigs.get(provider, _ProviderRequestConfig()).apiKey
         if not provider_api_key:
             return auth_status
         if provider_api_key.startswith("!"):
@@ -489,13 +796,10 @@ class ModelRegistry:
     def getProviderDisplayName(self, provider: str) -> str:
         registered_provider = self.registeredProviders.get(provider) or {}
         oauth_provider = next((item for item in self.authStorage.getOAuthProviders() if item.id == provider), None)
+        oauth_config = registered_provider.get("oauth") if isinstance(registered_provider, dict) else None
         return (
             registered_provider.get("name")
-            or (
-                (registered_provider.get("oauth") or {}).get("name")
-                if isinstance(registered_provider.get("oauth"), dict)
-                else None
-            )
+            or _oauth_name(oauth_config)
             or (oauth_provider.name if oauth_provider else None)
             or BUILT_IN_PROVIDER_DISPLAY_NAMES.get(provider)
             or provider
@@ -505,14 +809,14 @@ class ModelRegistry:
         api_key = await self.authStorage.getApiKey(provider, {"includeFallback": False})
         if api_key is not None:
             return api_key
-        provider_api_key = self.providerRequestConfigs.get(provider, ProviderRequestConfig()).apiKey
+        provider_api_key = self.providerRequestConfigs.get(provider, _ProviderRequestConfig()).apiKey
         return resolveConfigValueUncached(provider_api_key) if provider_api_key else None
 
     def isUsingOAuth(self, model: Model) -> bool:
         credential = self.authStorage.get(model.provider)
         return isinstance(credential, dict) and credential.get("type") == "oauth"
 
-    def registerProvider(self, providerName: str, config: dict[str, Any]) -> None:
+    def registerProvider(self, providerName: str, config: ProviderConfigInput) -> None:
         self.validateProviderConfig(providerName, config)
         self.applyProviderConfig(providerName, config)
         self.upsertRegisteredProvider(providerName, config)
@@ -523,7 +827,7 @@ class ModelRegistry:
         self.registeredProviders.pop(providerName, None)
         self.refresh()
 
-    def upsertRegisteredProvider(self, providerName: str, config: dict[str, Any]) -> None:
+    def upsertRegisteredProvider(self, providerName: str, config: ProviderConfigInput) -> None:
         existing = self.registeredProviders.get(providerName)
         if existing is None:
             self.registeredProviders[providerName] = copy.deepcopy(config)
@@ -532,9 +836,10 @@ class ModelRegistry:
             if value is not None:
                 existing[key] = copy.deepcopy(value)
 
-    def validateProviderConfig(self, providerName: str, config: dict[str, Any]) -> None:
+    def validateProviderConfig(self, providerName: str, config: ProviderConfigInput) -> None:
         if config.get("streamSimple") and not config.get("api"):
             raise ValueError(f'Provider {providerName}: "api" is required when registering streamSimple.')
+
         models = config.get("models") or []
         if not models:
             return
@@ -542,23 +847,28 @@ class ModelRegistry:
             raise ValueError(f'Provider {providerName}: "baseUrl" is required when defining models.')
         if not config.get("apiKey") and not config.get("oauth"):
             raise ValueError(f'Provider {providerName}: "apiKey" or "oauth" is required when defining models.')
+
         for model_def in models:
             if not (model_def.get("api") or config.get("api")):
                 raise ValueError(f'Provider {providerName}, model {model_def["id"]}: no "api" specified.')
 
-    def applyProviderConfig(self, providerName: str, config: dict[str, Any]) -> None:
+    def applyProviderConfig(self, providerName: str, config: ProviderConfigInput) -> None:
         oauth = config.get("oauth")
-        if isinstance(oauth, dict):
-            registerOAuthProvider(type("DynamicOAuthProvider", (), {"id": providerName, **oauth})())
+        if oauth:
+            registerOAuthProvider(_build_oauth_provider(providerName, oauth))
 
-        if config.get("streamSimple"):
-            stream_simple = config["streamSimple"]
-
-            def stream(model: Model, context: Any, options: Any = None) -> AssistantMessageEventStream:
-                return stream_simple(model, context, options)
-
+        stream_simple = config.get("streamSimple")
+        if stream_simple:
             register_api_provider(
-                ApiProvider(api=config["api"], stream=stream, streamSimple=stream_simple),
+                ApiProvider(
+                    api=config["api"],
+                    stream=lambda model, context, options=None: stream_simple(
+                        model,
+                        context,
+                        cast(SimpleStreamOptions | None, options),
+                    ),
+                    streamSimple=stream_simple,
+                ),
                 f"provider:{providerName}",
             )
 
@@ -571,54 +881,45 @@ class ModelRegistry:
                 api = model_def.get("api") or config.get("api")
                 self.storeModelHeaders(providerName, model_def["id"], model_def.get("headers"))
                 self.models.append(
-                    Model(
-                        id=model_def["id"],
-                        name=model_def.get("name") or model_def["id"],
-                        api=api,
-                        provider=providerName,
-                        baseUrl=model_def.get("baseUrl") or config["baseUrl"],
-                        reasoning=bool(model_def.get("reasoning")),
-                        thinkingLevelMap=model_def.get("thinkingLevelMap"),
-                        input=model_def.get("input") or ["text"],
-                        cost=ModelCost.model_validate(
-                            model_def.get("cost")
-                            or {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}
-                        ),
-                        contextWindow=model_def.get("contextWindow", 128000),
-                        maxTokens=model_def.get("maxTokens", 16384),
-                        headers=None,
-                        compat=_coerce_compat(model_def.get("compat")),
+                    Model.model_validate(
+                        {
+                            "id": model_def["id"],
+                            "name": model_def["name"],
+                            "api": api,
+                            "provider": providerName,
+                            "baseUrl": _coalesce(model_def.get("baseUrl"), config["baseUrl"]),
+                            "reasoning": model_def["reasoning"],
+                            "thinkingLevelMap": model_def.get("thinkingLevelMap"),
+                            "input": model_def["input"],
+                            "cost": model_def["cost"],
+                            "contextWindow": model_def["contextWindow"],
+                            "maxTokens": model_def["maxTokens"],
+                            "headers": None,
+                            "compat": _coerce_compat(model_def.get("compat")),
+                        }
                     )
                 )
-            if isinstance(oauth, dict) and oauth.get("modifyModels"):
-                credential = self.authStorage.get(providerName)
-                if isinstance(credential, dict) and credential.get("type") == "oauth":
-                    from harnify_ai.utils.oauth.types import OAuthCredentials
 
-                    self.models = oauth["modifyModels"](
+            if oauth and getattr(oauth, "modifyModels", None) or (isinstance(oauth, Mapping) and oauth.get("modifyModels")):
+                credential = self.authStorage.get(providerName)
+                modify_models = oauth.get("modifyModels") if isinstance(oauth, Mapping) else getattr(oauth, "modifyModels", None)
+                if isinstance(credential, dict) and credential.get("type") == "oauth" and modify_models:
+                    self.models = modify_models(
                         self.models,
-                        OAuthCredentials.model_validate(
-                            {key: value for key, value in credential.items() if key != "type"}
-                        ),
+                        OAuthCredentials.model_validate({key: value for key, value in credential.items() if key != "type"}),
                     )
         elif config.get("baseUrl") or config.get("headers"):
             self.models = [
-                model.model_copy(update={"baseUrl": config.get("baseUrl") or model.baseUrl})
+                model.model_copy(update={"baseUrl": _coalesce(config.get("baseUrl"), model.baseUrl)})
                 if model.provider == providerName
                 else model
                 for model in self.models
             ]
 
 
-ProviderConfigInput = dict[str, Any]
-
 __all__ = [
-    "CustomModelsResult",
     "ModelRegistry",
     "ProviderConfigInput",
-    "ProviderOverride",
-    "ProviderRequestConfig",
+    "ResolvedRequestAuth",
     "clearApiKeyCache",
-    "emptyCustomModelsResult",
-    "stripJsonComments",
 ]

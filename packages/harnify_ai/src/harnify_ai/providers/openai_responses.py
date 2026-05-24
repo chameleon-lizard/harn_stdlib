@@ -156,12 +156,17 @@ def get_prompt_cache_retention(compat: dict[str, bool], cache_retention: CacheRe
     return "24h" if cache_retention == "long" and compat["supportsLongCacheRetention"] else None
 
 
+def _error_message(error: Exception) -> str:
+    message = getattr(error, "message", None)
+    return message if isinstance(message, str) else str(error)
+
+
 def format_openai_responses_error(error: Any) -> str:
     if isinstance(error, Exception):
         status = getattr(error, "status", None)
         if isinstance(status, int):
-            return f"OpenAI API error ({status}): {str(error)}"
-        return str(error)
+            return f"OpenAI API error ({status}): {_error_message(error)}"
+        return _error_message(error)
     try:
         return json.dumps(error)
     except Exception:
@@ -351,11 +356,7 @@ async def _create_responses_stream(client: Any, params: dict[str, Any], options:
             )
         return await _await_maybe_with_signal(raw_response.parse(), signal)
 
-    created = await _await_maybe_with_signal(responses.create(**params), signal)
-    on_response = _option(options, "onResponse")
-    if callable(on_response):
-        await _maybe_await(on_response({"status": 200, "headers": {}}, model))
-    return created
+    return await _await_maybe_with_signal(responses.create(**params), signal)
 
 
 def stream_openai_responses(
@@ -465,24 +466,6 @@ applyServiceTierPricing = apply_service_tier_pricing
 
 __all__ = [
     "OpenAIResponsesOptions",
-    "applyServiceTierPricing",
-    "apply_service_tier_pricing",
-    "buildParams",
-    "build_params",
-    "createClient",
-    "create_client",
-    "formatOpenAIResponsesError",
-    "format_openai_responses_error",
-    "getCompat",
-    "getPromptCacheRetention",
-    "getServiceTierCostMultiplier",
-    "get_compat",
-    "get_prompt_cache_retention",
-    "get_service_tier_cost_multiplier",
-    "resolveCacheRetention",
-    "resolve_cache_retention",
     "streamOpenAIResponses",
     "streamSimpleOpenAIResponses",
-    "stream_openai_responses",
-    "stream_simple_openai_responses",
 ]

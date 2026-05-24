@@ -23,6 +23,22 @@ def _azure_model() -> Model:
     )
 
 
+def _reasoning_azure_model(thinking_level_map: dict[str, object] | None = None) -> Model:
+    return Model(
+        id="o4-mini",
+        name="o4-mini",
+        api="azure-openai-responses",
+        provider="azure-openai-responses",
+        baseUrl="https://example.openai.azure.com/openai/v1",
+        reasoning=True,
+        input=["text"],
+        cost=ModelCost(input=0, output=0, cacheRead=0, cacheWrite=0),
+        contextWindow=128_000,
+        maxTokens=16_384,
+        thinkingLevelMap=thinking_level_map,
+    )
+
+
 def _context() -> Context:
     return Context(messages=[{"role": "user", "content": "Hello", "timestamp": 1}])
 
@@ -114,6 +130,55 @@ async def test_create_responses_stream_uses_raw_response_metadata_for_on_respons
         "headers": {"x-ms-request-id": "req-123"},
     }
     assert captured["model"].provider == "azure-openai-responses"
+
+
+@pytest.mark.asyncio
+async def test_create_responses_stream_applies_timeout_and_retry_via_with_options() -> None:
+    parsed_stream = object()
+    raw_response = _RawResponse(parsed_stream)
+    captured: dict[str, object] = {}
+
+    class _WithRawResponse:
+        async def create(self, **params):
+            captured["params"] = params
+            return raw_response
+
+    class _Responses:
+        with_raw_response = _WithRawResponse()
+
+    class _Client:
+        responses = _Responses()
+
+        def __init__(self) -> None:
+            self.with_options_calls: list[dict[str, object]] = []
+
+        def with_options(self, **kwargs):
+            self.with_options_calls.append(kwargs)
+            return self
+
+    client = _Client()
+    result = await azure_provider._create_responses_stream(
+        client,
+        {"model": "deployment-1", "input": [], "stream": True},
+        {"timeoutMs": 1500, "maxRetries": 4},
+        _azure_model(),
+    )
+
+    assert result is parsed_stream
+    assert client.with_options_calls == [{"timeout": 1.5, "max_retries": 4}]
+    assert captured["params"] == {"model": "deployment-1", "input": [], "stream": True}
+
+
+def test_build_params_matches_ts_truthy_max_tokens_and_reasoning_off_logic() -> None:
+    model = _reasoning_azure_model()
+
+    params = azure_provider.build_params(model, _context(), {"maxTokens": 0}, "deployment-1")
+    assert "max_output_tokens" not in params
+    assert params["reasoning"] == {"effort": "none"}
+
+    null_off_model = _reasoning_azure_model({"off": None})
+    null_off_params = azure_provider.build_params(null_off_model, _context(), {}, "deployment-1")
+    assert "reasoning" not in null_off_params
 
 
 @pytest.mark.asyncio
@@ -261,3 +326,11 @@ async def test_stream_azure_openai_responses_aborts_while_waiting_for_stream_eve
     assert result.errorMessage == "Request was aborted"
     assert blocking_stream.cancelled is True
     assert blocking_stream.closed is True
+
+
+def test_azure_openai_responses_module_exports_expected_names() -> None:
+    assert azure_provider.__all__ == [
+        "AzureOpenAIResponsesOptions",
+        "streamAzureOpenAIResponses",
+        "streamSimpleAzureOpenAIResponses",
+    ]

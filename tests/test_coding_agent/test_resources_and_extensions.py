@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from harnify_agent.types import AgentToolResult
 from harnify_coding_agent.config import ENV_AGENT_DIR
-from harnify_coding_agent.core.extensions.loader import discover_and_load_extensions
+from harnify_coding_agent.core.extensions.loader import create_extension_runtime, discover_and_load_extensions
 from harnify_coding_agent.core.extensions.runner import ExtensionRunner
 from harnify_coding_agent.core.extensions.wrapper import wrap_registered_tools
 from harnify_coding_agent.core.messages import BashExecutionMessage, bash_execution_to_text, convert_to_llm
@@ -167,7 +167,13 @@ async def test_extensions_and_resource_loader_compose_session_start_resources(tm
     extension = discovered.extensions[0]
     assert list(extension.tools) == ["demo"]
 
-    runner = ExtensionRunner(cwd="runner-cwd")
+    runner = ExtensionRunner(
+        extensions=[],
+        runtime=create_extension_runtime(),
+        cwd="runner-cwd",
+        sessionManager=None,
+        modelRegistry=None,
+    )
     wrapped = wrap_registered_tools(list(extension.tools.values()), runner)
     result = await wrapped[0].execute("call-1", {"value": "ok"}, None, None)
     assert isinstance(result, AgentToolResult)

@@ -78,10 +78,7 @@ class FileAuthStorageBackend(AuthStorageBackend):
             return
         with open(self.authPath, "w", encoding="utf-8") as handle:
             handle.write("{}")
-        try:
-            os.chmod(self.authPath, 0o600)
-        except OSError:
-            pass
+        os.chmod(self.authPath, 0o600)
 
     def _create_lock(self) -> FileLock:
         return FileLock(self._lock_path(), timeout=0)
@@ -154,10 +151,7 @@ class FileAuthStorageBackend(AuthStorageBackend):
             if outcome.next is not None:
                 with open(self.authPath, "w", encoding="utf-8") as handle:
                     handle.write(outcome.next)
-                try:
-                    os.chmod(self.authPath, 0o600)
-                except OSError:
-                    pass
+                os.chmod(self.authPath, 0o600)
             return outcome.result
         finally:
             lock.release()
@@ -179,10 +173,7 @@ class FileAuthStorageBackend(AuthStorageBackend):
             if outcome.next is not None:
                 with open(self.authPath, "w", encoding="utf-8") as handle:
                     handle.write(outcome.next)
-                try:
-                    os.chmod(self.authPath, 0o600)
-                except OSError:
-                    pass
+                os.chmod(self.authPath, 0o600)
             self._assert_lock_uncompromised(expected_signature)
             return outcome.result
         finally:

@@ -29,7 +29,19 @@ from harnify_ai.types import *  # noqa: F401,F403
 from harnify_ai.utils.diagnostics import *  # noqa: F401,F403
 from harnify_ai.utils.event_stream import *  # noqa: F401,F403
 from harnify_ai.utils.json_parse import *  # noqa: F401,F403
-from harnify_ai.utils.oauth import *  # noqa: F401,F403
+from harnify_ai.utils.oauth.types import (  # noqa: F401
+    OAuthAuthInfo,
+    OAuthCredentials,
+    OAuthDeviceCodeInfo,
+    OAuthLoginCallbacks,
+    OAuthPrompt,
+    OAuthProvider,
+    OAuthProviderId,
+    OAuthProviderInfo,
+    OAuthProviderInterface,
+    OAuthSelectOption,
+    OAuthSelectPrompt,
+)
 from harnify_ai.utils.overflow import *  # noqa: F401,F403
 from harnify_ai.utils.typebox_helpers import *  # noqa: F401,F403
 from harnify_ai.utils.validation import *  # noqa: F401,F403

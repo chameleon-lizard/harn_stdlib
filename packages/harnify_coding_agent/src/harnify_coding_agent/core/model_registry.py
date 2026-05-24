@@ -604,7 +604,7 @@ class ModelRegistry:
                 error=None,
             )
         except json.JSONDecodeError as error:
-            return _empty_custom_models_result(f"Failed to parse models.json: {error.msg}\n\nFile: {modelsJsonPath}")
+            return _empty_custom_models_result(f"Failed to parse models.json: {error}\n\nFile: {modelsJsonPath}")
         except Exception as error:  # noqa: BLE001
             return _empty_custom_models_result(f"Failed to load models.json: {error}\n\nFile: {modelsJsonPath}")
 
@@ -880,29 +880,28 @@ class ModelRegistry:
             for model_def in models:
                 api = model_def.get("api") or config.get("api")
                 self.storeModelHeaders(providerName, model_def["id"], model_def.get("headers"))
+                cost = model_def.get("cost")
                 self.models.append(
-                    Model.model_validate(
-                        {
-                            "id": model_def["id"],
-                            "name": model_def["name"],
-                            "api": api,
-                            "provider": providerName,
-                            "baseUrl": _coalesce(model_def.get("baseUrl"), config["baseUrl"]),
-                            "reasoning": model_def["reasoning"],
-                            "thinkingLevelMap": model_def.get("thinkingLevelMap"),
-                            "input": model_def["input"],
-                            "cost": model_def["cost"],
-                            "contextWindow": model_def["contextWindow"],
-                            "maxTokens": model_def["maxTokens"],
-                            "headers": None,
-                            "compat": _coerce_compat(model_def.get("compat")),
-                        }
+                    Model.model_construct(
+                        id=model_def["id"],
+                        name=model_def.get("name"),
+                        api=api,
+                        provider=providerName,
+                        baseUrl=_coalesce(model_def.get("baseUrl"), config["baseUrl"]),
+                        reasoning=model_def.get("reasoning"),
+                        thinkingLevelMap=model_def.get("thinkingLevelMap"),
+                        input=model_def.get("input"),
+                        cost=ModelCost.model_validate(cost) if cost is not None else None,
+                        contextWindow=model_def.get("contextWindow"),
+                        maxTokens=model_def.get("maxTokens"),
+                        headers=None,
+                        compat=_coerce_compat(model_def.get("compat")),
                     )
                 )
 
-            if oauth and getattr(oauth, "modifyModels", None) or (isinstance(oauth, Mapping) and oauth.get("modifyModels")):
+            modify_models = oauth.get("modifyModels") if isinstance(oauth, Mapping) else getattr(oauth, "modifyModels", None)
+            if oauth and modify_models:
                 credential = self.authStorage.get(providerName)
-                modify_models = oauth.get("modifyModels") if isinstance(oauth, Mapping) else getattr(oauth, "modifyModels", None)
                 if isinstance(credential, dict) and credential.get("type") == "oauth" and modify_models:
                     self.models = modify_models(
                         self.models,

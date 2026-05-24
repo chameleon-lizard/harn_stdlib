@@ -19,11 +19,11 @@ def register_session_resource_cleanup(cleanup: SessionResourceCleanup) -> Callab
 
 
 def cleanup_session_resources(session_id: str | None = None) -> None:
-    errors: list[BaseException] = []
+    errors: list[Exception] = []
     for cleanup in tuple(_session_resource_cleanups.keys()):
         try:
             cleanup(session_id)
-        except BaseException as error:  # noqa: BLE001
+        except Exception as error:
             errors.append(error)
     if errors:
         raise ExceptionGroup("Failed to cleanup session resources", errors)

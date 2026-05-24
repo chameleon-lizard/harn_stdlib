@@ -397,3 +397,18 @@ def test_migrate_keybindings_config_prefers_namespaced_entries() -> None:
         },
         "migrated": True,
     }
+
+
+def test_keybindings_module_exports_match_ts_surface() -> None:
+    from harnify_coding_agent.core import keybindings
+
+    assert keybindings.__all__ == [
+        "AppKeybinding",
+        "AppKeybindings",
+        "KEYBINDINGS",
+        "Keybinding",
+        "KeyId",
+        "KeybindingsConfig",
+        "KeybindingsManager",
+        "migrateKeybindingsConfig",
+    ]

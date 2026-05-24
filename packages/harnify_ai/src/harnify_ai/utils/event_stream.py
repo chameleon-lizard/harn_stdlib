@@ -25,6 +25,7 @@ class EventStream(Generic[TEvent, TResult]):
         self._is_complete = is_complete
         self._extract_result = extract_result
         self._result_future: asyncio.Future[TResult] | None = None
+        self._waiting_consumers = 0
 
     def push(self, event: TEvent) -> None:
         if self._done:
@@ -43,7 +44,8 @@ class EventStream(Generic[TEvent, TResult]):
         result_future = self._ensure_result_future()
         if result is not _UNSET and not result_future.done():
             result_future.set_result(cast(TResult, result))
-        self._queue.put_nowait(_END_OF_STREAM)
+        for _ in range(max(1, self._waiting_consumers)):
+            self._queue.put_nowait(_END_OF_STREAM)
 
     def result(self) -> asyncio.Future[TResult]:
         return self._ensure_result_future()
@@ -53,7 +55,15 @@ class EventStream(Generic[TEvent, TResult]):
 
     async def _iterate(self) -> AsyncIterator[TEvent]:
         while True:
-            item = await self._queue.get()
+            if self._queue.empty() and self._done:
+                return
+
+            self._waiting_consumers += 1
+            try:
+                item = await self._queue.get()
+            finally:
+                self._waiting_consumers -= 1
+
             if item is _END_OF_STREAM:
                 return
             yield cast(TEvent, item)

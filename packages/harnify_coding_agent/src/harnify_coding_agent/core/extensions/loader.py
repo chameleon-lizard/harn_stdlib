@@ -28,6 +28,8 @@ from harnify_coding_agent.core.extensions.types import (
     RegisteredTool,
     ToolDefinition,
     ToolInfo,
+    _LoadedExtension,
+    _LoadedExtensionRuntime,
 )
 from harnify_coding_agent.core.source_info import SourceInfo, create_synthetic_source_info
 from harnify_coding_agent.core.tools.tool_definition_wrapper import create_tool_definition_from_agent_tool
@@ -227,7 +229,7 @@ def create_extension_runtime() -> ExtensionRuntime:
             )
         )
 
-    runtime = ExtensionRuntime(
+    runtime = _LoadedExtensionRuntime(
         sendMessage=_not_initialized,
         sendUserMessage=_not_initialized,
         appendEntry=_not_initialized,
@@ -440,7 +442,7 @@ def _create_extension(path: str, resolved_path: str) -> Extension:
     source = path[1:-1].split(":")[0] if path.startswith("<") and path.endswith(">") else "local"
     base_dir = None if path.startswith("<") else os.path.dirname(resolved_path)
     source_info = create_synthetic_source_info(path, {"source": source or "temporary", "baseDir": base_dir})
-    return Extension(path=path, resolvedPath=resolved_path, sourceInfo=source_info)
+    return _LoadedExtension(path=path, resolvedPath=resolved_path, sourceInfo=source_info)
 
 
 async def _exec_command(

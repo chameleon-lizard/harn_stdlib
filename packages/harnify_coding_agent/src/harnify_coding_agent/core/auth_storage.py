@@ -86,6 +86,17 @@ class FileAuthStorageBackend(AuthStorageBackend):
     def _create_lock(self) -> FileLock:
         return FileLock(self._lock_path(), timeout=0)
 
+    def _lock_signature(self) -> tuple[int, int] | None:
+        try:
+            stat_result = os.stat(self._lock_path())
+        except OSError:
+            return None
+        return (stat_result.st_dev, stat_result.st_ino)
+
+    def _assert_lock_uncompromised(self, expected_signature: tuple[int, int] | None) -> None:
+        if self._lock_signature() != expected_signature:
+            raise RuntimeError("Auth storage lock was compromised")
+
     def _acquire_lock_sync_with_retry(self) -> FileLock:
         max_attempts = 10
         delay_ms = 20
@@ -156,12 +167,15 @@ class FileAuthStorageBackend(AuthStorageBackend):
         self.ensureFileExists()
 
         lock = await self._acquire_lock_async_with_retry()
+        expected_signature = self._lock_signature()
         try:
+            self._assert_lock_uncompromised(expected_signature)
             current = None
             if os.path.exists(self.authPath):
                 with open(self.authPath, encoding="utf-8") as handle:
                     current = handle.read()
             outcome = await fn(current)
+            self._assert_lock_uncompromised(expected_signature)
             if outcome.next is not None:
                 with open(self.authPath, "w", encoding="utf-8") as handle:
                     handle.write(outcome.next)
@@ -169,6 +183,7 @@ class FileAuthStorageBackend(AuthStorageBackend):
                     os.chmod(self.authPath, 0o600)
                 except OSError:
                     pass
+            self._assert_lock_uncompromised(expected_signature)
             return outcome.result
         finally:
             try:

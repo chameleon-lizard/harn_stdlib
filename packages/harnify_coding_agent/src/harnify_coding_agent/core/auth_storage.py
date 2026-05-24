@@ -149,10 +149,7 @@ class FileAuthStorageBackend(AuthStorageBackend):
                     pass
             return outcome.result
         finally:
-            try:
-                lock.release()
-            except Exception:
-                pass
+            lock.release()
 
     async def withLockAsync(self, fn: Callable[[str | None], Awaitable[LockResult]]) -> Any:
         self.ensureParentDir()
@@ -174,7 +171,10 @@ class FileAuthStorageBackend(AuthStorageBackend):
                     pass
             return outcome.result
         finally:
-            lock.release()
+            try:
+                lock.release()
+            except Exception:
+                pass
 
 
 class InMemoryAuthStorageBackend(AuthStorageBackend):

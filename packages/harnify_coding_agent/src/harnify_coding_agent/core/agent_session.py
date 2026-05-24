@@ -499,10 +499,10 @@ class AgentSession:
             if last_assistant is not None and await self._check_compaction(last_assistant, False):
                 try:
                     await self.agent.continue_()
-                    await asyncio.sleep(0)
+                    await self._drain_agent_event_loop()
                     while await self._handle_post_agent_run():
                         await self.agent.continue_()
-                        await asyncio.sleep(0)
+                        await self._drain_agent_event_loop()
                 finally:
                     self._flush_pending_bash_messages()
 
@@ -2100,10 +2100,10 @@ class AgentSession:
     async def _run_agent_prompt(self, messages: AgentMessage | list[AgentMessage]) -> None:
         try:
             await self.agent.prompt(messages)
-            await asyncio.sleep(0)
+            await self._drain_agent_event_loop()
             while await self._handle_post_agent_run():
                 await self.agent.continue_()
-                await asyncio.sleep(0)
+                await self._drain_agent_event_loop()
         finally:
             self._flush_pending_bash_messages()
 
@@ -2210,6 +2210,12 @@ class AgentSession:
             self.agent.state.messages.append(bash_message)
             self.sessionManager.appendMessage(bash_message)
         self._pendingBashMessages = []
+
+    async def _drain_agent_event_loop(self) -> None:
+        for _ in range(5):
+            if self._lastAssistantMessage is not None:
+                return
+            await asyncio.sleep(0)
 
     async def _check_compaction(
         self,

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import time
 from collections.abc import AsyncIterable, Mapping
 from typing import Any, Literal, TypedDict
@@ -53,6 +52,7 @@ except Exception:  # noqa: BLE001
 MISTRAL_TOOL_CALL_ID_LENGTH = 9
 MAX_MISTRAL_ERROR_BODY_CHARS = 4000
 MistralReasoningEffort = Literal["none", "high"]
+_STREAM_END = object()
 
 
 class MistralOptions(TypedDict, total=False):
@@ -82,6 +82,41 @@ async def _maybe_await(value: Any) -> Any:
     if hasattr(value, "__await__"):
         return await value
     return value
+
+
+async def _await_with_abort(request_factory: Any, signal: Any) -> Any:
+    if _is_aborted(signal):
+        raise RuntimeError("Request was aborted")
+
+    request = request_factory()
+    wait = getattr(signal, "wait", None)
+    if not callable(wait):
+        return await request
+
+    abort_waiter = wait()
+    if not hasattr(abort_waiter, "__await__"):
+        return await request
+
+    request_task = asyncio.create_task(request)
+    abort_task = asyncio.create_task(abort_waiter)
+
+    try:
+        done, _ = await asyncio.wait({request_task, abort_task}, return_when=asyncio.FIRST_COMPLETED)
+        if request_task in done:
+            return await request_task
+
+        request_task.cancel()
+        try:
+            await request_task
+        except BaseException:
+            pass
+        raise RuntimeError("Request was aborted")
+    finally:
+        abort_task.cancel()
+        try:
+            await abort_task
+        except BaseException:
+            pass
 
 
 def _coalesce_attr(obj: Any, *names: str) -> Any:

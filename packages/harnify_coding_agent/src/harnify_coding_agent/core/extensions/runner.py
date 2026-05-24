@@ -267,6 +267,7 @@ def _resolve_action(source: Any, name: str, default: Any = None) -> Any:
         return source.get(name, default)
     return getattr(source, name, default)
 
+
 def _event_type(event: Any) -> str:
     if isinstance(event, Mapping):
         return str(event["type"])
@@ -664,7 +665,7 @@ class ExtensionRunner:
                     } and handler_result:
                         result = handler_result
                         if _result_flag(result, "cancel", False):
-                                return result
+                            return result
                 except Exception as error:
                     self._emit_extension_exception(extension.path, event_type, error)
         return result

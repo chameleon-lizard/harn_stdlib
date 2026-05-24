@@ -50,3 +50,5 @@ def short_hash(text: str) -> str:
 
 
 shortHash = short_hash
+
+__all__ = ["shortHash"]

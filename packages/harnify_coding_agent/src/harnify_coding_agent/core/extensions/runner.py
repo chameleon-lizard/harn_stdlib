@@ -983,5 +983,4 @@ __all__ = [
     "ShutdownHandler",
     "SwitchSessionHandler",
     "emitSessionShutdownEvent",
-    "emit_session_shutdown_event",
 ]

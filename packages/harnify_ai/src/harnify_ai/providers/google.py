@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import itertools
 import json
+import re
 import time
 from collections.abc import Mapping
 from typing import Any, Literal, TypedDict
@@ -186,8 +187,9 @@ def build_params(
     options: StreamOptions | Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     signal = _option(options, "signal")
-    if _is_aborted(signal):
-        raise RuntimeError("Request was aborted")
+    if signal is not None:
+        if _is_aborted(signal):
+            raise RuntimeError("Request aborted")
 
     contents = convert_messages(model, context)
 
@@ -224,11 +226,22 @@ def build_params(
     elif model.reasoning and thinking is not None and not _nested_option(thinking, "enabled", True):
         config["thinkingConfig"] = get_disabled_thinking_config(model)
 
+    if signal is not None:
+        config["abortSignal"] = signal
+
     return {
         "model": model.id,
         "contents": contents,
         "config": config,
     }
+
+
+def _prepare_sdk_params(params: Mapping[str, Any]) -> dict[str, Any]:
+    sdk_params = dict(params)
+    config = sdk_params.get("config")
+    if isinstance(config, Mapping) and "abortSignal" in config:
+        sdk_params["config"] = {key: value for key, value in config.items() if key != "abortSignal"}
+    return sdk_params
 
 
 def stream_google(
@@ -265,7 +278,7 @@ def stream_google(
                 if next_params is not None:
                     params = next_params
 
-            google_stream = client.aio.models.generate_content_stream(**params)
+            google_stream = client.aio.models.generate_content_stream(**_prepare_sdk_params(params))
             stream.push(StartEvent(partial=output))
 
             current_block: TextContent | ThinkingContent | None = None
@@ -475,17 +488,15 @@ def stream_simple_google(
 
 
 def is_gemma4_model(model: Model) -> bool:
-    return "gemma-4" in model.id.lower() or "gemma4" in model.id.lower()
+    return re.search(r"gemma-?4", model.id.lower()) is not None
 
 
 def is_gemini3_pro_model(model: Model) -> bool:
-    model_id = model.id.lower()
-    return "gemini-3" in model_id and "-pro" in model_id
+    return re.search(r"gemini-3(?:\.\d+)?-pro", model.id.lower()) is not None
 
 
 def is_gemini3_flash_model(model: Model) -> bool:
-    model_id = model.id.lower()
-    return "gemini-3" in model_id and "-flash" in model_id
+    return re.search(r"gemini-3(?:\.\d+)?-flash", model.id.lower()) is not None
 
 
 def get_disabled_thinking_config(model: Model) -> dict[str, Any]:

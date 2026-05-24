@@ -57,7 +57,7 @@ def color256_to_hex(index: int) -> str:
 
 
 def escape_html(text: str) -> str:
-    return html.escape(text, quote=True).replace("'", "&#039;")
+    return html.escape(text, quote=True).replace("&#x27;", "&#039;")
 
 
 def style_to_inline_css(style: TextStyle) -> str:
@@ -181,17 +181,6 @@ color256ToHex = color256_to_hex
 escapeHtml = escape_html
 
 __all__ = [
-    "ANSI_COLORS",
-    "TextStyle",
     "ansiLinesToHtml",
     "ansiToHtml",
-    "ansi_lines_to_html",
-    "ansi_to_html",
-    "apply_sgr_code",
-    "color256ToHex",
-    "color256_to_hex",
-    "escapeHtml",
-    "escape_html",
-    "has_style",
-    "style_to_inline_css",
 ]

@@ -22,12 +22,12 @@ from harnify_coding_agent.core.session_manager import SessionManager
 
 
 def test_ansi_to_html_handles_styles_and_escaping() -> None:
-    rendered = ansi_to_html('plain \x1b[31m<red>\x1b[0m \x1b[1;4m"&"\x1b[0m')
+    rendered = ansi_to_html('plain \x1b[31m<red>\x1b[0m \x1b[1;4m"\'&"\x1b[0m')
     assert "plain " in rendered
     assert '<span style="color:#800000">&lt;red&gt;</span>' in rendered
     assert 'font-weight:bold' in rendered
     assert 'text-decoration:underline' in rendered
-    assert "&quot;&amp;&quot;" in rendered
+    assert "&quot;&#039;&amp;&quot;" in rendered
 
 
 def test_ansi_to_html_handles_extended_colors_and_blank_lines() -> None:
@@ -38,6 +38,16 @@ def test_ansi_to_html_handles_extended_colors_and_blank_lines() -> None:
     lines_html = ansi_lines_to_html(["", "ok"])
     assert '<div class="ansi-line">&nbsp;</div>' in lines_html
     assert '<div class="ansi-line">ok</div>' in lines_html
+
+
+def test_ansi_to_html_module_exports_match_ts_surface() -> None:
+    import importlib
+
+    module = importlib.import_module("harnify_coding_agent.core.export_html.ansi_to_html")
+    assert module.__all__ == [
+        "ansiLinesToHtml",
+        "ansiToHtml",
+    ]
 
 
 def test_trim_rendered_result_lines_ignores_ansi_only_padding() -> None:

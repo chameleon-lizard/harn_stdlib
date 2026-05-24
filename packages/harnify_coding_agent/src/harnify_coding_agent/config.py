@@ -77,6 +77,9 @@ def get_package_dir() -> str:
     if env_dir:
         return normalize_path(env_dir)
 
+    if isBunBinary:
+        return str(Path(sys.executable).resolve().parent)
+
     module_dir = Path(__file__).resolve().parent
     return str(_find_package_root(module_dir))
 
@@ -222,17 +225,28 @@ def _get_self_update_command_for_method(
     return None
 
 
+def _is_self_update_path_writable(package_dir: str | None = None) -> bool:
+    resolved_package_dir = Path(package_dir or get_package_dir())
+    try:
+        return os.access(resolved_package_dir, os.W_OK) and os.access(resolved_package_dir.parent, os.W_OK)
+    except OSError:
+        return False
+
+
 def get_self_update_command(
     package_name: str,
     python_command: Sequence[str] | None = None,
     update_package_name: str | None = None,
 ) -> SelfUpdateCommand | None:
-    return _get_self_update_command_for_method(
+    command = _get_self_update_command_for_method(
         detect_install_method(),
         package_name,
         update_package_name,
         python_command,
     )
+    if command is None or not _is_self_update_path_writable():
+        return None
+    return command
 
 
 def get_self_update_unavailable_instruction(
@@ -244,6 +258,11 @@ def get_self_update_unavailable_instruction(
     update_package = update_package_name or package_name
     command = _get_self_update_command_for_method(method, package_name, update_package, python_command)
     if command is not None:
+        if not _is_self_update_path_writable():
+            return (
+                f"This installation is managed by a {method} install, but the install path is not writable. "
+                f"Update it yourself with: {command.display}"
+            )
         return f"Update it yourself with: {command.display}"
     if method == "source":
         return (
@@ -254,7 +273,7 @@ def get_self_update_unavailable_instruction(
 
 
 def get_update_instruction(package_name: str) -> str:
-    command = get_self_update_command(package_name)
+    command = _get_self_update_command_for_method(detect_install_method(), package_name)
     if command is not None:
         return f"Run: {command.display}"
     return get_self_update_unavailable_instruction(package_name)
@@ -304,10 +323,14 @@ def _get_package_source_dir() -> Path:
 
 
 def get_themes_dir() -> str:
+    if isBunBinary:
+        return str(Path(get_package_dir()) / "theme")
     return str(_get_package_source_dir() / "modes" / "interactive" / "theme")
 
 
 def get_export_template_dir() -> str:
+    if isBunBinary:
+        return str(Path(get_package_dir()) / "export-html")
     return str(_get_package_source_dir() / "core" / "export_html")
 
 
@@ -335,6 +358,8 @@ def get_changelog_path() -> str:
 
 
 def get_interactive_assets_dir() -> str:
+    if isBunBinary:
+        return str(Path(get_package_dir()) / "assets")
     return str(_get_package_source_dir() / "modes" / "interactive" / "assets")
 
 

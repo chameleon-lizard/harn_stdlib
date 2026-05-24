@@ -730,14 +730,21 @@ def _consume_line(text: str) -> tuple[str, str] | None:
     return text[:line_break_index], text[next_index:]
 
 
-async def _iter_response_lines(source: Any) -> AsyncIterator[str]:
+async def _iter_response_lines(source: Any, signal: Any = None) -> AsyncIterator[str]:
     if hasattr(source, "iter_lines"):
-        async for line in source.iter_lines():
+        lines = source.iter_lines()
+        if hasattr(lines, "__aiter__"):
+            async for line in _iterate_async_iterable(lines, signal, on_abort=lambda: _close_stream(source)):
+                yield line.decode("utf-8") if isinstance(line, bytes) else str(line)
+            return
+        for line in lines:
+            if _is_aborted(signal):
+                raise RuntimeError("Request was aborted")
             yield line.decode("utf-8") if isinstance(line, bytes) else str(line)
         return
 
     if hasattr(source, "aiter_lines"):
-        async for line in source.aiter_lines():
+        async for line in _iterate_async_iterable(source.aiter_lines(), signal, on_abort=lambda: _close_stream(source)):
             yield line.decode("utf-8") if isinstance(line, bytes) else str(line)
         return
 
@@ -748,17 +755,32 @@ async def _iter_response_lines(source: Any) -> AsyncIterator[str]:
         raise RuntimeError("Attempted to iterate over an Anthropic response with no body")
 
     buffer = ""
-    async for chunk in body:
-        if isinstance(chunk, bytes):
-            buffer += chunk.decode("utf-8")
-        else:
-            buffer += str(chunk)
+    if hasattr(body, "__aiter__"):
+        async for chunk in _iterate_async_iterable(body, signal, on_abort=lambda: _close_stream(source)):
+            if isinstance(chunk, bytes):
+                buffer += chunk.decode("utf-8")
+            else:
+                buffer += str(chunk)
 
-        consumed = _consume_line(buffer)
-        while consumed is not None:
-            line, buffer = consumed
-            yield line
             consumed = _consume_line(buffer)
+            while consumed is not None:
+                line, buffer = consumed
+                yield line
+                consumed = _consume_line(buffer)
+    else:
+        for chunk in body:
+            if _is_aborted(signal):
+                raise RuntimeError("Request was aborted")
+            if isinstance(chunk, bytes):
+                buffer += chunk.decode("utf-8")
+            else:
+                buffer += str(chunk)
+
+            consumed = _consume_line(buffer)
+            while consumed is not None:
+                line, buffer = consumed
+                yield line
+                consumed = _consume_line(buffer)
 
     if buffer:
         consumed = _consume_line(buffer)
@@ -772,7 +794,7 @@ async def _iter_response_lines(source: Any) -> AsyncIterator[str]:
 
 async def iterate_sse_messages(source: Any, signal: Any = None) -> AsyncIterator[ServerSentEvent]:
     state: dict[str, Any] = {"event": None, "data": [], "raw": []}
-    async for line in _iter_response_lines(source):
+    async for line in _iter_response_lines(source, signal):
         if _is_aborted(signal):
             raise RuntimeError("Request was aborted")
         event = _decode_sse_line(line, state)

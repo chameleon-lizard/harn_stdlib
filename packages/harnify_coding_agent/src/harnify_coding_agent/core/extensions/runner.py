@@ -283,20 +283,6 @@ def _resolve_action(source: Any, name: str, default: Any = None) -> Any:
         return source.get(name, default)
     return getattr(source, name, default)
 
-
-def _normalize_extras(value: Any) -> dict[str, Any]:
-    if value is None:
-        return {}
-    if isinstance(value, Mapping):
-        return dict(value)
-    if hasattr(value, "items"):
-        return dict(value.items())
-    try:
-        return {key: getattr(value, key) for key in dir(value) if not key.startswith("_")}
-    except Exception:
-        return {}
-
-
 def _event_type(event: Any) -> str:
     if isinstance(event, Mapping):
         return str(event["type"])

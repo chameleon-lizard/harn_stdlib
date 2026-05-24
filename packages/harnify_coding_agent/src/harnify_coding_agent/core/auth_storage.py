@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 import json
 import os
 import time
@@ -174,16 +173,13 @@ class AuthStorage:
     def setFallbackResolver(self, resolver: Callable[[str], str | None]) -> None:
         self.fallbackResolver = resolver
 
-    def recordError(self, error: Any) -> None:
+    def _record_error(self, error: Any) -> None:
         self.errors.append(error if isinstance(error, Exception) else Exception(str(error)))
 
-    def parseStorageData(self, content: str | None) -> AuthStorageData:
+    def _parse_storage_data(self, content: str | None) -> AuthStorageData:
         if not content:
             return {}
-        parsed = json.loads(content)
-        if not isinstance(parsed, dict):
-            raise ValueError("auth.json must contain an object")
-        return parsed
+        return json.loads(content)
 
     def reload(self) -> None:
         content: str | None = None
@@ -195,36 +191,35 @@ class AuthStorage:
 
         try:
             self.storage.withLock(capture)
-            self.data = self.parseStorageData(content)
+            self.data = self._parse_storage_data(content)
             self.loadError = None
         except Exception as error:  # noqa: BLE001
             self.loadError = error
-            self.recordError(error)
+            self._record_error(error)
 
     def persistProviderChange(self, provider: str, credential: AuthCredential | None) -> None:
         if self.loadError is not None:
             return
 
         def persist(current: str | None) -> LockResult:
-            current_data = self.parseStorageData(current)
+            current_data = self._parse_storage_data(current)
             merged = dict(current_data)
             if credential is None:
                 merged.pop(provider, None)
             else:
-                merged[provider] = copy.deepcopy(credential)
+                merged[provider] = credential
             return LockResult(result=None, next=json.dumps(merged, indent=2))
 
         try:
             self.storage.withLock(persist)
         except Exception as error:  # noqa: BLE001
-            self.recordError(error)
+            self._record_error(error)
 
     def get(self, provider: str) -> AuthCredential | None:
-        value = self.data.get(provider)
-        return copy.deepcopy(value) if value is not None else None
+        return self.data.get(provider)
 
     def set(self, provider: str, credential: AuthCredential) -> None:
-        self.data[provider] = copy.deepcopy(credential)
+        self.data[provider] = credential
         self.persistProviderChange(provider, credential)
 
     def remove(self, provider: str) -> None:
@@ -261,7 +256,7 @@ class AuthStorage:
         return AuthStatus(configured=False)
 
     def getAll(self) -> AuthStorageData:
-        return copy.deepcopy(self.data)
+        return dict(self.data)
 
     def drainErrors(self) -> list[Exception]:
         drained = list(self.errors)
@@ -271,7 +266,7 @@ class AuthStorage:
     async def login(self, providerId: str, callbacks: Any) -> None:
         provider = getOAuthProvider(providerId)
         if provider is None:
-            raise ValueError(f"Unknown OAuth provider: {providerId}")
+            raise RuntimeError(f"Unknown OAuth provider: {providerId}")
         credentials = await provider.login(callbacks)
         self.set(providerId, {"type": "oauth", **credentials.model_dump(exclude_none=False)})
 
@@ -284,7 +279,7 @@ class AuthStorage:
             return None
 
         async def refresh(current: str | None) -> LockResult:
-            current_data = self.parseStorageData(current)
+            current_data = self._parse_storage_data(current)
             self.data = current_data
             self.loadError = None
             credential = current_data.get(providerId)
@@ -342,7 +337,7 @@ class AuthStorage:
                     if refreshed is not None:
                         return refreshed["apiKey"]
                 except Exception as error:  # noqa: BLE001
-                    self.recordError(error)
+                    self._record_error(error)
                     self.reload()
                     updated = self.data.get(providerId)
                     if isinstance(updated, dict) and updated.get("type") == "oauth":
@@ -366,10 +361,6 @@ class AuthStorage:
     def getOAuthProviders(self) -> list[Any]:
         return getOAuthProviders()
 
-
-FileAuthStorage = FileAuthStorageBackend
-InMemoryAuthStorage = InMemoryAuthStorageBackend
-
 __all__ = [
     "ApiKeyCredential",
     "AuthCredential",
@@ -377,9 +368,7 @@ __all__ = [
     "AuthStorage",
     "AuthStorageBackend",
     "AuthStorageData",
-    "FileAuthStorage",
     "FileAuthStorageBackend",
-    "InMemoryAuthStorage",
     "InMemoryAuthStorageBackend",
     "OAuthCredential",
 ]

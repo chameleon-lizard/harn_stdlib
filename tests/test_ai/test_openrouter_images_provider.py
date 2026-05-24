@@ -197,3 +197,45 @@ async def test_generate_images_openrouter_ignores_missing_or_nonbase64_image_url
 
 def test_openrouter_images_module_exports_expected_names() -> None:
     assert openrouter.__all__ == ["generateImagesOpenRouter"]
+
+
+@pytest.mark.asyncio
+async def test_generate_images_openrouter_returns_aborted_result_for_inflight_signal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    class _BlockingWithRawResponse:
+        async def create(self, **kwargs: Any) -> Any:
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+
+    class _BlockingClient:
+        def __init__(self) -> None:
+            self.with_raw_response = _BlockingWithRawResponse()
+            self.chat = SimpleNamespace(completions=self)
+
+    signal = asyncio.Event()
+
+    monkeypatch.setattr(openrouter, "_create_client", lambda *_args, **_kwargs: _BlockingClient())
+
+    task = asyncio.create_task(
+        openrouter.generate_images_openrouter(
+            _make_model(output=["image"]),
+            _make_context(),
+            ImagesOptions(apiKey="test-key", signal=signal),
+        )
+    )
+
+    await asyncio.wait_for(started.wait(), timeout=1)
+    signal.set()
+    output = await asyncio.wait_for(task, timeout=1)
+
+    assert output.stopReason == "aborted"
+    assert output.errorMessage == "Request aborted"
+    assert cancelled.is_set() is True

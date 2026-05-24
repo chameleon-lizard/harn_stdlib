@@ -566,7 +566,7 @@ def handle_content_block_delta(
     if delta.get("text") is not None:
         text_delta = str(delta.get("text") or "")
         if block is None:
-            text_block = TextContent(text="", textSignature=None)
+            text_block = TextContent(text="")
             output.content.append(text_block)
             content_index = len(output.content) - 1
             block_indices[content_block_index] = content_index

@@ -256,7 +256,7 @@ async def test_extension_runner_emits_events_and_invalidates_context() -> None:
 
     async def factory(api: Any) -> None:
         async def execute(tool_call_id: str, params: Any, signal: Any, on_update: Any, ctx: Any) -> AgentToolResult:
-            return AgentToolResult(content=[TextContent(text=ctx["cwd"])], details={"tool": tool_call_id})
+            return AgentToolResult(content=[TextContent(text=ctx.cwd)], details={"tool": tool_call_id})
 
         api.registerTool(
             ToolDefinition(
@@ -339,7 +339,7 @@ async def test_extension_runner_emits_events_and_invalidates_context() -> None:
     )
 
     ctx = runner.create_context()
-    assert ctx["cwd"] == "runner-cwd"
+    assert ctx.cwd == "runner-cwd"
     assert ctx.getSystemPrompt() == "base-prompt"
     assert ctx.signal == "signal"
     assert ctx.isIdle() is False

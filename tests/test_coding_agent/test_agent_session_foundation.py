@@ -506,6 +506,16 @@ async def test_agent_session_compact_runs_real_compaction_and_persists_entry(tmp
 
 
 @pytest.mark.asyncio
+async def test_agent_session_compact_errors_when_session_too_small(tmp_path: Path) -> None:
+    session = _create_session(tmp_path)
+    try:
+        with pytest.raises(RuntimeError, match="Nothing to compact \\(session too small\\)"):
+            await session.compact()
+    finally:
+        session.dispose()
+
+
+@pytest.mark.asyncio
 async def test_agent_session_compact_allows_non_stream_simple_hook_without_api_key(tmp_path: Path) -> None:
     async def fake_get_api_key_and_headers(_model: object) -> dict[str, object]:
         return {"ok": True, "apiKey": None, "headers": {"x-test": "1"}}

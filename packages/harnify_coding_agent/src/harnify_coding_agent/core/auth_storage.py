@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+import random
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from filelock import FileLock
+from filelock import FileLock, Timeout
 from harnify_ai.env_api_keys import find_env_keys, get_env_api_key
 from harnify_ai.utils.oauth import (
     OAuthCredentials,
@@ -66,11 +68,10 @@ class FileAuthStorageBackend(AuthStorageBackend):
         return f"{self.authPath}.lock"
 
     def ensureParentDir(self) -> None:
-        Path(self.authPath).parent.mkdir(parents=True, exist_ok=True)
-        try:
-            os.chmod(Path(self.authPath).parent, 0o700)
-        except OSError:
-            pass
+        parent_dir = Path(self.authPath).parent
+        if parent_dir.exists():
+            return
+        parent_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
 
     def ensureFileExists(self) -> None:
         if os.path.exists(self.authPath):
@@ -82,10 +83,58 @@ class FileAuthStorageBackend(AuthStorageBackend):
         except OSError:
             pass
 
+    def _create_lock(self) -> FileLock:
+        return FileLock(self._lock_path(), timeout=0)
+
+    def _acquire_lock_sync_with_retry(self) -> FileLock:
+        max_attempts = 10
+        delay_ms = 20
+        last_error: Exception | None = None
+
+        for attempt in range(1, max_attempts + 1):
+            lock = self._create_lock()
+            try:
+                lock.acquire(timeout=0)
+                return lock
+            except Timeout as error:
+                last_error = error
+                if attempt == max_attempts:
+                    raise
+                time.sleep(delay_ms / 1000)
+
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("Failed to acquire auth storage lock")
+
+    async def _acquire_lock_async_with_retry(self) -> FileLock:
+        retries = 10
+        factor = 2
+        min_timeout = 0.1
+        max_timeout = 10.0
+
+        last_error: Exception | None = None
+        for attempt in range(retries + 1):
+            lock = self._create_lock()
+            try:
+                lock.acquire(timeout=0)
+                return lock
+            except Timeout as error:
+                last_error = error
+                if attempt == retries:
+                    raise
+                delay = min(min_timeout * (factor**attempt), max_timeout)
+                await asyncio.sleep(delay * (1 + random.random()))
+
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("Failed to acquire auth storage lock")
+
     def withLock(self, fn: Callable[[str | None], LockResult]) -> Any:
         self.ensureParentDir()
         self.ensureFileExists()
-        with FileLock(self._lock_path(), timeout=10):
+
+        lock = self._acquire_lock_sync_with_retry()
+        try:
             current = None
             if os.path.exists(self.authPath):
                 with open(self.authPath, encoding="utf-8") as handle:
@@ -99,11 +148,15 @@ class FileAuthStorageBackend(AuthStorageBackend):
                 except OSError:
                     pass
             return outcome.result
+        finally:
+            lock.release()
 
     async def withLockAsync(self, fn: Callable[[str | None], Awaitable[LockResult]]) -> Any:
         self.ensureParentDir()
         self.ensureFileExists()
-        with FileLock(self._lock_path(), timeout=10):
+
+        lock = await self._acquire_lock_async_with_retry()
+        try:
             current = None
             if os.path.exists(self.authPath):
                 with open(self.authPath, encoding="utf-8") as handle:
@@ -117,6 +170,8 @@ class FileAuthStorageBackend(AuthStorageBackend):
                 except OSError:
                     pass
             return outcome.result
+        finally:
+            lock.release()
 
 
 class InMemoryAuthStorageBackend(AuthStorageBackend):

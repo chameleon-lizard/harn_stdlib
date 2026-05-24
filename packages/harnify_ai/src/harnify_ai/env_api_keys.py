@@ -81,6 +81,14 @@ def _has_vertex_adc_credentials() -> bool:
     return _cached_vertex_adc_credentials_exists
 
 
+def _clear_has_vertex_adc_credentials_cache() -> None:
+    global _cached_vertex_adc_credentials_exists
+    _cached_vertex_adc_credentials_exists = None
+
+
+_has_vertex_adc_credentials.cache_clear = _clear_has_vertex_adc_credentials_cache  # type: ignore[attr-defined]
+
+
 def _get_api_key_env_vars(provider: str) -> tuple[str, ...] | None:
     if provider == "github-copilot":
         return ("COPILOT_GITHUB_TOKEN",)

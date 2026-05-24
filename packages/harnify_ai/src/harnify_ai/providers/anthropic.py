@@ -9,7 +9,7 @@ import time
 from collections.abc import AsyncIterable, AsyncIterator, Iterable, Mapping
 from typing import Any, Literal, TypedDict
 
-from anthropic import AsyncAnthropic
+from anthropic import AsyncAnthropic, omit
 
 from harnify_ai.env_api_keys import get_env_api_key
 from harnify_ai.models import calculate_cost
@@ -218,15 +218,15 @@ def _empty_usage() -> Usage:
     )
 
 
-def _merge_headers(*header_sources: Mapping[str, str | None] | None) -> dict[str, str]:
-    merged: dict[str, str] = {}
+def _merge_headers(*header_sources: Mapping[str, Any] | None) -> dict[str, Any]:
+    merged: dict[str, Any] = {}
     for headers in header_sources:
         if not headers:
             continue
         for key, value in headers.items():
             if value is None:
                 continue
-            merged[str(key)] = str(value)
+            merged[str(key)] = value
     return merged
 
 
@@ -356,6 +356,8 @@ def create_client(
                     "accept": "application/json",
                     "anthropic-dangerous-direct-browser-access": "true",
                     "cf-aig-authorization": f"Bearer {api_key}",
+                    "X-Api-Key": omit,
+                    "Authorization": omit,
                     **({"anthropic-beta": ",".join(beta_features)} if beta_features else {}),
                 },
                 model.headers,
@@ -1183,6 +1185,4 @@ __all__ = [
     "AnthropicThinkingDisplay",
     "streamAnthropic",
     "streamSimpleAnthropic",
-    "stream_anthropic",
-    "stream_simple_anthropic",
 ]

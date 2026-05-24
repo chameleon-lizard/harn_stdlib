@@ -25,7 +25,7 @@ ANSI_COLORS = [
     "#ffffff",
 ]
 
-ANSI_REGEX = re.compile(r"\x1b\[([\d;]*)m")
+ANSI_REGEX = re.compile(r"\x1b\[([0-9;]*)m")
 
 
 @dataclass(slots=True)
@@ -152,7 +152,7 @@ def ansi_to_html(text: str) -> str:
             in_span = False
 
         param_str = match.group(1)
-        params = [int(part) if part.isdigit() else 0 for part in param_str.split(";")] if param_str else [0]
+        params = [int(part) if part.isascii() and part.isdigit() else 0 for part in param_str.split(";")] if param_str else [0]
         apply_sgr_code(params, style)
 
         if has_style(style):

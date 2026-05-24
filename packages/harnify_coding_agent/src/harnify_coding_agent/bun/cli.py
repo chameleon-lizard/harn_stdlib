@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import importlib
-import os
 import sys
 import warnings
 from collections.abc import Callable
@@ -46,12 +45,7 @@ def main(argv: list[str] | None = None) -> int:
     _suppress_runtime_warnings()
     restore_sandbox_env()
     _import_register_bedrock_module()
-
-    os.environ["PI_CODING_AGENT"] = "true"
     return _load_cli_main()(argv)
-
-
-run = main
 
 
 if __name__ == "__main__":  # pragma: no cover
@@ -59,4 +53,3 @@ if __name__ == "__main__":  # pragma: no cover
 
 
 __all__: list[str] = []
-

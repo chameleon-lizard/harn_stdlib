@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib
-import os
 import sys
 
 from harnify_coding_agent.bun import cli as bun_cli
@@ -46,8 +45,6 @@ def test_bun_cli_main_runs_wrapper_steps_before_delegating(monkeypatch) -> None:
     monkeypatch.setattr(bun_cli, "restore_sandbox_env", lambda: seen.setdefault("restored", True))
     monkeypatch.setattr(bun_cli, "_import_register_bedrock_module", lambda: seen.setdefault("registered", True))
     monkeypatch.setattr(bun_cli, "_load_cli_main", lambda: lambda argv: seen.setdefault("argv", argv) or 23)
-    monkeypatch.delenv("PI_CODING_AGENT", raising=False)
-
     assert bun_cli.main(["--demo"]) == 23
     assert seen == {
         "title": "pi",
@@ -56,7 +53,6 @@ def test_bun_cli_main_runs_wrapper_steps_before_delegating(monkeypatch) -> None:
         "registered": True,
         "argv": ["--demo"],
     }
-    assert os.environ["PI_CODING_AGENT"] == "true"
 
 
 def test_bun_cli_entrypoint_uses_module_name_guard(monkeypatch) -> None:

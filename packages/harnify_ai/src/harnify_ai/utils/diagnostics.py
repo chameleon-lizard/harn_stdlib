@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-import traceback
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -44,7 +43,7 @@ def extract_diagnostic_error(error: Any) -> DiagnosticErrorInfo:
     name = getattr(error, "name", None) or error.__class__.__name__ or None
     stack = getattr(error, "stack", None)
     if not isinstance(stack, str):
-        stack = "".join(traceback.format_exception(error)).rstrip() or None
+        stack = None
     return DiagnosticErrorInfo(
         name=name,
         message=str(error) or name,
@@ -67,6 +66,12 @@ def create_assistant_message_diagnostic(
 
 
 def append_assistant_message_diagnostic(message: Any, diagnostic: AssistantMessageDiagnostic) -> None:
+    if isinstance(message, dict):
+        diagnostics = list(message.get("diagnostics") or [])
+        diagnostics.append(diagnostic)
+        message["diagnostics"] = diagnostics
+        return
+
     diagnostics = list(getattr(message, "diagnostics", None) or [])
     diagnostics.append(diagnostic)
     setattr(message, "diagnostics", diagnostics)
@@ -78,14 +83,10 @@ createAssistantMessageDiagnostic = create_assistant_message_diagnostic
 appendAssistantMessageDiagnostic = append_assistant_message_diagnostic
 
 __all__ = [
-    "AssistantMessageDiagnostic",
     "DiagnosticErrorInfo",
-    "appendAssistantMessageDiagnostic",
-    "append_assistant_message_diagnostic",
-    "createAssistantMessageDiagnostic",
-    "create_assistant_message_diagnostic",
-    "extractDiagnosticError",
-    "extract_diagnostic_error",
+    "AssistantMessageDiagnostic",
     "formatThrownValue",
-    "format_thrown_value",
+    "extractDiagnosticError",
+    "createAssistantMessageDiagnostic",
+    "appendAssistantMessageDiagnostic",
 ]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import harnify_ai.utils.diagnostics as diagnostics_module
 from types import SimpleNamespace
 
 from harnify_ai.utils.diagnostics import (
@@ -35,6 +36,14 @@ def test_extract_diagnostic_error_prefers_runtime_name_stack_and_code() -> None:
     assert diagnostic.code == "E_CUSTOM"
 
 
+def test_extract_diagnostic_error_does_not_synthesize_stack() -> None:
+    diagnostic = extract_diagnostic_error(RuntimeError("broken"))
+
+    assert diagnostic.name == "RuntimeError"
+    assert diagnostic.message == "broken"
+    assert diagnostic.stack is None
+
+
 def test_create_and_append_assistant_message_diagnostic() -> None:
     diagnostic = create_assistant_message_diagnostic("provider_error", RuntimeError("boom"), {"provider": "openai"})
     message = SimpleNamespace(diagnostics=None)
@@ -44,3 +53,24 @@ def test_create_and_append_assistant_message_diagnostic() -> None:
     assert len(message.diagnostics) == 1
     assert message.diagnostics[0].type == "provider_error"
     assert message.diagnostics[0].details == {"provider": "openai"}
+
+
+def test_append_assistant_message_diagnostic_supports_dict_messages() -> None:
+    diagnostic = create_assistant_message_diagnostic("provider_error", RuntimeError("boom"))
+    message: dict[str, object] = {"diagnostics": None}
+
+    append_assistant_message_diagnostic(message, diagnostic)
+
+    assert len(message["diagnostics"]) == 1
+    assert message["diagnostics"][0].type == "provider_error"
+
+
+def test_diagnostics_module_exports_match_ts_surface() -> None:
+    assert diagnostics_module.__all__ == [
+        "DiagnosticErrorInfo",
+        "AssistantMessageDiagnostic",
+        "formatThrownValue",
+        "extractDiagnosticError",
+        "createAssistantMessageDiagnostic",
+        "appendAssistantMessageDiagnostic",
+    ]

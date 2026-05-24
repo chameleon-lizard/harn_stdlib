@@ -212,3 +212,31 @@ def test_dynamic_provider_registration_and_unregister_restores_state() -> None:
 
     registry.unregisterProvider("dynamic-demo")
     assert registry.find("dynamic-demo", "dynamic-model") is None
+
+
+def test_dynamic_provider_registration_does_not_apply_python_only_defaults() -> None:
+    registry = ModelRegistry.inMemory(AuthStorage.inMemory())
+    registry.registerProvider(
+        "dynamic-demo",
+        {
+            "baseUrl": "https://dynamic.example.com/v1",
+            "apiKey": "DYNAMIC_KEY",
+            "api": "openai-completions",
+            "models": [
+                {
+                    "id": "dynamic-model",
+                }
+            ],
+        },
+    )
+    try:
+        model = registry.find("dynamic-demo", "dynamic-model")
+        assert model is not None
+        assert model.name is None
+        assert model.reasoning is None
+        assert model.input is None
+        assert model.cost is None
+        assert model.contextWindow is None
+        assert model.maxTokens is None
+    finally:
+        registry.unregisterProvider("dynamic-demo")

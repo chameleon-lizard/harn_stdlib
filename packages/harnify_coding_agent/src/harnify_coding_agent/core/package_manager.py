@@ -1402,6 +1402,84 @@ class DefaultPackageManager:
             return True
         return latest_version != installed_version
 
+    async def _update_configured_sources(self, sources: list[_ConfiguredUpdateSource]) -> None:
+        if _is_offline_mode_enabled() or not sources:
+            return
+
+        npm_candidates: list[_NpmUpdateTarget] = []
+        git_candidates: list[_GitConfiguredUpdateSource] = []
+
+        for entry in sources:
+            parsed = self._parse_source(entry.source)
+            if parsed.type == "local" or parsed.pinned:
+                continue
+            if parsed.type == "npm":
+                npm_candidates.append(_NpmUpdateTarget(source=entry.source, scope=entry.scope, parsed=parsed))
+                continue
+            git_candidates.append(_GitConfiguredUpdateSource(source=entry.source, scope=entry.scope, parsed=parsed))
+
+        async def check_npm(entry: _NpmUpdateTarget) -> tuple[_NpmUpdateTarget, bool]:
+            return entry, await self._should_update_npm_source(entry.parsed, entry.scope)
+
+        npm_check_results = await self._run_with_concurrency(
+            [lambda entry=entry: check_npm(entry) for entry in npm_candidates],
+            UPDATE_CHECK_CONCURRENCY,
+        )
+
+        user_npm_updates: list[_NpmUpdateTarget] = []
+        project_npm_updates: list[_NpmUpdateTarget] = []
+        for entry, should_update in npm_check_results:
+            if not should_update:
+                continue
+            if entry.scope == "user":
+                user_npm_updates.append(entry)
+            else:
+                project_npm_updates.append(entry)
+
+        tasks: list[Awaitable[object]] = []
+        if user_npm_updates:
+            tasks.append(self._update_npm_batch(user_npm_updates, "user"))
+        if project_npm_updates:
+            tasks.append(self._update_npm_batch(project_npm_updates, "project"))
+        if git_candidates:
+            git_tasks = [
+                lambda entry=entry: self._with_progress(
+                    "update",
+                    entry.source,
+                    f"Updating {entry.source}...",
+                    lambda entry=entry: self._update_git(entry.parsed, entry.scope),
+                )
+                for entry in git_candidates
+            ]
+            tasks.append(self._run_with_concurrency(git_tasks, GIT_UPDATE_CONCURRENCY))
+
+        if tasks:
+            await asyncio.gather(*tasks)
+
+    async def _update_npm_batch(
+        self,
+        sources: list[_NpmUpdateTarget],
+        scope: Literal["user", "project"],
+    ) -> None:
+        if not sources:
+            return
+
+        source_label = sources[0].source if len(sources) == 1 else f"{scope} npm packages"
+        message = f"Updating {sources[0].source}..." if len(sources) == 1 else f"Updating {scope} npm packages..."
+        specs = [f"{entry.parsed.name}@latest" for entry in sources]
+
+        await self._with_progress(
+            "update",
+            source_label,
+            message,
+            lambda: self._install_npm_batch(specs, scope),
+        )
+
+    async def _install_npm_batch(self, specs: list[str], scope: Literal["user", "project"]) -> None:
+        install_root = self._get_npm_install_root(scope, False)
+        self._ensure_npm_project(install_root)
+        await self._run_npm_command(self._get_npm_install_args(specs, install_root))
+
     async def _git_has_available_update(self, installed_path: str) -> bool:
         if _is_offline_mode_enabled():
             return False

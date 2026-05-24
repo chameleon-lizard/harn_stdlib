@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from harnify_agent.types import AgentToolResult
+from harnify_coding_agent.config import ENV_AGENT_DIR
 from harnify_coding_agent.core.extensions.loader import discover_and_load_extensions
 from harnify_coding_agent.core.extensions.runner import ExtensionRunner
 from harnify_coding_agent.core.extensions.wrapper import wrap_registered_tools
@@ -221,6 +222,46 @@ async def test_extension_loader_requires_default_export_for_extension_modules(tm
             "error": f"Extension does not export a valid factory function: {extension_dir / 'index.py'}",
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_discover_and_load_extensions_uses_configured_default_agent_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cwd = tmp_path / "workspace"
+    cwd.mkdir()
+    agent_dir = tmp_path / "custom-agent"
+    extension_dir = agent_dir / "extensions" / "demo"
+    extension_dir.mkdir(parents=True)
+    (extension_dir / "index.py").write_text(
+        "async def default(api):\n    return None\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(ENV_AGENT_DIR, str(agent_dir))
+
+    discovered = await discover_and_load_extensions([], str(cwd))
+
+    assert discovered.errors == []
+    assert [extension.path for extension in discovered.extensions] == [str(extension_dir / "index.py")]
+
+
+@pytest.mark.asyncio
+async def test_discovered_extension_paths_preserve_leading_and_trailing_spaces(tmp_path: Path) -> None:
+    cwd = tmp_path / "workspace"
+    cwd.mkdir()
+    agent_dir = tmp_path / "agent"
+    extension_dir = agent_dir / "extensions" / " demo "
+    extension_dir.mkdir(parents=True)
+    (extension_dir / "index.py").write_text(
+        "async def default(api):\n    return None\n",
+        encoding="utf-8",
+    )
+
+    discovered = await discover_and_load_extensions([], str(cwd), str(agent_dir))
+
+    assert discovered.errors == []
+    assert [extension.path for extension in discovered.extensions] == [str(extension_dir / "index.py")]
 
 
 def test_build_system_prompt_uses_context_and_skills(tmp_path: Path) -> None:

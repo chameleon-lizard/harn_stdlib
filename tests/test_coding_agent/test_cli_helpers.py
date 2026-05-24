@@ -97,6 +97,21 @@ def test_print_help_includes_extension_flags() -> None:
     assert "Extension CLI Flags:" in output
     assert "--plan" in output
     assert "Enable planning" in output
+    assert "AZURE_OPENAI_API_KEY" in output
+    assert "# Interactive mode" in output
+    assert "CLOUDFLARE_GATEWAY_ID" in output
+
+
+def test_args_module_exports_match_ts_surface() -> None:
+    from harnify_coding_agent.cli import args as args_module
+
+    assert args_module.__all__ == [
+        "Args",
+        "Mode",
+        "isValidThinkingLevel",
+        "parseArgs",
+        "printHelp",
+    ]
 
 
 def test_build_initial_message_combines_inputs_and_consumes_first_message() -> None:

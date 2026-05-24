@@ -34,6 +34,10 @@ def _is_aborted(signal: Any | None) -> bool:
     return bool(getattr(signal, "aborted", False))
 
 
+def _js_string_length(value: str) -> int:
+    return len(value.encode("utf-16-le")) // 2
+
+
 async def execute_bash_with_operations(
     command: str,
     cwd: str,
@@ -47,7 +51,7 @@ async def execute_bash_with_operations(
     total_bytes = 0
     temp_file_path: str | None = None
     temp_file_handle: Any | None = None
-    decoder = codecs.getincrementaldecoder("utf-8")()
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
     def ensure_temp_file() -> None:
         nonlocal temp_file_path, temp_file_handle
@@ -60,15 +64,13 @@ async def execute_bash_with_operations(
 
     def append_text(text: str) -> None:
         nonlocal output_bytes
-        if not text:
-            return
         if temp_file_handle is not None:
             temp_file_handle.write(text)
         output_chunks.append(text)
-        output_bytes += len(text.encode("utf-8"))
+        output_bytes += _js_string_length(text)
         while output_bytes > max_output_bytes and len(output_chunks) > 1:
             removed = output_chunks.pop(0)
-            output_bytes -= len(removed.encode("utf-8"))
+            output_bytes -= _js_string_length(removed)
         on_chunk = resolved_options.get("onChunk")
         if callable(on_chunk):
             on_chunk(text)
@@ -143,5 +145,4 @@ __all__ = [
     "BashExecutorOptions",
     "BashResult",
     "executeBashWithOperations",
-    "execute_bash_with_operations",
 ]

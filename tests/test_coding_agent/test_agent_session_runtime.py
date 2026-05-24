@@ -214,7 +214,7 @@ async def test_create_agent_session_services_applies_pending_providers_and_flags
 
 
 @pytest.mark.asyncio
-async def test_create_agent_session_from_services_uses_lazy_sdk_callable(
+async def test_create_agent_session_from_services_delegates_to_sdk_callable(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -252,6 +252,17 @@ async def test_create_agent_session_from_services_uses_lazy_sdk_callable(
     assert captured["sessionManager"] is session_manager
     assert captured["noTools"] == "builtin"
     assert captured["tools"] == ["read"]
+
+    import harnify_coding_agent.core.agent_session_services as services_module
+
+    assert services_module.__all__ == [
+        "AgentSessionRuntimeDiagnostic",
+        "AgentSessionServices",
+        "CreateAgentSessionFromServicesOptions",
+        "CreateAgentSessionServicesOptions",
+        "createAgentSessionFromServices",
+        "createAgentSessionServices",
+    ]
 
 
 @pytest.mark.asyncio

@@ -570,6 +570,65 @@ async def test_extension_runner_matches_ts_nullish_and_warning_behaviour(capsys:
     assert "withSession" in str(excinfo.value)
 
 
+@pytest.mark.asyncio
+async def test_extension_runner_emit_input_returns_handled_object_verbatim() -> None:
+    class HandledResult:
+        action = "handled"
+        reason = "stop"
+
+    async def factory(api: Any) -> None:
+        api.on("input", lambda event, ctx: HandledResult())
+
+    extension = await load_extension_from_factory(
+        factory,
+        "/tmp/project",
+        create_event_bus(),
+        create_extension_runtime(),
+        extension_path="<inline:handled-object>",
+    )
+    runner = ExtensionRunner(
+        extensions=[extension],
+        runtime=create_extension_runtime(),
+        cwd="runner-cwd",
+        sessionManager=None,
+        modelRegistry=None,
+    )
+    runner.bind_core(
+        {
+            "sendMessage": lambda message, options=None: None,
+            "sendUserMessage": lambda content, options=None: None,
+            "appendEntry": lambda custom_type, data=None: None,
+            "setSessionName": lambda name: None,
+            "getSessionName": lambda: "demo",
+            "setLabel": lambda entry_id, label: None,
+            "getActiveTools": lambda: [],
+            "getAllTools": lambda: [],
+            "setActiveTools": lambda names: None,
+            "refreshTools": lambda: None,
+            "getCommands": lambda: [],
+            "setModel": _set_model_true,
+            "getThinkingLevel": lambda: "off",
+            "setThinkingLevel": lambda level: None,
+        },
+        {
+            "getModel": lambda: None,
+            "isIdle": lambda: True,
+            "getSignal": lambda: None,
+            "abort": lambda: None,
+            "hasPendingMessages": lambda: False,
+            "shutdown": lambda: None,
+            "getContextUsage": lambda: None,
+            "compact": lambda options=None: None,
+            "getSystemPrompt": lambda: "prompt",
+        },
+    )
+
+    result = await runner.emit_input("hello", None, "interactive")
+
+    assert isinstance(result, HandledResult)
+    assert result.reason == "stop"
+
+
 async def _set_model_true(_model: Any) -> bool:
     return True
 

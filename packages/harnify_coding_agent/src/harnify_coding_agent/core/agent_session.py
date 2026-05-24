@@ -9,6 +9,7 @@ import math
 import os
 import re
 import time
+from copy import copy
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -867,20 +868,7 @@ class AgentSession:
             self._extensionShutdownHandler = resolved.shutdownHandler
         if resolved.onError is not None:
             self._extensionErrorListener = resolved.onError
-        if self._extensionErrorUnsubscriber is not None:
-            self._extensionErrorUnsubscriber()
-            self._extensionErrorUnsubscriber = None
-
-        if not self._extension_runner_matches_resource_loader():
-            self._build_runtime(
-                {
-                    "activeToolNames": self.getActiveToolNames(),
-                    "flagValues": self._extensionRunner.get_flag_values(),
-                    "includeAllExtensionTools": True,
-                }
-            )
-        else:
-            self._apply_extension_bindings(self._extensionRunner)
+        self._apply_extension_bindings(self._extensionRunner)
         await self._extensionRunner.emit(dict(self._sessionStartEvent))
         await self._extend_resources_from_extensions(
             "reload" if _event_field(self._sessionStartEvent, "reason") == "reload" else "startup"
@@ -915,17 +903,13 @@ class AgentSession:
 
     def createReplacedSessionContext(self) -> Any:
         context = self._extensionRunner.create_command_context()
-        replaced_context = object.__new__(type(context))
-        replaced_context.__dict__.update(context.__dict__)
+        replaced_context = copy(context)
         setattr(replaced_context, "sendMessage", self.sendMessage)
         setattr(replaced_context, "sendUserMessage", self.sendUserMessage)
         return replaced_context
 
     def hasExtensionHandlers(self, eventType: str) -> bool:
         return self._extensionRunner.has_handlers(eventType)
-
-    def refreshTools(self) -> None:
-        self._refresh_tool_registry()
 
     async def sendCustomMessage(
         self,

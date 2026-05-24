@@ -176,8 +176,6 @@ def create_client(model: Model, api_key: str, options: Any = None) -> AsyncAzure
         api_version=config["apiVersion"],
         default_headers=headers,
         base_url=config["baseUrl"],
-        timeout=(_option(options, "timeoutMs") / 1000) if _option(options, "timeoutMs") is not None else None,
-        max_retries=_option(options, "maxRetries") if _option(options, "maxRetries") is not None else 2,
     )
 
 
@@ -190,7 +188,7 @@ def build_params(model: Model, context: Context, options: Any, deployment_name: 
         "prompt_cache_key": clamp_openai_prompt_cache_key(_option(options, "sessionId")),
     }
 
-    if _option(options, "maxTokens") is not None:
+    if _option(options, "maxTokens"):
         params["max_output_tokens"] = _option(options, "maxTokens")
     if _option(options, "temperature") is not None:
         params["temperature"] = _option(options, "temperature")
@@ -204,8 +202,11 @@ def build_params(model: Model, context: Context, options: Any, deployment_name: 
             effort = model.thinkingLevelMap.get(reasoning_effort, reasoning_effort) if reasoning_effort else "medium"
             params["reasoning"] = {"effort": effort, "summary": reasoning_summary or "auto"}
             params["include"] = ["reasoning.encrypted_content"]
-        elif (model.thinkingLevelMap or {}).get("off") is not None:
-            params["reasoning"] = {"effort": (model.thinkingLevelMap or {}).get("off") or "none"}
+        else:
+            thinking_level_map = model.thinkingLevelMap or {}
+            off_is_explicitly_null = isinstance(thinking_level_map, dict) and "off" in thinking_level_map and thinking_level_map["off"] is None
+            if not off_is_explicitly_null:
+                params["reasoning"] = {"effort": thinking_level_map.get("off") or "none"}
 
     return params
 
@@ -266,16 +267,26 @@ async def _await_with_signal(awaitable: Any, signal: Any, *, on_abort: Any = Non
 
 
 async def _create_responses_stream(client: Any, params: dict[str, Any], options: Any, model: Model) -> Any:
-    responses = getattr(client, "responses", None)
-    with_raw_response = getattr(responses, "with_raw_response", None)
     signal = _option(options, "signal")
-    request_kwargs: dict[str, Any] = {}
+    request_client = client
+    request_client_options: dict[str, Any] = {}
+    request_call_options: dict[str, Any] = {}
     timeout_ms = _option(options, "timeoutMs")
     if timeout_ms is not None:
-        request_kwargs["timeout"] = timeout_ms / 1000
+        request_client_options["timeout"] = timeout_ms / 1000
+    max_retries = _option(options, "maxRetries")
+    if max_retries is not None:
+        request_client_options["max_retries"] = max_retries
+    if request_client_options and hasattr(client, "with_options"):
+        request_client = client.with_options(**request_client_options)
+    else:
+        request_call_options = request_client_options
+
+    responses = getattr(request_client, "responses", None)
+    with_raw_response = getattr(responses, "with_raw_response", None)
 
     if with_raw_response is not None and hasattr(with_raw_response, "create"):
-        raw_response = await _await_with_signal(with_raw_response.create(**params, **request_kwargs), signal)
+        raw_response = await _await_with_signal(with_raw_response.create(**params, **request_call_options), signal)
         on_response = _option(options, "onResponse")
         if callable(on_response):
             await _maybe_await(
@@ -289,11 +300,7 @@ async def _create_responses_stream(client: Any, params: dict[str, Any], options:
             )
         return await _await_with_signal(raw_response.parse(), signal)
 
-    created = await _await_with_signal(responses.create(**params, **request_kwargs), signal)
-    on_response = _option(options, "onResponse")
-    if callable(on_response):
-        await _maybe_await(on_response({"status": 200, "headers": {}}, model))
-    return created
+    return await _await_with_signal(responses.create(**params, **request_call_options), signal)
 
 
 def _empty_usage():
@@ -308,6 +315,17 @@ def _empty_usage():
     ).usage
 
 
+def _delete_stream_scratch_field(block: Any, name: str) -> None:
+    if isinstance(block, dict):
+        block.pop(name, None)
+        return
+    if hasattr(block, name):
+        try:
+            delattr(block, name)
+        except Exception:  # noqa: BLE001
+            return
+
+
 def stream_azure_openai_responses(
     model: Model,
     context: Context,
@@ -319,7 +337,7 @@ def stream_azure_openai_responses(
         deployment_name = resolve_deployment_name(model, options)
         output = AssistantMessage(
             content=[],
-            api=model.api,
+            api="azure-openai-responses",
             provider=model.provider,
             model=model.id,
             usage=_empty_usage(),
@@ -347,6 +365,9 @@ def stream_azure_openai_responses(
                 raise RuntimeError("An unknown error occurred")
             stream.push(DoneEvent(reason=output.stopReason, message=output))
         except Exception as error:  # noqa: BLE001
+            for block in output.content:
+                _delete_stream_scratch_field(block, "index")
+                _delete_stream_scratch_field(block, "partialJson")
             signal = _option(options, "signal")
             output.stopReason = "aborted" if _is_aborted(signal) else "error"
             output.errorMessage = format_azure_openai_error(error)
@@ -390,24 +411,6 @@ buildParams = build_params
 
 __all__ = [
     "AzureOpenAIResponsesOptions",
-    "buildDefaultBaseUrl",
-    "buildParams",
-    "build_default_base_url",
-    "build_params",
-    "createClient",
-    "create_client",
-    "formatAzureOpenAIError",
-    "format_azure_openai_error",
-    "normalizeAzureBaseUrl",
-    "normalize_azure_base_url",
-    "parseDeploymentNameMap",
-    "parse_deployment_name_map",
-    "resolveAzureConfig",
-    "resolveDeploymentName",
-    "resolve_azure_config",
-    "resolve_deployment_name",
     "streamAzureOpenAIResponses",
     "streamSimpleAzureOpenAIResponses",
-    "stream_azure_openai_responses",
-    "stream_simple_azure_openai_responses",
 ]

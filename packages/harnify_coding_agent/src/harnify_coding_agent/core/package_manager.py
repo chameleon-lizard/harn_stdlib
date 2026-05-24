@@ -1488,10 +1488,10 @@ class DefaultPackageManager:
                 "git",
                 ["rev-parse", "HEAD"],
                 cwd=installed_path,
-                timeout=NETWORK_TIMEOUT_SECONDS,
+                timeout_ms=NETWORK_TIMEOUT_MS,
             )
             remote_head = await self._get_remote_git_head(installed_path)
-        except RuntimeError:
+        except Exception:
             return False
         return local_head.strip() != remote_head.strip()
 
@@ -1516,7 +1516,7 @@ class DefaultPackageManager:
                     "git",
                     ["rev-parse", "--abbrev-ref", "@{upstream}"],
                     cwd=installed_path,
-                    timeout=NETWORK_TIMEOUT_SECONDS,
+                    timeout_ms=NETWORK_TIMEOUT_MS,
                 )
             ).strip()
             if not upstream.startswith("origin/"):
@@ -1528,7 +1528,7 @@ class DefaultPackageManager:
                 "git",
                 ["rev-parse", "@{upstream}"],
                 cwd=installed_path,
-                timeout=NETWORK_TIMEOUT_SECONDS,
+                timeout_ms=NETWORK_TIMEOUT_MS,
             )
             return _GitUpdateTarget(
                 ref="@{upstream}",
@@ -1541,25 +1541,25 @@ class DefaultPackageManager:
                     f"+refs/heads/{branch}:refs/remotes/origin/{branch}",
                 ],
             )
-        except RuntimeError:
+        except Exception:
             try:
-                await self._run_command_capture("git", ["remote", "set-head", "origin", "-a"], cwd=installed_path)
-            except RuntimeError:
+                await self._run_command("git", ["remote", "set-head", "origin", "-a"], cwd=installed_path)
+            except Exception:
                 pass
             head = await self._run_command_capture(
                 "git",
                 ["rev-parse", "origin/HEAD"],
                 cwd=installed_path,
-                timeout=NETWORK_TIMEOUT_SECONDS,
+                timeout_ms=NETWORK_TIMEOUT_MS,
             )
             try:
                 origin_head_ref = await self._run_command_capture(
                     "git",
                     ["symbolic-ref", "refs/remotes/origin/HEAD"],
                     cwd=installed_path,
-                    timeout=NETWORK_TIMEOUT_SECONDS,
+                    timeout_ms=NETWORK_TIMEOUT_MS,
                 )
-            except RuntimeError:
+            except Exception:
                 origin_head_ref = ""
             branch = origin_head_ref.strip().removeprefix("refs/remotes/origin/")
             if branch:
@@ -1587,10 +1587,10 @@ class DefaultPackageManager:
                     "git",
                     ["rev-parse", "--abbrev-ref", "@{upstream}"],
                     cwd=installed_path,
-                    timeout=NETWORK_TIMEOUT_SECONDS,
+                    timeout_ms=NETWORK_TIMEOUT_MS,
                 )
             ).strip()
-        except RuntimeError:
+        except Exception:
             return None
         if not upstream.startswith("origin/"):
             return None
@@ -1605,7 +1605,7 @@ class DefaultPackageManager:
 
     def _get_temporary_dir(self, prefix: str, suffix: str | None = None) -> str:
         digest = hashlib.sha256(f"{prefix}-{suffix or ''}".encode()).hexdigest()[:8]
-        base = os.path.join(tempfile.gettempdir(), "harnify-extensions", prefix, digest)
+        base = os.path.join(tempfile.gettempdir(), "pi-extensions", prefix, digest)
         return os.path.join(base, suffix) if suffix else base
 
     def _get_git_install_path(self, source: GitSource, scope: SourceScope) -> str:
@@ -1638,9 +1638,13 @@ class DefaultPackageManager:
             self._ensure_git_ignore(git_root)
         os.makedirs(os.path.dirname(target_dir), exist_ok=True)
 
-        await self._run_command_capture("git", ["clone", source.repo, target_dir], cwd=self.cwd)
+        await self._run_command("git", ["clone", source.repo, target_dir])
         if source.ref:
-            await self._run_command_capture("git", ["checkout", source.ref], cwd=target_dir)
+            await self._run_command("git", ["checkout", source.ref], cwd=target_dir)
+
+        package_json_path = os.path.join(target_dir, "package.json")
+        if os.path.exists(package_json_path):
+            await self._run_npm_command(self._get_git_dependency_install_args(), cwd=target_dir)
 
     async def _update_git(self, source: GitSource, scope: SourceScope) -> None:
         target_dir = self._get_git_install_path(source, scope)
@@ -1652,24 +1656,28 @@ class DefaultPackageManager:
         await self._ensure_git_ref(target_dir, target.fetch_args, target.ref)
 
     async def _ensure_git_ref(self, target_dir: str, fetch_args: list[str], ref: str) -> None:
-        await self._run_command_capture("git", fetch_args, cwd=target_dir)
+        await self._run_command("git", fetch_args, cwd=target_dir)
         local_head = await self._run_command_capture(
             "git",
             ["rev-parse", "HEAD"],
             cwd=target_dir,
-            timeout=NETWORK_TIMEOUT_SECONDS,
+            timeout_ms=NETWORK_TIMEOUT_MS,
         )
         target_head = await self._run_command_capture(
             "git",
             ["rev-parse", ref],
             cwd=target_dir,
-            timeout=NETWORK_TIMEOUT_SECONDS,
+            timeout_ms=NETWORK_TIMEOUT_MS,
         )
         if local_head.strip() == target_head.strip():
             return
 
-        await self._run_command_capture("git", ["reset", "--hard", ref], cwd=target_dir)
-        await self._run_command_capture("git", ["clean", "-fdx"], cwd=target_dir)
+        await self._run_command("git", ["reset", "--hard", ref], cwd=target_dir)
+        await self._run_command("git", ["clean", "-fdx"], cwd=target_dir)
+
+        package_json_path = os.path.join(target_dir, "package.json")
+        if os.path.exists(package_json_path):
+            await self._run_npm_command(self._get_git_dependency_install_args(), cwd=target_dir)
 
     async def _refresh_temporary_git_source(self, source: GitSource, source_str: str) -> None:
         if _is_offline_mode_enabled():
@@ -1681,7 +1689,7 @@ class DefaultPackageManager:
                 f"Refreshing {source_str}...",
                 lambda: self._update_git(source, "temporary"),
             )
-        except RuntimeError:
+        except Exception:
             return
 
     async def _remove_git(self, source: GitSource, scope: SourceScope) -> None:

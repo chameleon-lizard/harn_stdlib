@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import math
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from typing import Any
@@ -37,7 +39,13 @@ def _matches_json_type(value: Any, schema_type: str) -> bool:
     if schema_type == "number":
         return isinstance(value, (int, float)) and not isinstance(value, bool)
     if schema_type == "integer":
-        return isinstance(value, int) and not isinstance(value, bool)
+        if isinstance(value, bool):
+            return False
+        if isinstance(value, int):
+            return True
+        if isinstance(value, float):
+            return math.isfinite(value) and value.is_integer()
+        return False
     if schema_type == "boolean":
         return isinstance(value, bool)
     if schema_type == "string":
@@ -77,7 +85,9 @@ def _coerce_primitive_by_type(value: Any, schema_type: str) -> Any:
                 parsed = float(value)
             except ValueError:
                 return value
-            return parsed
+            if math.isfinite(parsed):
+                return parsed
+            return value
         if isinstance(value, bool):
             return 1 if value else 0
         return value
@@ -98,19 +108,23 @@ def _coerce_primitive_by_type(value: Any, schema_type: str) -> Any:
     if schema_type == "boolean":
         if value is None:
             return False
-        if value == "true":
-            return True
-        if value == "false":
-            return False
-        if value == 1:
-            return True
-        if value == 0:
-            return False
+        if isinstance(value, str):
+            if value == "true":
+                return True
+            if value == "false":
+                return False
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            if value == 1:
+                return True
+            if value == 0:
+                return False
         return value
     if schema_type == "string":
         if value is None:
             return ""
-        if isinstance(value, (int, float, bool)):
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, (int, float)):
             return str(value)
         return value
     if schema_type == "null":
@@ -128,14 +142,14 @@ def _apply_schema_object_coercion(value: dict[str, Any], schema: JsonSchemaObjec
         for key, property_schema in properties.items():
             if key not in value or not _is_json_schema_object(property_schema):
                 continue
-            value[key] = coerce_with_json_schema(value[key], dict(property_schema))
+            value[key] = _coerce_with_json_schema(value[key], dict(property_schema))
 
     additional_properties = schema.get("additionalProperties")
     if isinstance(additional_properties, Mapping):
         for key, property_value in list(value.items()):
             if key in defined_keys:
                 continue
-            value[key] = coerce_with_json_schema(property_value, dict(additional_properties))
+            value[key] = _coerce_with_json_schema(property_value, dict(additional_properties))
 
 
 def _apply_schema_array_coercion(value: list[Any], schema: JsonSchemaObject) -> None:
@@ -144,31 +158,31 @@ def _apply_schema_array_coercion(value: list[Any], schema: JsonSchemaObject) -> 
         for index, item_schema in enumerate(items):
             if index >= len(value) or not _is_json_schema_object(item_schema):
                 continue
-            value[index] = coerce_with_json_schema(value[index], dict(item_schema))
+            value[index] = _coerce_with_json_schema(value[index], dict(item_schema))
         return
 
     if isinstance(items, Mapping):
         for index, item_value in enumerate(value):
-            value[index] = coerce_with_json_schema(item_value, dict(items))
+            value[index] = _coerce_with_json_schema(item_value, dict(items))
 
 
 def _coerce_with_union_schema(value: Any, schemas: Sequence[JsonSchemaObject]) -> Any:
     for schema in schemas:
         candidate = deepcopy(value)
-        coerced = coerce_with_json_schema(candidate, schema)
+        coerced = _coerce_with_json_schema(candidate, schema)
         if _schema_validates(coerced, schema):
             return coerced
     return value
 
 
-def coerce_with_json_schema(value: Any, schema: JsonSchemaObject) -> Any:
+def _coerce_with_json_schema(value: Any, schema: JsonSchemaObject) -> Any:
     next_value = value
 
     all_of = schema.get("allOf")
     if isinstance(all_of, list):
         for nested in all_of:
             if _is_json_schema_object(nested):
-                next_value = coerce_with_json_schema(next_value, dict(nested))
+                next_value = _coerce_with_json_schema(next_value, dict(nested))
 
     any_of = schema.get("anyOf")
     if isinstance(any_of, list):
@@ -220,6 +234,13 @@ def _format_pydantic_path(location: tuple[Any, ...]) -> str:
     return ".".join(str(part) for part in location) or "root"
 
 
+def _format_received_arguments(arguments: Any) -> str:
+    try:
+        return json.dumps(arguments, indent=2, ensure_ascii=False)
+    except TypeError:
+        return repr(arguments)
+
+
 def validate_tool_call(tools: list[Tool], tool_call: ToolCall) -> Any:
     tool = next((candidate for candidate in tools if candidate.name == tool_call.name), None)
     if tool is None:
@@ -237,7 +258,7 @@ def _validate_pydantic_tool_arguments(tool: Tool, tool_call: ToolCall) -> Any:
             for item in error.errors()
         ) or "Unknown validation error"
         raise ValueError(
-            f'Validation failed for tool "{tool_call.name}":\n{errors}\n\nReceived arguments:\n{tool_call.arguments!r}'
+            f'Validation failed for tool "{tool_call.name}":\n{errors}\n\nReceived arguments:\n{_format_received_arguments(tool_call.arguments)}'
         ) from error
     return validated.model_dump(mode="python")
 
@@ -246,7 +267,7 @@ def _validate_json_schema_tool_arguments(tool: Tool, tool_call: ToolCall) -> Any
     assert isinstance(tool.parameters, Mapping)
     schema = tool.parameters
     args = deepcopy(tool_call.arguments)
-    coerced = coerce_with_json_schema(args, schema)
+    coerced = _coerce_with_json_schema(args, schema)
     validator = _get_validator(schema)
     errors = sorted(validator.iter_errors(coerced), key=lambda error: list(error.absolute_path))
     if not errors:
@@ -257,7 +278,7 @@ def _validate_json_schema_tool_arguments(tool: Tool, tool_call: ToolCall) -> Any
         for error in errors
     ) or "Unknown validation error"
     raise ValueError(
-        f'Validation failed for tool "{tool_call.name}":\n{formatted_errors}\n\nReceived arguments:\n{tool_call.arguments!r}'
+        f'Validation failed for tool "{tool_call.name}":\n{formatted_errors}\n\nReceived arguments:\n{_format_received_arguments(tool_call.arguments)}'
     )
 
 
@@ -273,3 +294,10 @@ def validate_tool_arguments(tool: Tool, tool_call: ToolCall) -> Any:
 
 validateToolCall = validate_tool_call
 validateToolArguments = validate_tool_arguments
+
+__all__ = [
+    "validateToolArguments",
+    "validateToolCall",
+    "validate_tool_arguments",
+    "validate_tool_call",
+]

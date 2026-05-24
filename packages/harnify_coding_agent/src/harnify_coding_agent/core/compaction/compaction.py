@@ -573,23 +573,23 @@ def _get_message_from_entry(entry: SessionEntry) -> AgentMessage | None:
         return entry.get("message")
     if entry_type == "custom_message":
         return create_custom_message(
-            str(entry.get("customType")),
+            entry.get("customType"),
             entry.get("content"),
-            bool(entry.get("display")),
+            entry.get("display"),
             entry.get("details"),
-            str(entry.get("timestamp")),
+            entry.get("timestamp"),
         )
     if entry_type == "branch_summary":
         return create_branch_summary_message(
-            str(entry.get("summary")),
-            str(entry.get("fromId")),
-            str(entry.get("timestamp")),
+            entry.get("summary"),
+            entry.get("fromId"),
+            entry.get("timestamp"),
         )
     if entry_type == "compaction":
         return create_compaction_summary_message(
-            str(entry.get("summary")),
-            int(entry.get("tokensBefore", 0)),
-            str(entry.get("timestamp")),
+            entry.get("summary"),
+            entry.get("tokensBefore"),
+            entry.get("timestamp"),
         )
     return None
 

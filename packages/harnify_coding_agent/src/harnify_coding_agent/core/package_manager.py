@@ -664,6 +664,8 @@ class DefaultPackageManager:
         self.cwd = resolve_path(str(options["cwd"]))
         self.agentDir = resolve_path(str(options["agentDir"]))
         self.settingsManager = cast(SettingsManager, options["settingsManager"])
+        self.globalNpmRoot: str | None = None
+        self.globalNpmRootCommandKey: str | None = None
         self.progressCallback: ProgressCallback | None = None
 
     def setProgressCallback(self, callback: ProgressCallback | None) -> None:
@@ -847,28 +849,25 @@ class DefaultPackageManager:
         return self.removeSourceFromSettings(source, options)
 
     async def update(self, source: str | None = None) -> None:
-        if _is_offline_mode_enabled():
-            return
-
         global_settings = self.settingsManager.getGlobalSettings()
         project_settings = self.settingsManager.getProjectSettings()
         identity = self._get_package_identity(source) if source is not None else None
         matched = False
-        update_sources: list[tuple[str, Literal["user", "project"]]] = []
+        update_sources: list[_ConfiguredUpdateSource] = []
 
         for pkg in global_settings.get("packages") or []:
             source_str = self._get_source_string(pkg)
             if identity and self._get_package_identity(source_str, "user") != identity:
                 continue
             matched = True
-            update_sources.append((source_str, "user"))
+            update_sources.append(_ConfiguredUpdateSource(source=source_str, scope="user"))
 
         for pkg in project_settings.get("packages") or []:
             source_str = self._get_source_string(pkg)
             if identity and self._get_package_identity(source_str, "project") != identity:
                 continue
             matched = True
-            update_sources.append((source_str, "project"))
+            update_sources.append(_ConfiguredUpdateSource(source=source_str, scope="project"))
 
         if source is not None and not matched:
             configured = [
@@ -876,27 +875,7 @@ class DefaultPackageManager:
                 *(project_settings.get("packages") or []),
             ]
             raise ValueError(self._build_no_matching_package_message(source, configured))
-
-        for source_str, scope in update_sources:
-            parsed = self._parse_source(source_str)
-            if parsed.type == "local" or parsed.pinned:
-                continue
-            if parsed.type == "npm":
-                if not await self._should_update_npm_source(parsed, scope):
-                    continue
-                await self._with_progress(
-                    "update",
-                    source_str,
-                    f"Updating {source_str}...",
-                    lambda parsed=parsed, scope=scope: self._update_npm(parsed, scope),
-                )
-                continue
-            await self._with_progress(
-                "update",
-                source_str,
-                f"Updating {source_str}...",
-                lambda parsed=parsed, scope=scope: self._update_git(parsed, scope),
-            )
+        await self._update_configured_sources(update_sources)
 
     async def checkForAvailableUpdates(self) -> list[PackageUpdate]:
         if _is_offline_mode_enabled():
@@ -909,43 +888,49 @@ class DefaultPackageManager:
             *[(pkg, "user") for pkg in global_settings.get("packages") or []],
         ]
 
-        updates: list[PackageUpdate] = []
+        checks: list[Callable[[], Awaitable[PackageUpdate | None]]] = []
         for pkg, scope in self._dedupe_packages(all_packages):
             if scope == "temporary":
                 continue
-            source = self._get_source_string(pkg)
-            parsed = self._parse_source(source)
-            if parsed.type == "local" or parsed.pinned:
-                continue
-            if parsed.type == "npm":
-                installed = self._get_npm_install_path(parsed, scope)
-                if not os.path.exists(installed):
-                    continue
-                if not await self._npm_has_available_update(parsed, installed):
-                    continue
-                updates.append(
-                    PackageUpdate(
+
+            async def check(
+                pkg: PackageSource = pkg,
+                scope: Literal["user", "project"] = cast(Literal["user", "project"], scope),
+            ) -> PackageUpdate | None:
+                source = self._get_source_string(pkg)
+                parsed = self._parse_source(source)
+                if parsed.type == "local" or parsed.pinned:
+                    return None
+
+                if parsed.type == "npm":
+                    installed = self._get_npm_install_path(parsed, scope)
+                    if not os.path.exists(installed):
+                        return None
+                    if not await self._npm_has_available_update(parsed, installed):
+                        return None
+                    return PackageUpdate(
                         source=source,
                         displayName=parsed.name,
                         type="npm",
                         scope=scope,
                     )
-                )
-                continue
-            installed = self._get_git_install_path(parsed, scope)
-            if not os.path.exists(installed):
-                continue
-            if not await self._git_has_available_update(installed):
-                continue
-            updates.append(
-                PackageUpdate(
+
+                installed = self._get_git_install_path(parsed, scope)
+                if not os.path.exists(installed):
+                    return None
+                if not await self._git_has_available_update(installed):
+                    return None
+                return PackageUpdate(
                     source=source,
                     displayName=f"{parsed.host}/{parsed.path}",
                     type="git",
                     scope=scope,
                 )
-            )
-        return updates
+
+            checks.append(check)
+
+        results = await self._run_with_concurrency(checks, UPDATE_CHECK_CONCURRENCY)
+        return [result for result in results if result is not None]
 
     def _set_scoped_packages(self, scope: SourceScope, packages: list[PackageSource]) -> None:
         if scope == "project":
@@ -1014,7 +999,7 @@ class DefaultPackageManager:
                     if action == "skip":
                         return False
                     if action == "error":
-                        raise FileNotFoundError(f"Missing source: {source_str}")
+                        raise RuntimeError(f"Missing source: {source_str}")
                 if parsed.type == "npm":
                     await self._install_npm(parsed, scope, scope == "temporary")
                     return True

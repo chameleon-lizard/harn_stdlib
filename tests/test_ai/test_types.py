@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+import harnify_ai.types as types_module
 import pytest
 from pydantic import BaseModel, ValidationError
 
@@ -159,3 +160,57 @@ def test_tool_accepts_raw_json_schema_mappings() -> None:
 
     assert tool.parameters == raw_schema
     assert "country" not in raw_schema["properties"]
+
+
+def test_types_module_exports_match_ts_surface() -> None:
+    assert types_module.__all__ == [
+        "AssistantMessageEventStream",
+        "KnownApi",
+        "Api",
+        "KnownImagesApi",
+        "ImagesApi",
+        "KnownProvider",
+        "Provider",
+        "KnownImagesProvider",
+        "ImagesProvider",
+        "ThinkingLevel",
+        "ModelThinkingLevel",
+        "ThinkingLevelMap",
+        "ThinkingBudgets",
+        "CacheRetention",
+        "Transport",
+        "ProviderResponse",
+        "StreamOptions",
+        "ProviderStreamOptions",
+        "ImagesOptions",
+        "ProviderImagesOptions",
+        "SimpleStreamOptions",
+        "StreamFunction",
+        "ImagesFunction",
+        "TextSignatureV1",
+        "TextContent",
+        "ThinkingContent",
+        "ImageContent",
+        "ToolCall",
+        "Usage",
+        "StopReason",
+        "UserMessage",
+        "AssistantMessage",
+        "ToolResultMessage",
+        "Message",
+        "ImagesInputContent",
+        "ImagesOutputContent",
+        "ImagesContext",
+        "ImagesStopReason",
+        "AssistantImages",
+        "Tool",
+        "Context",
+        "AssistantMessageEvent",
+        "OpenAICompletionsCompat",
+        "OpenAIResponsesCompat",
+        "AnthropicMessagesCompat",
+        "OpenRouterRouting",
+        "VercelGatewayRouting",
+        "Model",
+        "ImagesModel",
+    ]

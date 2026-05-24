@@ -5,6 +5,8 @@ import io
 import json
 import os
 import sys
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -104,6 +106,24 @@ def test_event_bus_reports_handler_errors(capsys: pytest.CaptureFixture[str]) ->
 
     captured = capsys.readouterr()
     assert "Event handler error (demo): boom" in captured.err
+
+
+def test_event_bus_async_handler_does_not_block_without_running_loop() -> None:
+    bus = createEventBus()
+    finished = threading.Event()
+
+    async def async_handler(_data: Any) -> None:
+        await asyncio.sleep(0.05)
+        finished.set()
+
+    bus.on("demo", async_handler)
+
+    started = time.perf_counter()
+    bus.emit("demo", {"value": 1})
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 0.04
+    assert finished.wait(timeout=1)
 
 
 def test_event_bus_module_exports_match_ts_surface() -> None:

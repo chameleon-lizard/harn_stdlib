@@ -322,6 +322,80 @@ async def test_agent_session_reload_preserves_extension_flag_values_and_command_
 
 
 @pytest.mark.asyncio
+async def test_agent_session_reload_without_bindings_skips_session_start_and_resets_api_providers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session_start_events: list[object] = []
+    reset_calls: list[str] = []
+
+    def extension_factory(pi: object) -> None:
+        pi.on("session_start", lambda event: session_start_events.append(event))  # type: ignore[attr-defined]
+
+    def fake_reset_api_providers() -> None:
+        reset_calls.append("reset")
+
+    monkeypatch.setattr(
+        "harnify_coding_agent.core.agent_session.reset_api_providers",
+        fake_reset_api_providers,
+    )
+
+    session = _create_session(tmp_path, extension_factories=[extension_factory])
+    await session._resourceLoader.reload()
+    try:
+        await session.reload()
+
+        assert session_start_events == []
+        assert reset_calls == ["reset"]
+    finally:
+        session.dispose()
+
+
+@pytest.mark.asyncio
+async def test_agent_session_prefers_sdk_tool_over_extension_tool_with_same_name(tmp_path: Path) -> None:
+    class ExtensionTool:
+        name = "shared_tool"
+        label = "Extension Shared Tool"
+        description = "Extension implementation"
+        parameters = {}
+
+        async def execute(self, *_args: object, **_kwargs: object) -> dict[str, object]:
+            return {"content": [{"type": "text", "text": "extension"}], "details": {}}
+
+    async def sdk_execute(*_args: object, **_kwargs: object) -> dict[str, object]:
+        return {"content": [{"type": "text", "text": "sdk"}], "details": {}}
+
+    custom_tool = SimpleNamespace(
+        name="shared_tool",
+        label="SDK Shared Tool",
+        description="SDK implementation",
+        parameters={},
+        execute=sdk_execute,
+    )
+
+    def extension_factory(pi: object) -> None:
+        pi.on("session_start", lambda _event: pi.register_tool(ExtensionTool()))  # type: ignore[attr-defined]
+
+    session = _create_session(
+        tmp_path,
+        extension_factories=[extension_factory],
+        custom_tools=[custom_tool],
+    )
+    await session._resourceLoader.reload()
+
+    try:
+        await session.bindExtensions({})
+
+        shared_tools = [tool for tool in session.getAllTools() if tool.name == "shared_tool"]
+        assert len(shared_tools) == 1
+        assert shared_tools[0].description == "SDK implementation"
+        assert shared_tools[0].sourceInfo.path == "<sdk:shared_tool>"
+        assert session.getActiveToolNames().count("shared_tool") == 1
+    finally:
+        session.dispose()
+
+
+@pytest.mark.asyncio
 async def test_agent_session_compact_runs_real_compaction_and_persists_entry(tmp_path: Path) -> None:
     registration = register_faux_provider(
         {
@@ -376,6 +450,48 @@ async def test_agent_session_compact_runs_real_compaction_and_persists_entry(tmp
     finally:
         session.dispose()
         registration.unregister()
+
+
+@pytest.mark.asyncio
+async def test_agent_session_compact_allows_non_stream_simple_hook_without_api_key(tmp_path: Path) -> None:
+    async def fake_get_api_key_and_headers(_model: object) -> dict[str, object]:
+        return {"ok": True, "apiKey": None, "headers": {"x-test": "1"}}
+
+    def extension_factory(pi: object) -> None:
+        async def on_before_compact(event: object, _ctx: object) -> dict[str, object]:
+            preparation = _event_field(event, "preparation")
+            return {
+                "compaction": {
+                    "summary": "## Goal\nHook compacted",
+                    "firstKeptEntryId": getattr(preparation, "firstKeptEntryId"),
+                    "tokensBefore": getattr(preparation, "tokensBefore"),
+                    "details": {"readFiles": [], "modifiedFiles": []},
+                }
+            }
+
+        pi.on("session_before_compact", on_before_compact)  # type: ignore[attr-defined]
+
+    session = _create_session(tmp_path, provider="faux", extension_factories=[extension_factory])
+    session.agent.streamFn = lambda *_args, **_kwargs: None
+    session._modelRegistry.getApiKeyAndHeaders = fake_get_api_key_and_headers  # type: ignore[method-assign]
+    await session._resourceLoader.reload()
+    await session.bindExtensions({})
+
+    try:
+        session.sessionManager.appendMessage({"role": "user", "content": "hello", "timestamp": int(time.time() * 1000)})
+        session.sessionManager.appendMessage(faux_assistant_message("assistant one"))
+        session.sessionManager.appendMessage(
+            {"role": "user", "content": "follow up", "timestamp": int(time.time() * 1000)}
+        )
+        session.sessionManager.appendMessage(faux_assistant_message("assistant two"))
+        session.agent.state.messages = session.sessionManager.buildSessionContext().messages
+
+        result = await session.compact()
+
+        assert result.summary == "## Goal\nHook compacted"
+        assert any(entry.get("type") == "compaction" for entry in session.sessionManager.getEntries())
+    finally:
+        session.dispose()
 
 
 @pytest.mark.asyncio

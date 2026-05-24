@@ -739,3 +739,73 @@ def test_compaction_module_exports_match_ts_surface() -> None:
         "prepareCompaction",
         "shouldCompact",
     ]
+
+
+def test_compaction_get_message_from_entry_passes_raw_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    from harnify_coding_agent.core.compaction import compaction
+
+    captured: dict[str, tuple[object, ...]] = {}
+
+    def capture_custom(custom_type, content, display, details, timestamp):
+        captured["custom"] = (custom_type, content, display, details, timestamp)
+        return "custom"
+
+    def capture_branch(summary, from_id, timestamp):
+        captured["branch"] = (summary, from_id, timestamp)
+        return "branch"
+
+    def capture_compaction(summary, tokens_before, timestamp):
+        captured["compaction"] = (summary, tokens_before, timestamp)
+        return "compaction"
+
+    monkeypatch.setattr(compaction, "create_custom_message", capture_custom)
+    monkeypatch.setattr(compaction, "create_branch_summary_message", capture_branch)
+    monkeypatch.setattr(compaction, "create_compaction_summary_message", capture_compaction)
+
+    display = object()
+    details = object()
+    timestamp = object()
+    summary = object()
+    from_id = object()
+    tokens_before = object()
+
+    assert (
+        compaction._get_message_from_entry(
+            {
+                "type": "custom_message",
+                "customType": 123,
+                "content": ["payload"],
+                "display": display,
+                "details": details,
+                "timestamp": timestamp,
+            }
+        )
+        == "custom"
+    )
+    assert captured["custom"] == (123, ["payload"], display, details, timestamp)
+
+    assert (
+        compaction._get_message_from_entry(
+            {
+                "type": "branch_summary",
+                "summary": summary,
+                "fromId": from_id,
+                "timestamp": timestamp,
+            }
+        )
+        == "branch"
+    )
+    assert captured["branch"] == (summary, from_id, timestamp)
+
+    assert (
+        compaction._get_message_from_entry(
+            {
+                "type": "compaction",
+                "summary": summary,
+                "tokensBefore": tokens_before,
+                "timestamp": timestamp,
+            }
+        )
+        == "compaction"
+    )
+    assert captured["compaction"] == (summary, tokens_before, timestamp)

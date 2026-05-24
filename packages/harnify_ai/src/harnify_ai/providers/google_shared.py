@@ -186,7 +186,7 @@ def convert_messages(model: Model, context: Context) -> list[dict[str, Any]]:
 def sanitize_for_openapi(schema: Any) -> Any:
     if not isinstance(schema, dict):
         if isinstance(schema, list):
-            return [sanitize_for_openapi(item) for item in schema]
+            return schema
         return schema
 
     result: dict[str, Any] = {}

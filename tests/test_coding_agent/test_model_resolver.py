@@ -89,11 +89,20 @@ def test_resolve_cli_model_allows_custom_ids_for_explicit_provider() -> None:
 async def test_resolve_model_scope_matches_minimatch_segment_rules(capsys: pytest.CaptureFixture[str]) -> None:
     registry = type("Registry", (), {"getAvailable": lambda self: ALL_MODELS})()
 
-    result = await resolveModelScope(["openrouter/*"], registry)
-    captured = capsys.readouterr()
+    single_segment = await resolveModelScope(["openrouter/*"], registry)
+    single_segment_captured = capsys.readouterr()
 
-    assert result == []
-    assert 'Warning: No models match pattern "openrouter/*"' in captured.err
+    assert single_segment == []
+    assert 'Warning: No models match pattern "openrouter/*"' in single_segment_captured.err
+
+    globstar = await resolveModelScope(["openrouter/**"], registry)
+    globstar_captured = capsys.readouterr()
+
+    assert sorted((item.model.provider, item.model.id) for item in globstar) == [
+        ("openrouter", "openai/gpt-4o:extended"),
+        ("openrouter", "qwen/qwen3-coder:exacto"),
+    ]
+    assert globstar_captured.err == ""
 
 
 @pytest.mark.asyncio

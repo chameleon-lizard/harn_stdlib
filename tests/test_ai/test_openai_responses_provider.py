@@ -116,6 +116,21 @@ class _FakeClientWithOptions:
         return self
 
 
+class _CreateOnlyResponses:
+    def __init__(self, stream: _FakeResponseStream) -> None:
+        self.stream = stream
+        self.calls: list[dict[str, object]] = []
+
+    async def create(self, **kwargs: object) -> _FakeResponseStream:
+        self.calls.append(dict(kwargs))
+        return self.stream
+
+
+class _FakeClientCreateOnly:
+    def __init__(self, stream: _FakeResponseStream) -> None:
+        self.responses = _CreateOnlyResponses(stream)
+
+
 def test_build_params_uses_ts_truthiness_for_max_tokens() -> None:
     params = build_params(
         _reasoning_model(),
@@ -237,3 +252,63 @@ async def test_stream_openai_responses_aborts_while_waiting_for_stream_event(
     assert result.errorMessage == "Request was aborted"
     assert blocking_stream.closed is True
     assert blocking_stream.cancelled is True
+
+
+@pytest.mark.asyncio
+async def test_stream_openai_responses_does_not_invent_on_response_metadata_without_raw_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = _openai_model()
+    context = Context(messages=[{"role": "user", "content": "hi", "timestamp": 1}])
+    fake_client = _FakeClientCreateOnly(
+        _FakeResponseStream(
+            [
+                {
+                    "type": "response.completed",
+                    "response": {
+                        "id": "resp_fallback",
+                        "status": "completed",
+                        "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
+                    },
+                }
+            ]
+        )
+    )
+    on_response_calls: list[dict[str, object]] = []
+
+    async def on_response(metadata: dict[str, object], response_model: Model) -> None:
+        on_response_calls.append({"metadata": metadata, "provider": response_model.provider})
+
+    monkeypatch.setattr(openai_responses, "create_client", lambda *_args, **_kwargs: fake_client)
+
+    result = await stream_openai_responses(
+        model,
+        context,
+        {"onResponse": on_response},
+    ).result()
+
+    assert fake_client.responses.calls == [build_params(model, context)]
+    assert on_response_calls == []
+    assert result.responseId == "resp_fallback"
+    assert result.stopReason == "stop"
+
+
+def test_format_openai_responses_error_uses_error_message_for_status_errors() -> None:
+    class _StatusError(Exception):
+        def __init__(self) -> None:
+            super().__init__("preferred")
+            self.status = 429
+            self.message = "preferred"
+
+        def __str__(self) -> str:
+            return "different-string"
+
+    assert openai_responses.format_openai_responses_error(_StatusError()) == "OpenAI API error (429): preferred"
+
+
+def test_openai_responses_module_exports_expected_names() -> None:
+    assert openai_responses.__all__ == [
+        "OpenAIResponsesOptions",
+        "streamOpenAIResponses",
+        "streamSimpleOpenAIResponses",
+    ]

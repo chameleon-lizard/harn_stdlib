@@ -6,8 +6,8 @@ from typing import Any
 import pytest
 from harnify_ai.providers.faux import faux_assistant_message, register_faux_provider
 from harnify_ai.types import AssistantMessage, Model, TextContent, ToolCall, ToolResultMessage, Usage, UserMessage
+from harnify_coding_agent.core.compaction import branch_summarization
 from harnify_coding_agent.core.compaction.branch_summarization import (
-    BRANCH_SUMMARY_PREAMBLE,
     GenerateBranchSummaryOptions,
     collect_entries_for_branch_summary,
     generate_branch_summary,
@@ -550,6 +550,8 @@ async def test_branch_summary_collection_and_generation(registrations: list[Any]
         GenerateBranchSummaryOptions(model=no_content_model, apiKey="test", signal=None),
     )
     assert no_content.summary == "No content to summarize"
+    assert no_content.readFiles is None
+    assert no_content.modifiedFiles is None
 
     prompt_text = ""
     branch_model = create_faux_model(registrations, reasoning=False)
@@ -571,7 +573,7 @@ async def test_branch_summary_collection_and_generation(registrations: list[Any]
         ),
     )
     assert branch_result.summary is not None
-    assert branch_result.summary.startswith(BRANCH_SUMMARY_PREAMBLE)
+    assert branch_result.summary.startswith("The user explored a different conversation branch before returning here.")
     assert "<read-files>\nold-read.ts\nsrc/file.ts\n</read-files>" in branch_result.summary
     assert "<modified-files>\nold-edit.ts\n</modified-files>" in branch_result.summary
     assert "Additional focus: focus on files" in prompt_text
@@ -605,3 +607,85 @@ async def test_branch_summary_collection_and_generation(registrations: list[Any]
         GenerateBranchSummaryOptions(model=aborted_model, apiKey="test-key", signal=None),
     )
     assert aborted_result.aborted is True
+
+
+def test_branch_summary_module_exports_match_ts_surface() -> None:
+    assert branch_summarization.__all__ == [
+        "BranchPreparation",
+        "BranchSummaryDetails",
+        "BranchSummaryResult",
+        "CollectEntriesResult",
+        "FileOperations",
+        "GenerateBranchSummaryOptions",
+        "collectEntriesForBranchSummary",
+        "generateBranchSummary",
+        "prepareBranchEntries",
+    ]
+
+
+def test_get_message_from_entry_passes_raw_fields_without_python_coercion(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, tuple[object, ...]] = {}
+
+    def capture_custom(custom_type, content, display, details, timestamp):
+        captured["custom"] = (custom_type, content, display, details, timestamp)
+        return "custom"
+
+    def capture_branch(summary, from_id, timestamp):
+        captured["branch"] = (summary, from_id, timestamp)
+        return "branch"
+
+    def capture_compaction(summary, tokens_before, timestamp):
+        captured["compaction"] = (summary, tokens_before, timestamp)
+        return "compaction"
+
+    monkeypatch.setattr(branch_summarization, "create_custom_message", capture_custom)
+    monkeypatch.setattr(branch_summarization, "create_branch_summary_message", capture_branch)
+    monkeypatch.setattr(branch_summarization, "create_compaction_summary_message", capture_compaction)
+
+    display = object()
+    details = object()
+    timestamp = object()
+    summary = object()
+    from_id = object()
+    tokens_before = object()
+
+    assert (
+        branch_summarization._get_message_from_entry(
+            {
+                "type": "custom_message",
+                "customType": 123,
+                "content": ["payload"],
+                "display": display,
+                "details": details,
+                "timestamp": timestamp,
+            }
+        )
+        == "custom"
+    )
+    assert captured["custom"] == (123, ["payload"], display, details, timestamp)
+
+    assert (
+        branch_summarization._get_message_from_entry(
+            {
+                "type": "branch_summary",
+                "summary": summary,
+                "fromId": from_id,
+                "timestamp": timestamp,
+            }
+        )
+        == "branch"
+    )
+    assert captured["branch"] == (summary, from_id, timestamp)
+
+    assert (
+        branch_summarization._get_message_from_entry(
+            {
+                "type": "compaction",
+                "summary": summary,
+                "tokensBefore": tokens_before,
+                "timestamp": timestamp,
+            }
+        )
+        == "compaction"
+    )
+    assert captured["compaction"] == (summary, tokens_before, timestamp)

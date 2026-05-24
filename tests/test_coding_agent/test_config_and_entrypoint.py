@@ -13,7 +13,48 @@ def test_config_metadata_defaults_match_package_configuration() -> None:
     assert config.APP_NAME == "pi"
     assert config.APP_TITLE == "π"
     assert config.VERSION == "0.1.0"
+    assert config.isBunBinary is False
+    assert config.isBunRuntime is False
     assert Path(config.get_package_json_path()).name == "pyproject.toml"
+    assert config.__all__ == [
+        "APP_NAME",
+        "APP_TITLE",
+        "CONFIG_DIR_NAME",
+        "ENV_AGENT_DIR",
+        "ENV_SESSION_DIR",
+        "InstallMethod",
+        "PACKAGE_NAME",
+        "SelfUpdateCommand",
+        "VERSION",
+        "detectInstallMethod",
+        "expandTildePath",
+        "getAgentDir",
+        "getAuthPath",
+        "getBinDir",
+        "getBundledInteractiveAssetPath",
+        "getChangelogPath",
+        "getCustomThemesDir",
+        "getDebugLogPath",
+        "getDocsPath",
+        "getExamplesPath",
+        "getExportTemplateDir",
+        "getInteractiveAssetsDir",
+        "getModelsPath",
+        "getPackageDir",
+        "getPackageJsonPath",
+        "getPromptsDir",
+        "getReadmePath",
+        "getSessionsDir",
+        "getSettingsPath",
+        "getShareViewerUrl",
+        "getSelfUpdateCommand",
+        "getSelfUpdateUnavailableInstruction",
+        "getThemesDir",
+        "getToolsDir",
+        "getUpdateInstruction",
+        "isBunBinary",
+        "isBunRuntime",
+    ]
 
 
 def test_detect_install_method_handles_python_layouts() -> None:

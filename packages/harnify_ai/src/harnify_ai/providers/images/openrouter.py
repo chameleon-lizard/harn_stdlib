@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from collections.abc import Callable
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -47,7 +48,7 @@ async def generate_images_openrouter(
                 params = next_params
 
         raw_response = await _await_with_signal(
-            client.chat.completions.with_raw_response.create(
+            lambda: client.chat.completions.with_raw_response.create(
                 **params,
                 timeout=(options.timeoutMs / 1000) if options and options.timeoutMs is not None else None,
             ),
@@ -98,10 +99,11 @@ async def _maybe_await(value: Any) -> Any:
     return value
 
 
-async def _await_with_signal(request: Any, signal: Any) -> Any:
+async def _await_with_signal(request_factory: Callable[[], Any], signal: Any) -> Any:
     if _signal_aborted(signal):
         raise RuntimeError("Request aborted")
 
+    request = request_factory()
     wait = getattr(signal, "wait", None)
     if not callable(wait):
         return await request

@@ -83,10 +83,6 @@ async def execute_bash_with_operations(
             ensure_temp_file()
         append_text(text)
 
-    def finalize_decoder() -> None:
-        trailing = sanitize_binary_output(strip_ansi(decoder.decode(b"", final=True))).replace("\r", "")
-        append_text(trailing)
-
     def close_temp_file() -> None:
         if temp_file_handle is None:
             return
@@ -104,7 +100,6 @@ async def execute_bash_with_operations(
                 },
             )
         except Exception:
-            finalize_decoder()
             full_output = "".join(output_chunks)
             truncated = truncate_tail(full_output)
             if truncated.truncated:
@@ -120,7 +115,6 @@ async def execute_bash_with_operations(
                 )
             raise
 
-        finalize_decoder()
         full_output = "".join(output_chunks)
         truncated = truncate_tail(full_output)
         if truncated.truncated:

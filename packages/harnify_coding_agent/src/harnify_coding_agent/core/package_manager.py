@@ -3,40 +3,48 @@
 from __future__ import annotations
 
 import asyncio
-import fnmatch
-import glob
 import hashlib
 import json
 import os
 import re
-import shlex
+import signal as signal_module
+import stat as stat_module
 import shutil
 import subprocess
+import sys
 import tempfile
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, TypedDict, cast
+from typing import Any, Literal, Protocol, TypeVar, TypedDict, cast
 
 from pathspec import GitIgnoreSpec
+from wcmatch import glob as wc_glob
 
-from harnify_coding_agent.core.extensions.loader import (
-    discover_extensions_in_dir,
-    resolve_extension_entries,
-)
+from harnify_coding_agent.core.output_guard import isStdoutTakenOver
 from harnify_coding_agent.core.prompt_templates import CONFIG_DIR_NAME
 from harnify_coding_agent.core.settings_manager import PackageSource, SettingsManager
 from harnify_coding_agent.core.source_info import PathMetadata, SourceScope
+from harnify_coding_agent.utils.child_process import spawn_process_sync
 from harnify_coding_agent.utils.git import GitSource, parse_git_url
-from harnify_coding_agent.utils.paths import canonicalize_path, resolve_path
+from harnify_coding_agent.utils.paths import (
+    canonicalize_path,
+    is_local_path,
+    mark_path_ignored_by_cloud_sync,
+    resolve_path,
+)
 
 MissingSourceAction = Literal["install", "skip", "error"]
 ResourceType = Literal["extensions", "skills", "prompts", "themes"]
 SourceOrigin = Literal["package", "top-level"]
+_T = TypeVar("_T")
 
 RESOURCE_TYPES: tuple[ResourceType, ...] = ("extensions", "skills", "prompts", "themes")
 IGNORE_FILE_NAMES = (".gitignore", ".ignore", ".fdignore")
-NETWORK_TIMEOUT_SECONDS = 10.0
+NETWORK_TIMEOUT_MS = 10000
+UPDATE_CHECK_CONCURRENCY = 4
+GIT_UPDATE_CONCURRENCY = 4
+_GLOB_MATCH_FLAGS = wc_glob.GLOBSTAR | wc_glob.FORCEUNIX
 _GIT_HEAD_RE = re.compile(r"^([0-9a-f]{40})\s+", re.MULTILINE)
 _GIT_HEAD_EXACT_RE = re.compile(r"^([0-9a-f]{40})\s+HEAD$", re.MULTILINE)
 
@@ -60,6 +68,39 @@ class PackageManagerOptions(TypedDict):
     cwd: str
     agentDir: str
     settingsManager: SettingsManager
+
+
+class PackageManager(Protocol):
+    async def resolve(
+        self,
+        onMissing: Callable[[str], Awaitable[MissingSourceAction]] | None = None,
+    ) -> ResolvedPaths: ...
+
+    async def install(self, source: str, options: dict[str, bool] | None = None) -> None: ...
+
+    async def installAndPersist(self, source: str, options: dict[str, bool] | None = None) -> None: ...
+
+    async def remove(self, source: str, options: dict[str, bool] | None = None) -> None: ...
+
+    async def removeAndPersist(self, source: str, options: dict[str, bool] | None = None) -> bool: ...
+
+    async def update(self, source: str | None = None) -> None: ...
+
+    def listConfiguredPackages(self) -> list[ConfiguredPackage]: ...
+
+    async def resolveExtensionSources(
+        self,
+        sources: list[str],
+        options: dict[str, bool] | None = None,
+    ) -> ResolvedPaths: ...
+
+    def addSourceToSettings(self, source: str, options: dict[str, bool] | None = None) -> bool: ...
+
+    def removeSourceFromSettings(self, source: str, options: dict[str, bool] | None = None) -> bool: ...
+
+    def setProgressCallback(self, callback: ProgressCallback | None) -> None: ...
+
+    def getInstalledPath(self, source: str, scope: Literal["user", "project"]) -> str | None: ...
 
 
 @dataclass(slots=True)
@@ -126,6 +167,32 @@ class _GitUpdateTarget:
 
 
 @dataclass(slots=True)
+class _ConfiguredUpdateSource:
+    source: str
+    scope: Literal["user", "project"]
+
+
+@dataclass(slots=True)
+class _NpmUpdateTarget:
+    source: str
+    scope: Literal["user", "project"]
+    parsed: _NpmSource
+
+
+@dataclass(slots=True)
+class _GitConfiguredUpdateSource:
+    source: str
+    scope: Literal["user", "project"]
+    parsed: GitSource
+
+
+@dataclass(slots=True)
+class _ManifestFiles:
+    allFiles: list[str]
+    enabledByManifest: set[str]
+
+
+@dataclass(slots=True)
 class _Accumulator:
     extensions: dict[str, tuple[PathMetadata, bool]] = field(default_factory=dict)
     skills: dict[str, tuple[PathMetadata, bool]] = field(default_factory=dict)
@@ -136,18 +203,41 @@ class _Accumulator:
 class _IgnoreMatcher:
     def __init__(self) -> None:
         self._patterns: list[str] = []
+        self._spec: GitIgnoreSpec | None = None
 
     def add(self, patterns: list[str]) -> None:
         self._patterns.extend(patterns)
+        self._spec = None
 
     def ignores(self, path: str) -> bool:
         if not self._patterns:
             return False
-        return GitIgnoreSpec.from_lines(self._patterns).match_file(path)
+        if self._spec is None:
+            self._spec = GitIgnoreSpec.from_lines(self._patterns)
+        return self._spec.match_file(path)
 
 
 def _to_posix_path(path: str) -> str:
     return path.replace(os.sep, "/")
+
+
+def _get_env() -> Mapping[str, str]:
+    if sys.platform != "linux" or len(os.environ) > 0:
+        return os.environ
+    try:
+        data = Path("/proc/self/environ").read_text(encoding="utf-8")
+    except OSError:
+        return os.environ
+    env: dict[str, str] = {}
+    for entry in data.split("\0"):
+        index = entry.find("=")
+        if index > 0:
+            env[entry[:index]] = entry[index + 1 :]
+    return env
+
+
+def _get_home_dir() -> str:
+    return os.environ.get("HOME") or str(Path.home())
 
 
 def _prefix_ignore_pattern(line: str, prefix: str) -> str | None:

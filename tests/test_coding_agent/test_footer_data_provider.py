@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 import pytest
+import harnify_coding_agent.core.footer_data_provider as footer_data_provider_module
 from harnify_coding_agent.core.footer_data_provider import FooterDataProvider
 
 
@@ -130,14 +131,10 @@ def test_footer_data_provider_refreshes_on_reftable_changes_without_false_notifi
     branches = iter(["main", "main", "feature/bar"])
     monkeypatch.setattr(
         FooterDataProvider,
-        "WATCH_DEBOUNCE_SECONDS",
-        0.05,
+        "WATCH_DEBOUNCE_MS",
+        50,
     )
-    monkeypatch.setattr(
-        FooterDataProvider,
-        "WATCH_POLL_INTERVAL_SECONDS",
-        0.02,
-    )
+    monkeypatch.setattr(footer_data_provider_module, "_TABLES_LIST_POLL_INTERVAL_SECONDS", 0.02)
     monkeypatch.setattr(
         "harnify_coding_agent.core.footer_data_provider.resolve_branch_with_git_sync",
         lambda _repo_dir: next(branches),
@@ -159,6 +156,13 @@ def test_footer_data_provider_refreshes_on_reftable_changes_without_false_notifi
         wait_for(lambda: len(calls) == 1)
     finally:
         provider.dispose()
+
+
+def test_footer_data_provider_exports_match_ts_surface() -> None:
+    assert footer_data_provider_module.__all__ == [
+        "FooterDataProvider",
+        "ReadonlyFooterDataProvider",
+    ]
 
 
 def test_footer_data_provider_tracks_extension_statuses_and_provider_count(tmp_path: Path) -> None:

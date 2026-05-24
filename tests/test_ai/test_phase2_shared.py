@@ -91,10 +91,12 @@ def test_simple_option_helpers_and_prompt_cache_clamp_match_upstream_behavior() 
 
     options = SimpleStreamOptions(maxTokens=2048, temperature=0.2, apiKey="from-options")
     base = build_base_options(model, options, api_key="override-key")
+    base_without_options = build_base_options(model, None, api_key="")
     adjusted = adjust_max_tokens_for_thinking(2048, model.maxTokens, "xhigh")
 
     assert base.maxTokens == 2048
     assert base.apiKey == "override-key"
+    assert base_without_options.apiKey is None
     assert clamp_reasoning("xhigh") == "high"
     assert adjusted.maxTokens == 2048 + adjusted.thinkingBudget
     assert adjusted.thinkingBudget == 16384

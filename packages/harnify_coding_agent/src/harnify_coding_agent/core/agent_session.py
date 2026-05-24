@@ -1264,18 +1264,13 @@ class AgentSession:
             summary_text: str | None = None
             summary_details: dict[str, Any] | None = None
             if wants_summary and collected.entries and extension_summary is None:
-                auth = await self._modelRegistry.getApiKeyAndHeaders(self.model)
-                if not auth.get("ok"):
-                    raise RuntimeError(str(auth.get("error") or "No auth available for branch summarization"))
-                api_key = auth.get("apiKey")
-                if not isinstance(api_key, str) or not api_key:
-                    raise RuntimeError("No auth available for branch summarization")
+                auth = await self._get_required_request_auth(self.model)
                 branch_summary_settings = self.settingsManager.getBranchSummarySettings()
                 summary_result = await generate_branch_summary(
                     collected.entries,
                     GenerateBranchSummaryOptions(
                         model=self.model,
-                        apiKey=api_key,
+                        apiKey=auth["apiKey"],
                         headers=auth.get("headers"),
                         signal=self._branchSummaryAbortController.signal,
                         customInstructions=custom_instructions,

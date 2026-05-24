@@ -98,7 +98,7 @@ class OpenAICompletionsOptions(TypedDict, total=False):
     onResponse: Any
     timeoutMs: int
     maxRetries: int
-    toolChoice: Literal["auto", "none", "required"] | "OpenAICompletionsToolChoiceObject"
+    toolChoice: Literal["auto", "none", "required"] | OpenAICompletionsToolChoiceObject
     reasoningEffort: Literal["minimal", "low", "medium", "high", "xhigh"]
 
 
@@ -412,7 +412,12 @@ def stream_openai_completions(
         except Exception as error:  # noqa: BLE001
             output.stopReason = "aborted" if _is_aborted(_option(options, "signal")) else "error"
             output.errorMessage = _format_completion_error(error)
-            raw_metadata = getattr(getattr(error, "error", None), "metadata", None)
+            error_payload = getattr(error, "error", None)
+            raw_metadata = (
+                error_payload.get("metadata")
+                if isinstance(error_payload, Mapping)
+                else getattr(error_payload, "metadata", None)
+            )
             if isinstance(raw_metadata, Mapping) and raw_metadata.get("raw"):
                 output.errorMessage = f"{output.errorMessage}\n{raw_metadata['raw']}"
             stream.push(ErrorEvent(reason=output.stopReason, error=output))
@@ -572,9 +577,14 @@ def build_params(
                 if model.thinkingLevelMap
                 else reasoning_effort
             }
-        elif model.thinkingLevelMap and model.thinkingLevelMap.get("off") is not None:
-            off_value = model.thinkingLevelMap.get("off")
-            params["reasoning"] = {"effort": "none" if off_value is None else off_value}
+        else:
+            has_off_override = False
+            off_value: Any = None
+            if model.thinkingLevelMap is not None:
+                has_off_override = "off" in model.thinkingLevelMap
+                off_value = model.thinkingLevelMap.get("off")
+            if model.thinkingLevelMap is None or not has_off_override or off_value is not None:
+                params["reasoning"] = {"effort": "none" if off_value is None else off_value}
     elif compat.get("thinkingFormat") == "together" and model.reasoning:
         params["reasoning"] = {"enabled": bool(reasoning_effort)}
         if reasoning_effort and compat.get("supportsReasoningEffort"):

@@ -9,6 +9,7 @@ from harnify_coding_agent.core.model_resolver import (
     findInitialModel,
     parseModelPattern,
     resolveCliModel,
+    resolveModelScope,
     restoreModelFromSession,
 )
 
@@ -82,6 +83,17 @@ def test_resolve_cli_model_allows_custom_ids_for_explicit_provider() -> None:
     assert result.model is not None
     assert result.model.provider == "openrouter"
     assert result.model.id == "openai/ghost-model"
+
+
+@pytest.mark.asyncio
+async def test_resolve_model_scope_matches_minimatch_segment_rules(capsys: pytest.CaptureFixture[str]) -> None:
+    registry = type("Registry", (), {"getAvailable": lambda self: ALL_MODELS})()
+
+    result = await resolveModelScope(["openrouter/*"], registry)
+    captured = capsys.readouterr()
+
+    assert result == []
+    assert 'Warning: No models match pattern "openrouter/*"' in captured.err
 
 
 @pytest.mark.asyncio

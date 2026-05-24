@@ -2372,19 +2372,27 @@ class AgentSession:
                 )
                 return False
 
-            auth = await self._modelRegistry.getApiKeyAndHeaders(self.model)
-            api_key = auth.get("apiKey")
-            if not auth.get("ok") or not isinstance(api_key, str) or not api_key:
-                self._emit(
-                    {
-                        "type": "compaction_end",
-                        "reason": reason,
-                        "result": None,
-                        "aborted": False,
-                        "willRetry": False,
-                    }
-                )
-                return False
+            api_key: str | None = None
+            headers: dict[str, str] | None = None
+            if self.agent.streamFn == stream_simple:
+                auth_result = await self._modelRegistry.getApiKeyAndHeaders(self.model)
+                if not auth_result.get("ok") or not auth_result.get("apiKey"):
+                    self._emit(
+                        {
+                            "type": "compaction_end",
+                            "reason": reason,
+                            "result": None,
+                            "aborted": False,
+                            "willRetry": False,
+                        }
+                    )
+                    return False
+                api_key = str(auth_result["apiKey"])
+                headers = auth_result.get("headers")
+            else:
+                auth = await self._get_compaction_request_auth(self.model)
+                api_key = auth.get("apiKey")
+                headers = auth.get("headers")
 
             settings = CompactionSettings(**self.settingsManager.getCompactionSettings())
             branch_entries = self.sessionManager.getBranch()
@@ -2439,7 +2447,7 @@ class AgentSession:
                     preparation,
                     self.model,
                     api_key,
-                    auth.get("headers"),
+                    headers,
                     None,
                     self._auto_compaction_abort_controller.signal,
                     self.thinkingLevel,

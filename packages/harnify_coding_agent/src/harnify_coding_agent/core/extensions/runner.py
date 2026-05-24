@@ -359,7 +359,7 @@ class ExtensionRunner:
     sessionManager: Any = None
     modelRegistry: Any = None
     uiContext: Any = field(default_factory=_NoUIContext)
-    errorListeners: set[Any] = field(default_factory=set)
+    errorListeners: list[Any] = field(default_factory=list)
     getModel: Any = field(default=lambda: None)
     isIdleFn: Any = field(default=lambda: True)
     getSignalFn: Any = field(default=lambda: None)
@@ -574,10 +574,12 @@ class ExtensionRunner:
             raise RuntimeError(self.staleMessage)
 
     def on_error(self, listener: ExtensionErrorListener) -> Any:
-        self.errorListeners.add(listener)
+        if listener not in self.errorListeners:
+            self.errorListeners.append(listener)
 
         def unsubscribe() -> None:
-            self.errorListeners.discard(listener)
+            if listener in self.errorListeners:
+                self.errorListeners.remove(listener)
 
         return unsubscribe
 

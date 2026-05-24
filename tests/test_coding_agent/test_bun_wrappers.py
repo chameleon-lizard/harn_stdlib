@@ -40,11 +40,15 @@ def test_register_bedrock_forwards_module_override(monkeypatch) -> None:
 def test_bun_cli_main_runs_wrapper_steps_before_delegating(monkeypatch) -> None:
     seen: dict[str, object] = {}
 
+    def fake_cli_main(argv: list[str] | None) -> int:
+        seen["argv"] = argv
+        return 23
+
     monkeypatch.setattr(bun_cli, "_set_process_title", lambda title: seen.setdefault("title", title))
     monkeypatch.setattr(bun_cli, "_suppress_runtime_warnings", lambda: seen.setdefault("warnings", True))
     monkeypatch.setattr(bun_cli, "restore_sandbox_env", lambda: seen.setdefault("restored", True))
     monkeypatch.setattr(bun_cli, "_import_register_bedrock_module", lambda: seen.setdefault("registered", True))
-    monkeypatch.setattr(bun_cli, "_load_cli_main", lambda: lambda argv: seen.setdefault("argv", argv) or 23)
+    monkeypatch.setattr(bun_cli, "_load_cli_main", lambda: fake_cli_main)
     assert bun_cli.main(["--demo"]) == 23
     assert seen == {
         "title": "pi",

@@ -1188,32 +1188,60 @@ def define_tool[TTool: ToolDefinition[Any, Any]](tool: TTool) -> TTool:
     return tool
 
 
-def is_bash_tool_result(event: ToolResultEvent) -> bool:
+def is_bash_tool_result(event: ToolResultEvent) -> TypeGuard[BashToolResultEvent]:
     return event["toolName"] == "bash"
 
 
-def is_read_tool_result(event: ToolResultEvent) -> bool:
+def is_read_tool_result(event: ToolResultEvent) -> TypeGuard[ReadToolResultEvent]:
     return event["toolName"] == "read"
 
 
-def is_edit_tool_result(event: ToolResultEvent) -> bool:
+def is_edit_tool_result(event: ToolResultEvent) -> TypeGuard[EditToolResultEvent]:
     return event["toolName"] == "edit"
 
 
-def is_write_tool_result(event: ToolResultEvent) -> bool:
+def is_write_tool_result(event: ToolResultEvent) -> TypeGuard[WriteToolResultEvent]:
     return event["toolName"] == "write"
 
 
-def is_grep_tool_result(event: ToolResultEvent) -> bool:
+def is_grep_tool_result(event: ToolResultEvent) -> TypeGuard[GrepToolResultEvent]:
     return event["toolName"] == "grep"
 
 
-def is_find_tool_result(event: ToolResultEvent) -> bool:
+def is_find_tool_result(event: ToolResultEvent) -> TypeGuard[FindToolResultEvent]:
     return event["toolName"] == "find"
 
 
-def is_ls_tool_result(event: ToolResultEvent) -> bool:
+def is_ls_tool_result(event: ToolResultEvent) -> TypeGuard[LsToolResultEvent]:
     return event["toolName"] == "ls"
+
+
+@overload
+def is_tool_call_event_type(tool_name: Literal["bash"], event: ToolCallEvent) -> TypeGuard[BashToolCallEvent]: ...
+
+
+@overload
+def is_tool_call_event_type(tool_name: Literal["read"], event: ToolCallEvent) -> TypeGuard[ReadToolCallEvent]: ...
+
+
+@overload
+def is_tool_call_event_type(tool_name: Literal["edit"], event: ToolCallEvent) -> TypeGuard[EditToolCallEvent]: ...
+
+
+@overload
+def is_tool_call_event_type(tool_name: Literal["write"], event: ToolCallEvent) -> TypeGuard[WriteToolCallEvent]: ...
+
+
+@overload
+def is_tool_call_event_type(tool_name: Literal["grep"], event: ToolCallEvent) -> TypeGuard[GrepToolCallEvent]: ...
+
+
+@overload
+def is_tool_call_event_type(tool_name: Literal["find"], event: ToolCallEvent) -> TypeGuard[FindToolCallEvent]: ...
+
+
+@overload
+def is_tool_call_event_type(tool_name: Literal["ls"], event: ToolCallEvent) -> TypeGuard[LsToolCallEvent]: ...
 
 
 def is_tool_call_event_type(tool_name: str, event: ToolCallEvent) -> bool:

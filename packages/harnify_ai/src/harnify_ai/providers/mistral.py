@@ -361,7 +361,11 @@ def safe_json_stringify(value: Any) -> str:
 
 
 def build_request_kwargs(model: Model, options: StreamOptions | Mapping[str, Any] | None = None) -> dict[str, Any]:
-    request_kwargs: dict[str, Any] = {}
+    request_kwargs: dict[str, Any] = {
+        "retries": {"strategy": "none"},
+    }
+    if _option(options, "signal") is not None:
+        request_kwargs["signal"] = _option(options, "signal")
     headers: dict[str, str] = {}
     if model.headers:
         headers.update(model.headers)
@@ -370,9 +374,7 @@ def build_request_kwargs(model: Model, options: StreamOptions | Mapping[str, Any
     if _option(options, "sessionId") and "x-affinity" not in headers:
         headers["x-affinity"] = _option(options, "sessionId")
     if headers:
-        request_kwargs["http_headers"] = headers
-    if _option(options, "timeoutMs") is not None:
-        request_kwargs["timeout_ms"] = _option(options, "timeoutMs")
+        request_kwargs["headers"] = headers
     return request_kwargs
 
 
@@ -393,14 +395,14 @@ def build_chat_payload(
     if _option(options, "temperature") is not None:
         payload["temperature"] = _option(options, "temperature")
     if _option(options, "maxTokens") is not None:
-        payload["max_tokens"] = _option(options, "maxTokens")
+        payload["maxTokens"] = _option(options, "maxTokens")
     tool_choice = map_tool_choice(_option(options, "toolChoice"))
     if tool_choice is not None:
-        payload["tool_choice"] = tool_choice
+        payload["toolChoice"] = tool_choice
     if _option(options, "promptMode") is not None:
-        payload["prompt_mode"] = _option(options, "promptMode")
+        payload["promptMode"] = _option(options, "promptMode")
     if _option(options, "reasoningEffort") is not None:
-        payload["reasoning_effort"] = _option(options, "reasoningEffort")
+        payload["reasoningEffort"] = _option(options, "reasoningEffort")
 
     if context.systemPrompt:
         payload["messages"].insert(
@@ -412,6 +414,71 @@ def build_chat_payload(
         )
 
     return payload
+
+
+def _prepare_sdk_request_kwargs(request_options: Mapping[str, Any]) -> dict[str, Any]:
+    sdk_request_kwargs: dict[str, Any] = {}
+    headers = request_options.get("headers")
+    if headers is not None:
+        sdk_request_kwargs["http_headers"] = dict(headers)
+    signal = request_options.get("signal")
+    if signal is not None:
+        sdk_request_kwargs["signal"] = signal
+    retries = request_options.get("retries")
+    if retries is not None:
+        sdk_request_kwargs["retries"] = retries
+    return sdk_request_kwargs
+
+
+def _prepare_sdk_chat_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    sdk_payload: dict[str, Any] = {
+        "model": payload["model"],
+        "stream": payload["stream"],
+        "messages": [_prepare_sdk_chat_message(message) for message in payload["messages"]],
+    }
+    if "tools" in payload:
+        sdk_payload["tools"] = payload["tools"]
+    if "temperature" in payload:
+        sdk_payload["temperature"] = payload["temperature"]
+    if "maxTokens" in payload:
+        sdk_payload["max_tokens"] = payload["maxTokens"]
+    if "toolChoice" in payload:
+        sdk_payload["tool_choice"] = payload["toolChoice"]
+    if "promptMode" in payload:
+        sdk_payload["prompt_mode"] = payload["promptMode"]
+    if "reasoningEffort" in payload:
+        sdk_payload["reasoning_effort"] = payload["reasoningEffort"]
+    return sdk_payload
+
+
+def _prepare_sdk_chat_message(message: Mapping[str, Any]) -> dict[str, Any]:
+    sdk_message: dict[str, Any] = {"role": message["role"]}
+    if "content" in message:
+        content = message["content"]
+        if isinstance(content, list):
+            sdk_message["content"] = [_prepare_sdk_content_chunk(item) for item in content]
+        else:
+            sdk_message["content"] = content
+    if "toolCalls" in message:
+        sdk_message["tool_calls"] = [
+            {
+                "id": tool_call["id"],
+                "type": tool_call["type"],
+                "function": dict(tool_call["function"]),
+            }
+            for tool_call in message["toolCalls"]
+        ]
+    if "toolCallId" in message:
+        sdk_message["tool_call_id"] = message["toolCallId"]
+    if "name" in message:
+        sdk_message["name"] = message["name"]
+    return sdk_message
+
+
+def _prepare_sdk_content_chunk(item: Mapping[str, Any]) -> dict[str, Any]:
+    if item["type"] == "image_url" and "imageUrl" in item:
+        return {"type": "image_url", "image_url": item["imageUrl"]}
+    return dict(item)
 
 
 async def consume_chat_stream(

@@ -744,6 +744,34 @@ def test_compaction_module_exports_match_ts_surface() -> None:
     ]
 
 
+def test_compaction_utils_module_exports_match_ts_surface() -> None:
+    from harnify_coding_agent.core.compaction import utils
+
+    assert utils.__all__ == [
+        "FileOperations",
+        "SUMMARIZATION_SYSTEM_PROMPT",
+        "computeFileLists",
+        "createFileOps",
+        "extractFileOpsFromMessage",
+        "formatFileOperations",
+        "serializeConversation",
+    ]
+
+
+def test_compaction_package_wrapper_reexports_ts_public_surface() -> None:
+    from harnify_coding_agent.core import compaction as compaction_pkg
+
+    assert callable(compaction_pkg.collectEntriesForBranchSummary)
+    assert callable(compaction_pkg.calculateContextTokens)
+    assert callable(compaction_pkg.createFileOps)
+    assert callable(compaction_pkg.serializeConversation)
+    assert isinstance(compaction_pkg.DEFAULT_COMPACTION_SETTINGS, CompactionSettings)
+    assert compaction_pkg.SUMMARIZATION_SYSTEM_PROMPT
+    assert not hasattr(compaction_pkg, "create_file_ops")
+    assert not hasattr(compaction_pkg, "serialize_conversation")
+    assert not hasattr(compaction_pkg, "TOOL_RESULT_MAX_CHARS")
+
+
 def test_compaction_get_message_from_entry_passes_raw_fields(monkeypatch: pytest.MonkeyPatch) -> None:
     from harnify_coding_agent.core.compaction import compaction
 

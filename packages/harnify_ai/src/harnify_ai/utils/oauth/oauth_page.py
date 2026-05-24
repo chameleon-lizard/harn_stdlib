@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-LOGO_SVG = (
+_LOGO_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" aria-hidden="true">'
     '<path fill="#fff" fill-rule="evenodd" '
     'd="M165.29 165.29 H517.36 V400 H400 V517.36 H282.65 V634.72 H165.29 Z '
@@ -11,7 +11,7 @@ LOGO_SVG = (
 )
 
 
-def escape_html(value: str) -> str:
+def _escape_html(value: str) -> str:
     return (
         value.replace("&", "&amp;")
         .replace("<", "&lt;")
@@ -21,11 +21,11 @@ def escape_html(value: str) -> str:
     )
 
 
-def render_page(*, title: str, heading: str, message: str, details: str | None = None) -> str:
-    title = escape_html(title)
-    heading = escape_html(heading)
-    message = escape_html(message)
-    details = escape_html(details) if details else None
+def _render_page(*, title: str, heading: str, message: str, details: str | None = None) -> str:
+    title = _escape_html(title)
+    heading = _escape_html(heading)
+    message = _escape_html(message)
+    details = _escape_html(details) if details else None
     details_html = f'<div class="details">{details}</div>' if details else ""
 
     return f"""<!doctype html>
@@ -95,7 +95,7 @@ def render_page(*, title: str, heading: str, message: str, details: str | None =
 </head>
 <body>
   <main>
-    <div class="logo">{LOGO_SVG}</div>
+    <div class="logo">{_LOGO_SVG}</div>
     <h1>{heading}</h1>
     <p>{message}</p>
     {details_html}
@@ -105,7 +105,7 @@ def render_page(*, title: str, heading: str, message: str, details: str | None =
 
 
 def oauth_success_html(message: str) -> str:
-    return render_page(
+    return _render_page(
         title="Authentication successful",
         heading="Authentication successful",
         message=message,
@@ -113,7 +113,7 @@ def oauth_success_html(message: str) -> str:
 
 
 def oauth_error_html(message: str, details: str | None = None) -> str:
-    return render_page(
+    return _render_page(
         title="Authentication failed",
         heading="Authentication failed",
         message=message,
@@ -123,3 +123,10 @@ def oauth_error_html(message: str, details: str | None = None) -> str:
 
 oauthSuccessHtml = oauth_success_html
 oauthErrorHtml = oauth_error_html
+
+__all__ = [
+    "oauthErrorHtml",
+    "oauthSuccessHtml",
+    "oauth_error_html",
+    "oauth_success_html",
+]

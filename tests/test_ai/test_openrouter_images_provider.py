@@ -158,3 +158,42 @@ async def test_generate_images_openrouter_returns_aborted_result_for_preaborted_
     assert output.stopReason == "aborted"
     assert output.errorMessage == "Request aborted"
     assert fake_client.with_raw_response.calls == []
+
+
+@pytest.mark.asyncio
+async def test_generate_images_openrouter_ignores_missing_or_nonbase64_image_urls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = SimpleNamespace(
+        id="img-2",
+        usage=None,
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    content="Only one valid image.",
+                    images=[
+                        SimpleNamespace(),
+                        SimpleNamespace(image_url=SimpleNamespace(url="data:image/png;base64,dmFsaWQ=")),
+                        SimpleNamespace(image_url=SimpleNamespace(url="data:image/png,not-base64")),
+                    ],
+                )
+            )
+        ],
+    )
+    fake_client = _FakeClient(response)
+
+    monkeypatch.setattr(openrouter, "_create_client", lambda *_args, **_kwargs: fake_client)
+
+    output = await openrouter.generate_images_openrouter(
+        _make_model(output=["image"]),
+        _make_context(),
+        ImagesOptions(apiKey="test-key"),
+    )
+
+    assert output.stopReason == "stop"
+    assert [item.type for item in output.output] == ["text", "image"]
+    assert output.output[1].data == "dmFsaWQ="
+
+
+def test_openrouter_images_module_exports_expected_names() -> None:
+    assert openrouter.__all__ == ["generateImagesOpenRouter"]

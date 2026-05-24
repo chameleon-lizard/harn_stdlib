@@ -268,6 +268,12 @@ def _resolve_action(source: Any, name: str, default: Any = None) -> Any:
     return getattr(source, name, default)
 
 
+def _required_action(source: Any, name: str) -> Any:
+    if isinstance(source, Mapping):
+        return source[name]
+    return getattr(source, name)
+
+
 def _event_type(event: Any) -> str:
     if isinstance(event, Mapping):
         return str(event["type"])
@@ -370,30 +376,30 @@ class ExtensionRunner:
         context_actions: Any,
         provider_actions: Any | None = None,
     ) -> None:
-        self.runtime.sendMessage = _resolve_action(actions, "sendMessage", self.runtime.sendMessage)
-        self.runtime.sendUserMessage = _resolve_action(actions, "sendUserMessage", self.runtime.sendUserMessage)
-        self.runtime.appendEntry = _resolve_action(actions, "appendEntry", self.runtime.appendEntry)
-        self.runtime.setSessionName = _resolve_action(actions, "setSessionName", self.runtime.setSessionName)
-        self.runtime.getSessionName = _resolve_action(actions, "getSessionName", self.runtime.getSessionName)
-        self.runtime.setLabel = _resolve_action(actions, "setLabel", self.runtime.setLabel)
-        self.runtime.getActiveTools = _resolve_action(actions, "getActiveTools", self.runtime.getActiveTools)
-        self.runtime.getAllTools = _resolve_action(actions, "getAllTools", self.runtime.getAllTools)
-        self.runtime.setActiveTools = _resolve_action(actions, "setActiveTools", self.runtime.setActiveTools)
-        self.runtime.refreshTools = _resolve_action(actions, "refreshTools", self.runtime.refreshTools)
-        self.runtime.getCommands = _resolve_action(actions, "getCommands", self.runtime.getCommands)
-        self.runtime.setModel = _resolve_action(actions, "setModel", self.runtime.setModel)
-        self.runtime.getThinkingLevel = _resolve_action(actions, "getThinkingLevel", self.runtime.getThinkingLevel)
-        self.runtime.setThinkingLevel = _resolve_action(actions, "setThinkingLevel", self.runtime.setThinkingLevel)
+        self.runtime.sendMessage = _required_action(actions, "sendMessage")
+        self.runtime.sendUserMessage = _required_action(actions, "sendUserMessage")
+        self.runtime.appendEntry = _required_action(actions, "appendEntry")
+        self.runtime.setSessionName = _required_action(actions, "setSessionName")
+        self.runtime.getSessionName = _required_action(actions, "getSessionName")
+        self.runtime.setLabel = _required_action(actions, "setLabel")
+        self.runtime.getActiveTools = _required_action(actions, "getActiveTools")
+        self.runtime.getAllTools = _required_action(actions, "getAllTools")
+        self.runtime.setActiveTools = _required_action(actions, "setActiveTools")
+        self.runtime.refreshTools = _required_action(actions, "refreshTools")
+        self.runtime.getCommands = _required_action(actions, "getCommands")
+        self.runtime.setModel = _required_action(actions, "setModel")
+        self.runtime.getThinkingLevel = _required_action(actions, "getThinkingLevel")
+        self.runtime.setThinkingLevel = _required_action(actions, "setThinkingLevel")
 
-        self.getModel = _resolve_action(context_actions, "getModel", self.getModel)
-        self.isIdleFn = _resolve_action(context_actions, "isIdle", self.isIdleFn)
-        self.getSignalFn = _resolve_action(context_actions, "getSignal", self.getSignalFn)
-        self.abortFn = _resolve_action(context_actions, "abort", self.abortFn)
-        self.hasPendingMessagesFn = _resolve_action(context_actions, "hasPendingMessages", self.hasPendingMessagesFn)
-        self.shutdownHandler = _resolve_action(context_actions, "shutdown", self.shutdownHandler)
-        self.getContextUsageFn = _resolve_action(context_actions, "getContextUsage", self.getContextUsageFn)
-        self.compactFn = _resolve_action(context_actions, "compact", self.compactFn)
-        self.getSystemPromptFn = _resolve_action(context_actions, "getSystemPrompt", self.getSystemPromptFn)
+        self.getModel = _required_action(context_actions, "getModel")
+        self.isIdleFn = _required_action(context_actions, "isIdle")
+        self.getSignalFn = _required_action(context_actions, "getSignal")
+        self.abortFn = _required_action(context_actions, "abort")
+        self.hasPendingMessagesFn = _required_action(context_actions, "hasPendingMessages")
+        self.shutdownHandler = _required_action(context_actions, "shutdown")
+        self.getContextUsageFn = _required_action(context_actions, "getContextUsage")
+        self.compactFn = _required_action(context_actions, "compact")
+        self.getSystemPromptFn = _required_action(context_actions, "getSystemPrompt")
 
         register_provider = _resolve_action(provider_actions, "registerProvider")
         unregister_provider = _resolve_action(provider_actions, "unregisterProvider")
@@ -443,12 +449,12 @@ class ExtensionRunner:
             self.reloadHandler = lambda: _completed_future()
             return
 
-        self.waitForIdleFn = _resolve_action(actions, "waitForIdle", self.waitForIdleFn)
-        self.newSessionHandler = _resolve_action(actions, "newSession", self.newSessionHandler)
-        self.forkHandler = _resolve_action(actions, "fork", self.forkHandler)
-        self.navigateTreeHandler = _resolve_action(actions, "navigateTree", self.navigateTreeHandler)
-        self.switchSessionHandler = _resolve_action(actions, "switchSession", self.switchSessionHandler)
-        self.reloadHandler = _resolve_action(actions, "reload", self.reloadHandler)
+        self.waitForIdleFn = _required_action(actions, "waitForIdle")
+        self.newSessionHandler = _required_action(actions, "newSession")
+        self.forkHandler = _required_action(actions, "fork")
+        self.navigateTreeHandler = _required_action(actions, "navigateTree")
+        self.switchSessionHandler = _required_action(actions, "switchSession")
+        self.reloadHandler = _required_action(actions, "reload")
 
     def set_ui_context(self, uiContext: Any | None = None) -> None:
         self.uiContext = uiContext if uiContext is not None else _NoUIContext()

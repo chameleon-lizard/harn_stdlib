@@ -10,11 +10,13 @@ from typing import Any, Literal
 
 from harnify_ai.models import models_are_equal
 from harnify_ai.types import Model
+from wcmatch import glob
 
 from harnify_coding_agent.cli.args import isValidThinkingLevel as _isValidThinkingLevel
 from harnify_coding_agent.core.defaults import DEFAULT_THINKING_LEVEL
 
 type ResolvedThinkingLevel = Literal["off", "minimal", "low", "medium", "high", "xhigh"]
+_MINIMATCH_FLAGS = glob.IGNORECASE | glob.GLOBSTAR | glob.BRACE | glob.EXTMATCH | glob.FORCEUNIX
 
 defaultModelPerProvider: dict[str, str] = {
     "amazon-bedrock": "us.anthropic.claude-opus-4-6-v1",
@@ -103,43 +105,7 @@ def _red(message: str) -> str:
 
 
 def _minimatch(value: str, pattern: str) -> bool:
-    regex: list[str] = ["^"]
-    index = 0
-    length = len(pattern)
-
-    while index < length:
-        char = pattern[index]
-        if char == "*":
-            if index + 1 < length and pattern[index + 1] == "*":
-                regex.append(".*")
-                index += 2
-                continue
-            regex.append("[^/]*")
-            index += 1
-            continue
-        if char == "?":
-            regex.append("[^/]")
-            index += 1
-            continue
-        if char == "[":
-            closing = pattern.find("]", index + 1)
-            if closing == -1:
-                regex.append(r"\[")
-                index += 1
-                continue
-            content = pattern[index + 1 : closing]
-            if content.startswith("!"):
-                content = "^" + content[1:]
-            elif content.startswith("^"):
-                content = "\\" + content
-            regex.append(f"[{content.replace('\\', '\\\\')}]")
-            index = closing + 1
-            continue
-        regex.append(re.escape(char))
-        index += 1
-
-    regex.append("$")
-    return re.match("".join(regex), value) is not None
+    return glob.globmatch(value, pattern, flags=_MINIMATCH_FLAGS)
 
 
 def _isAlias(model_id: str) -> bool:

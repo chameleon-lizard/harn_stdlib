@@ -26,14 +26,27 @@ async def _unused_simple_stream(*_args, **_kwargs):
 
 
 def test_register_builtins_exports_expected_names() -> None:
-    for name in (
+    assert register_builtins.__all__ == [
         "setBedrockProviderModule",
+        "streamAnthropic",
+        "streamSimpleAnthropic",
+        "streamAzureOpenAIResponses",
+        "streamSimpleAzureOpenAIResponses",
+        "streamGoogle",
+        "streamSimpleGoogle",
+        "streamGoogleVertex",
+        "streamSimpleGoogleVertex",
+        "streamMistral",
+        "streamSimpleMistral",
+        "streamOpenAICodexResponses",
+        "streamSimpleOpenAICodexResponses",
+        "streamOpenAICompletions",
+        "streamSimpleOpenAICompletions",
+        "streamOpenAIResponses",
+        "streamSimpleOpenAIResponses",
         "registerBuiltInApiProviders",
         "resetApiProviders",
-        "streamAnthropic",
-        "streamOpenAIResponses",
-    ):
-        assert name in register_builtins.__all__
+    ]
 
 
 def test_register_builtins_registers_expected_api_set() -> None:
@@ -61,6 +74,26 @@ async def test_create_lazy_stream_converts_loader_failure_to_error_message() -> 
 
     assert result.stopReason == "error"
     assert result.errorMessage == "load boom"
+
+
+@pytest.mark.asyncio
+async def test_create_lazy_stream_uses_error_message_property_for_loader_failure() -> None:
+    class _LoaderError(Exception):
+        def __init__(self) -> None:
+            super().__init__("preferred message")
+            self.message = "preferred message"
+
+        def __str__(self) -> str:
+            return "different string"
+
+    async def failing_loader() -> LazyProviderModule:
+        raise _LoaderError()
+
+    stream_fn = register_builtins._create_lazy_stream(failing_loader)
+    result = await stream_fn(_model(), Context(messages=[])).result()
+
+    assert result.stopReason == "error"
+    assert result.errorMessage == "preferred message"
 
 
 @pytest.mark.asyncio

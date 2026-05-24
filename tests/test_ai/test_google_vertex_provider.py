@@ -42,6 +42,28 @@ class _FakeModels:
         return _iterate()
 
 
+class _BlockingStream:
+    def __init__(self) -> None:
+        self.entered = asyncio.Event()
+        self.closed = False
+        self.cancelled = False
+
+    def __aiter__(self) -> _BlockingStream:
+        return self
+
+    async def __anext__(self):
+        self.entered.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.cancelled = True
+            raise
+        raise StopAsyncIteration
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
 class _FakeAsyncClient:
     def __init__(self, chunks: list[_FakeChunk]) -> None:
         self.models = _FakeModels(chunks)
@@ -199,6 +221,7 @@ async def test_stream_google_vertex_uses_adc_branch_for_placeholder_api_key(monk
         },
     ).result()
 
+    assert result.api == "google-vertex"
     assert result.stopReason == "stop"
     assert calls == {"adc": 1, "api_key": 0}
     assert fake_client.aio.closed is True
@@ -228,6 +251,43 @@ async def test_stream_google_vertex_strips_abort_signal_before_sdk_call() -> Non
     assert captured_payload is not None
     assert captured_payload["config"]["abortSignal"] is signal
     assert "abortSignal" not in fake_client.aio.models.calls[0]["config"]
+
+
+@pytest.mark.asyncio
+async def test_stream_google_vertex_aborts_while_waiting_for_stream_chunk() -> None:
+    blocking_stream = _BlockingStream()
+
+    class _BlockingModels:
+        def generate_content_stream(self, **kwargs: Any):
+            return blocking_stream
+
+    class _BlockingAsyncClient:
+        def __init__(self) -> None:
+            self.models = _BlockingModels()
+            self.closed = False
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+    class _BlockingClient:
+        def __init__(self) -> None:
+            self.aio = _BlockingAsyncClient()
+
+    signal = asyncio.Event()
+    stream = google_vertex.stream_google_vertex(
+        _make_model(),
+        _make_context(),
+        {"client": _BlockingClient(), "signal": signal},
+    )
+
+    await asyncio.wait_for(blocking_stream.entered.wait(), timeout=1)
+    signal.set()
+    result = await asyncio.wait_for(stream.result(), timeout=1)
+
+    assert result.stopReason == "aborted"
+    assert result.errorMessage == "Request was aborted"
+    assert blocking_stream.cancelled is True
+    assert blocking_stream.closed is True
 
 
 @pytest.mark.asyncio
@@ -265,3 +325,11 @@ async def test_stream_simple_google_vertex_uses_gemini3_thinking_level(monkeypat
         "includeThoughts": True,
         "thinkingLevel": "LOW",
     }
+
+
+def test_google_vertex_module_exports_expected_names() -> None:
+    assert google_vertex.__all__ == [
+        "GoogleVertexOptions",
+        "streamGoogleVertex",
+        "streamSimpleGoogleVertex",
+    ]

@@ -412,7 +412,7 @@ class AuthStorage:
                 except Exception as error:  # noqa: BLE001
                     self._record_error(error)
                     self.reload()
-                    updated = self.data.get(providerId)
+                    updated = _coerce_storage_object(self.data).get(providerId)
                     if isinstance(updated, dict) and updated.get("type") == "oauth":
                         updated_credentials = _coerce_oauth_credentials(updated)
                         if int(time.time() * 1000) < updated_credentials.expires:

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-UNKNOWN_PROVIDER = "unknown"
+from harnify_coding_agent.config import get_docs_path
+
+_UNKNOWN_PROVIDER = "unknown"
 
 
 def get_provider_login_help() -> str:
-    docs_path = _get_docs_path()
+    docs_path = Path(get_docs_path())
     return "\n".join(
         [
             "Use /login to log into a provider via OAuth or API key. See:",
@@ -27,23 +29,8 @@ def format_no_model_selected_message() -> str:
 
 
 def format_no_api_key_found_message(provider: str) -> str:
-    provider_display = "the selected model" if provider == UNKNOWN_PROVIDER else provider
+    provider_display = "the selected model" if provider == _UNKNOWN_PROVIDER else provider
     return f"No API key found for {provider_display}.\n\n{get_provider_login_help()}"
-
-
-def _get_docs_path() -> Path:
-    module_path = Path(__file__).resolve()
-    candidates = [
-        module_path.parents[5]
-        / "important_repository_of_the_dependencies_source_code_to_read_better_than_online_docs"
-        / "earendil-pi"
-        / "docs",
-        module_path.parents[3] / "docs",
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return Path("docs")
 
 
 formatNoApiKeyFoundMessage = format_no_api_key_found_message
@@ -52,7 +39,6 @@ formatNoModelsAvailableMessage = format_no_models_available_message
 getProviderLoginHelp = get_provider_login_help
 
 __all__ = [
-    "UNKNOWN_PROVIDER",
     "formatNoApiKeyFoundMessage",
     "formatNoModelSelectedMessage",
     "formatNoModelsAvailableMessage",

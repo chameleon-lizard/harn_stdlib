@@ -6,6 +6,7 @@ from pathlib import Path
 
 from harnify_coding_agent import cli as cli_package
 from harnify_coding_agent import config
+from harnify_coding_agent.core import auth_guidance
 
 
 def test_config_metadata_defaults_match_package_configuration() -> None:
@@ -153,3 +154,23 @@ def test_http_dispatcher_configuration_validates_and_records_timeout() -> None:
         assert str(error) == "Invalid HTTP idle timeout: -1"
     else:  # pragma: no cover
         raise AssertionError("configure_http_dispatcher should reject invalid values")
+
+
+def test_auth_guidance_uses_config_docs_path_and_public_exports(monkeypatch) -> None:
+    monkeypatch.setattr(auth_guidance, "get_docs_path", lambda: "/tmp/docs")
+
+    help_text = auth_guidance.get_provider_login_help()
+
+    assert "/tmp/docs/providers.md" in help_text
+    assert "/tmp/docs/models.md" in help_text
+    assert "the selected model" in auth_guidance.format_no_api_key_found_message("unknown")
+    assert auth_guidance.__all__ == [
+        "formatNoApiKeyFoundMessage",
+        "formatNoModelSelectedMessage",
+        "formatNoModelsAvailableMessage",
+        "format_no_api_key_found_message",
+        "format_no_model_selected_message",
+        "format_no_models_available_message",
+        "getProviderLoginHelp",
+        "get_provider_login_help",
+    ]

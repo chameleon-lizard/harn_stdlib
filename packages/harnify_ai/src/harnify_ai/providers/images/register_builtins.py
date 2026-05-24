@@ -45,7 +45,7 @@ async def generate_images_openrouter(
 ) -> AssistantImages:
     try:
         module = _load_openrouter_images_provider_module()
-        return await module.generate_images_openrouter(model, context, options)
+        return await module.generateImagesOpenRouter(model, context, options)
     except Exception as error:  # noqa: BLE001
         return _create_lazy_load_error_images(model, error)
 

@@ -6,7 +6,7 @@ import asyncio
 import json
 import os
 import time
-from collections.abc import AsyncIterable
+from collections.abc import AsyncIterable, AsyncIterator, Mapping
 from typing import Any, Literal, TypedDict
 
 from openai import AsyncOpenAI
@@ -26,6 +26,7 @@ from harnify_ai.types import (
     Usage,
 )
 from harnify_ai.utils.event_stream import AssistantMessageEventStream
+from harnify_ai.utils.headers import headers_to_record
 
 import harnify_ai.providers.cloudflare as _cloudflare
 import harnify_ai.providers.github_copilot_headers as _copilot_headers
@@ -54,9 +55,11 @@ class OpenAIResponsesOptions(TypedDict, total=False):
     onResponse: Any
     timeoutMs: int
     maxRetries: int
+    maxTokens: int
+    temperature: float
     reasoningEffort: Literal["minimal", "low", "medium", "high", "xhigh"]
     reasoningSummary: Literal["auto", "detailed", "concise"] | None
-    serviceTier: str
+    serviceTier: Literal["auto", "default", "flex", "scale", "priority"]
 
 
 def _option(options: Any, name: str, default: Any = None) -> Any:
@@ -73,6 +76,68 @@ async def _maybe_await(value: Any) -> Any:
     return value
 
 
+def _compat_value(compat: Any, name: str, default: Any = None) -> Any:
+    if compat is None:
+        return default
+    if isinstance(compat, Mapping):
+        return compat.get(name, default)
+    return getattr(compat, name, default)
+
+
+def _is_aborted(signal: Any) -> bool:
+    if signal is None:
+        return False
+    if getattr(signal, "aborted", False):
+        return True
+    return bool(getattr(signal, "is_set", lambda: False)())
+
+
+def _create_abort_wait_task(signal: Any) -> asyncio.Task[None] | None:
+    if signal is None or not hasattr(signal, "wait"):
+        return None
+    return asyncio.create_task(signal.wait())
+
+
+async def _await_with_signal(awaitable: Any, signal: Any, *, on_abort: Any = None) -> Any:
+    if _is_aborted(signal):
+        if isinstance(awaitable, asyncio.Future):
+            awaitable.cancel()
+        else:
+            close = getattr(awaitable, "close", None)
+            if callable(close):
+                close()
+        if on_abort is not None:
+            await _maybe_await(on_abort())
+        raise RuntimeError("Request was aborted")
+
+    task = asyncio.ensure_future(awaitable)
+    abort_task = _create_abort_wait_task(signal)
+    try:
+        if abort_task is not None:
+            done, _ = await asyncio.wait({task, abort_task}, return_when=asyncio.FIRST_COMPLETED)
+            if abort_task in done and not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+                if on_abort is not None:
+                    await _maybe_await(on_abort())
+                raise RuntimeError("Request was aborted")
+        return await task
+    finally:
+        if abort_task is not None:
+            abort_task.cancel()
+            await asyncio.gather(abort_task, return_exceptions=True)
+
+
+async def _await_maybe_with_signal(value: Any, signal: Any, *, on_abort: Any = None) -> Any:
+    if hasattr(value, "__await__"):
+        return await _await_with_signal(value, signal, on_abort=on_abort)
+    if _is_aborted(signal):
+        if on_abort is not None:
+            await _maybe_await(on_abort())
+        raise RuntimeError("Request was aborted")
+    return value
+
+
 def resolve_cache_retention(cache_retention: CacheRetention | None = None) -> CacheRetention:
     if cache_retention:
         return cache_retention
@@ -82,12 +147,8 @@ def resolve_cache_retention(cache_retention: CacheRetention | None = None) -> Ca
 def get_compat(model: Model) -> dict[str, bool]:
     compat = model.compat if getattr(model, "compat", None) is not None else None
     return {
-        "sendSessionIdHeader": getattr(compat, "sendSessionIdHeader", None)
-        if getattr(compat, "sendSessionIdHeader", None) is not None
-        else True,
-        "supportsLongCacheRetention": getattr(compat, "supportsLongCacheRetention", None)
-        if getattr(compat, "supportsLongCacheRetention", None) is not None
-        else True,
+        "sendSessionIdHeader": _compat_value(compat, "sendSessionIdHeader", True),
+        "supportsLongCacheRetention": _compat_value(compat, "supportsLongCacheRetention", True),
     }
 
 
@@ -99,7 +160,7 @@ def format_openai_responses_error(error: Any) -> str:
     if isinstance(error, Exception):
         status = getattr(error, "status", None)
         if isinstance(status, int):
-            return f"OpenAI API error ({status}): {error}"
+            return f"OpenAI API error ({status}): {str(error)}"
         return str(error)
     try:
         return json.dumps(error)
@@ -125,9 +186,6 @@ def create_client(
     api_key: str | None = None,
     options_headers: dict[str, str] | None = None,
     session_id: str | None = None,
-    *,
-    timeout_ms: int | None = None,
-    max_retries: int | None = None,
 ) -> AsyncOpenAI:
     if not api_key:
         env_key = os.environ.get("OPENAI_API_KEY")
@@ -168,8 +226,6 @@ def create_client(
         api_key=api_key,
         base_url=resolve_cloudflare_base_url(model) if is_cloudflare_provider(model.provider) else model.baseUrl,
         default_headers=default_headers,
-        timeout=(timeout_ms / 1000) if timeout_ms is not None else None,
-        max_retries=max_retries if max_retries is not None else 2,
     )
 
 
@@ -189,7 +245,7 @@ def build_params(model: Model, context: Context, options: Any = None) -> dict[st
         "store": False,
     }
 
-    if _option(options, "maxTokens") is not None:
+    if _option(options, "maxTokens"):
         params["max_output_tokens"] = _option(options, "maxTokens")
     if _option(options, "temperature") is not None:
         params["temperature"] = _option(options, "temperature")
@@ -202,11 +258,21 @@ def build_params(model: Model, context: Context, options: Any = None) -> dict[st
     reasoning_summary = _option(options, "reasoningSummary")
     if model.reasoning:
         if reasoning_effort or reasoning_summary:
-            effort = model.thinkingLevelMap.get(reasoning_effort, reasoning_effort) if reasoning_effort else "medium"
+            effort = (
+                model.thinkingLevelMap.get(reasoning_effort, reasoning_effort)
+                if reasoning_effort and model.thinkingLevelMap
+                else reasoning_effort or "medium"
+            )
             params["reasoning"] = {"effort": effort, "summary": reasoning_summary or "auto"}
             params["include"] = ["reasoning.encrypted_content"]
-        elif model.provider != "github-copilot" and (model.thinkingLevelMap or {}).get("off") is not None:
-            params["reasoning"] = {"effort": (model.thinkingLevelMap or {}).get("off") or "none"}
+        elif model.provider != "github-copilot":
+            has_off_override = False
+            off_value: Any = None
+            if model.thinkingLevelMap is not None:
+                has_off_override = "off" in model.thinkingLevelMap
+                off_value = model.thinkingLevelMap.get("off")
+            if model.thinkingLevelMap is None or not has_off_override or off_value is not None:
+                params["reasoning"] = {"effort": "none" if off_value is None else off_value}
 
     return params
 
@@ -230,14 +296,66 @@ def apply_service_tier_pricing(usage: Usage, service_tier: str | None, model: Mo
     usage.cost.total = usage.cost.input + usage.cost.output + usage.cost.cacheRead + usage.cost.cacheWrite
 
 
-async def _iterate_stream(stream_obj: Any) -> AsyncIterable[dict[str, Any]]:
-    async for event in stream_obj:
+async def _close_stream(stream_obj: Any) -> None:
+    close = getattr(stream_obj, "close", None)
+    if callable(close):
+        try:
+            await _maybe_await(close())
+        except Exception:  # noqa: BLE001
+            return
+
+
+async def _iterate_stream(stream_obj: Any, signal: Any = None) -> AsyncIterator[dict[str, Any]]:
+    iterator = stream_obj.__aiter__()
+    while True:
+        try:
+            event = await _await_with_signal(iterator.__anext__(), signal, on_abort=lambda: _close_stream(stream_obj))
+        except StopAsyncIteration:
+            return
+
         if hasattr(event, "model_dump"):
             yield event.model_dump()
         elif isinstance(event, dict):
             yield event
         else:
             yield json.loads(json.dumps(event, default=lambda value: value.__dict__))
+
+
+async def _create_responses_stream(client: Any, params: dict[str, Any], options: Any, model: Model) -> Any:
+    signal = _option(options, "signal")
+    request_client = client
+    request_client_kwargs: dict[str, Any] = {}
+    timeout_ms = _option(options, "timeoutMs")
+    if timeout_ms is not None:
+        request_client_kwargs["timeout"] = timeout_ms / 1000
+    max_retries = _option(options, "maxRetries")
+    if max_retries is not None:
+        request_client_kwargs["max_retries"] = max_retries
+    if request_client_kwargs and hasattr(client, "with_options"):
+        request_client = client.with_options(**request_client_kwargs)
+
+    responses = getattr(request_client, "responses", None)
+    with_raw_response = getattr(responses, "with_raw_response", None)
+    if with_raw_response is not None and hasattr(with_raw_response, "create"):
+        raw_response = await _await_maybe_with_signal(with_raw_response.create(**params), signal)
+        on_response = _option(options, "onResponse")
+        if callable(on_response):
+            await _maybe_await(
+                on_response(
+                    {
+                        "status": raw_response.http_response.status_code,
+                        "headers": headers_to_record(raw_response.http_response.headers),
+                    },
+                    model,
+                )
+            )
+        return await _await_maybe_with_signal(raw_response.parse(), signal)
+
+    created = await _await_maybe_with_signal(responses.create(**params), signal)
+    on_response = _option(options, "onResponse")
+    if callable(on_response):
+        await _maybe_await(on_response({"status": 200, "headers": {}}, model))
+    return created
 
 
 def stream_openai_responses(
@@ -268,8 +386,6 @@ def stream_openai_responses(
                 api_key,
                 _option(options, "headers"),
                 cache_session_id,
-                timeout_ms=_option(options, "timeoutMs"),
-                max_retries=_option(options, "maxRetries"),
             )
             params = build_params(model, context, options)
             on_payload = _option(options, "onPayload")
@@ -277,10 +393,11 @@ def stream_openai_responses(
                 next_params = await _maybe_await(on_payload(params, model))
                 if next_params is not None:
                     params = next_params
-            openai_stream = await client.responses.create(**params)
+            openai_stream = await _create_responses_stream(client, params, options, model)
             stream.push(StartEvent(partial=output))
+            signal = _option(options, "signal")
             await process_responses_stream(
-                _iterate_stream(openai_stream),
+                _iterate_stream(openai_stream, signal),
                 output,
                 stream,
                 model,
@@ -290,21 +407,19 @@ def stream_openai_responses(
                 },
             )
 
-            signal = _option(options, "signal")
-            if signal is not None and getattr(signal, "is_set", lambda: False)():
-                raise RuntimeError("Request was aborted")
-            if getattr(signal, "aborted", False):
+            if _is_aborted(signal):
                 raise RuntimeError("Request was aborted")
             if output.stopReason in {"aborted", "error"}:
                 raise RuntimeError("An unknown error occurred")
 
             stream.push(DoneEvent(reason=output.stopReason, message=output))
         except Exception as error:  # noqa: BLE001
+            for block in output.content:
+                for attr in ("index", "partialJson"):
+                    if hasattr(block, attr):
+                        delattr(block, attr)
             signal = _option(options, "signal")
-            aborted = getattr(signal, "aborted", False) or (
-                signal is not None and getattr(signal, "is_set", lambda: False)()
-            )
-            output.stopReason = "aborted" if aborted else "error"
+            output.stopReason = "aborted" if _is_aborted(signal) else "error"
             output.errorMessage = format_openai_responses_error(error)
             stream.push(ErrorEvent(reason=output.stopReason, error=output))
         finally:

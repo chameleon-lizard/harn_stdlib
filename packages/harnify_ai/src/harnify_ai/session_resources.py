@@ -31,3 +31,9 @@ def cleanup_session_resources(session_id: str | None = None) -> None:
 
 registerSessionResourceCleanup = register_session_resource_cleanup
 cleanupSessionResources = cleanup_session_resources
+
+__all__ = [
+    "SessionResourceCleanup",
+    "registerSessionResourceCleanup",
+    "cleanupSessionResources",
+]

@@ -667,9 +667,9 @@ def test_get_message_from_entry_passes_raw_fields_without_python_coercion(monkey
         captured["compaction"] = (summary, tokens_before, timestamp)
         return "compaction"
 
-    monkeypatch.setattr(branch_summarization, "create_custom_message", capture_custom)
-    monkeypatch.setattr(branch_summarization, "create_branch_summary_message", capture_branch)
-    monkeypatch.setattr(branch_summarization, "create_compaction_summary_message", capture_compaction)
+    monkeypatch.setattr(branch_summarization, "createCustomMessage", capture_custom)
+    monkeypatch.setattr(branch_summarization, "createBranchSummaryMessage", capture_branch)
+    monkeypatch.setattr(branch_summarization, "createCompactionSummaryMessage", capture_compaction)
 
     display = object()
     details = object()
@@ -789,9 +789,9 @@ def test_compaction_get_message_from_entry_passes_raw_fields(monkeypatch: pytest
         captured["compaction"] = (summary, tokens_before, timestamp)
         return "compaction"
 
-    monkeypatch.setattr(compaction, "create_custom_message", capture_custom)
-    monkeypatch.setattr(compaction, "create_branch_summary_message", capture_branch)
-    monkeypatch.setattr(compaction, "create_compaction_summary_message", capture_compaction)
+    monkeypatch.setattr(compaction, "createCustomMessage", capture_custom)
+    monkeypatch.setattr(compaction, "createBranchSummaryMessage", capture_branch)
+    monkeypatch.setattr(compaction, "createCompactionSummaryMessage", capture_compaction)
 
     display = object()
     details = object()

@@ -23,6 +23,8 @@ from harnify_coding_agent.core.system_prompt import build_system_prompt
 
 
 def test_core_messages_reexport_harness_behaviour() -> None:
+    from harnify_coding_agent.core import messages
+
     message = BashExecutionMessage(
         command="echo hi",
         output="hi",
@@ -36,6 +38,21 @@ def test_core_messages_reexport_harness_behaviour() -> None:
     converted = convertToLlm([message])
     assert converted[0].role == "user"
     assert converted[0].content[0].text == "Ran `echo hi`\n```\nhi\n```"
+    assert messages.__all__ == [
+        "BRANCH_SUMMARY_PREFIX",
+        "BRANCH_SUMMARY_SUFFIX",
+        "BashExecutionMessage",
+        "BranchSummaryMessage",
+        "COMPACTION_SUMMARY_PREFIX",
+        "COMPACTION_SUMMARY_SUFFIX",
+        "CompactionSummaryMessage",
+        "CustomMessage",
+        "bashExecutionToText",
+        "convertToLlm",
+        "createBranchSummaryMessage",
+        "createCompactionSummaryMessage",
+        "createCustomMessage",
+    ]
 
 
 def test_prompt_templates_load_defaults_and_expand(tmp_path: Path) -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import harnify_ai.providers.google_shared as google_shared_provider
 from harnify_ai.providers.google_shared import convert_messages, convert_tools
 from harnify_ai.types import Context, Model, ModelCost, Tool
 
@@ -272,3 +273,18 @@ def test_convert_messages_preserves_valid_tool_call_thought_signature_only_for_s
     foreign_turn = next(content for content in foreign_contents if content["role"] == "model")
     foreign_part = next(part for part in foreign_turn["parts"] if "functionCall" in part)
     assert "thoughtSignature" not in foreign_part
+
+
+def test_google_shared_module_exports_expected_names() -> None:
+    assert google_shared_provider.__all__ == [
+        "GoogleThinkingLevel",
+        "isThinkingPart",
+        "retainThoughtSignature",
+        "requiresToolCallId",
+        "convertMessages",
+        "convertTools",
+        "sanitizeForOpenApi",
+        "mapToolChoice",
+        "mapStopReason",
+        "mapStopReasonString",
+    ]

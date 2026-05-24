@@ -21,6 +21,18 @@ from harnify_coding_agent.core.export_html import (
 from harnify_coding_agent.core.session_manager import SessionManager
 
 
+def test_export_html_module_exports_match_ts_surface() -> None:
+    import importlib
+
+    module = importlib.import_module("harnify_coding_agent.core.export_html")
+    assert module.__all__ == [
+        "ExportOptions",
+        "ToolHtmlRenderer",
+        "exportFromFile",
+        "exportSessionToHtml",
+    ]
+
+
 def test_ansi_to_html_handles_styles_and_escaping() -> None:
     rendered = ansi_to_html('plain \x1b[31m<red>\x1b[0m \x1b[1;4m"\'&"\x1b[0m')
     assert "plain " in rendered
@@ -253,3 +265,13 @@ async def test_export_from_file_honors_output_path_and_renders_custom_tool_html(
     assert exported_path == str(tmp_path / "exported.html")
     assert "--exportPageBg: #f8f8f8;" in html
     assert payload["entries"][0]["message"]["content"][0]["name"] == "custom"
+    assert "systemPrompt" not in payload
+    assert "tools" not in payload
+
+
+@pytest.mark.asyncio
+async def test_export_from_file_missing_input_raises_runtime_error(tmp_path: Path) -> None:
+    missing = tmp_path / "missing.jsonl"
+
+    with pytest.raises(RuntimeError, match=rf"File not found: {re.escape(str(missing))}"):
+        await export_from_file(str(missing))

@@ -14,7 +14,6 @@ from harnify_coding_agent.config import APP_NAME, get_export_template_dir
 from harnify_coding_agent.core.export_html.ansi_to_html import (
     ansi_lines_to_html,
     ansi_to_html,
-    color256_to_hex,
 )
 from harnify_coding_agent.core.export_html.tool_renderer import (
     ToolHtmlRenderer,
@@ -106,7 +105,11 @@ def _adjust_brightness(color: str, factor: float) -> str:
     def adjust(component: int) -> int:
         return max(0, min(255, round(component * factor)))
 
-    return f"rgb({adjust(parsed.r)},{adjust(parsed.g)},{adjust(parsed.b)})"
+    return f"rgb({adjust(parsed.r)}, {adjust(parsed.g)}, {adjust(parsed.b)})"
+
+
+def _nullish(value: str | None, fallback: str) -> str:
+    return fallback if value is None else value
 
 
 def derive_export_colors(base_color: str) -> dict[str, str]:
@@ -136,10 +139,10 @@ def generate_theme_vars(theme_name: str | None = None) -> str:
     colors = get_resolved_theme_colors(theme_name)
     lines = [f"--{key}: {value};" for key, value in colors.items()]
     theme_export = get_theme_export_colors(theme_name)
-    derived = derive_export_colors(colors.get("userMessageBg", "#343541"))
-    lines.append(f"--exportPageBg: {theme_export.get('pageBg', derived['pageBg'])};")
-    lines.append(f"--exportCardBg: {theme_export.get('cardBg', derived['cardBg'])};")
-    lines.append(f"--exportInfoBg: {theme_export.get('infoBg', derived['infoBg'])};")
+    derived = derive_export_colors(colors.get("userMessageBg") or "#343541")
+    lines.append(f"--exportPageBg: {_nullish(theme_export.get('pageBg'), derived['pageBg'])};")
+    lines.append(f"--exportCardBg: {_nullish(theme_export.get('cardBg'), derived['cardBg'])};")
+    lines.append(f"--exportInfoBg: {_nullish(theme_export.get('infoBg'), derived['infoBg'])};")
     return "\n      ".join(lines)
 
 
@@ -161,12 +164,14 @@ def generate_html(session_data: SessionData, theme_name: str | None = None) -> s
     theme_vars = generate_theme_vars(theme_name)
     colors = get_resolved_theme_colors(theme_name)
     theme_export = get_theme_export_colors(theme_name)
-    derived = derive_export_colors(colors.get("userMessageBg", "#343541"))
-    body_bg = theme_export.get("pageBg", derived["pageBg"])
-    container_bg = theme_export.get("cardBg", derived["cardBg"])
-    info_bg = theme_export.get("infoBg", derived["infoBg"])
+    derived = derive_export_colors(colors.get("userMessageBg") or "#343541")
+    body_bg = _nullish(theme_export.get("pageBg"), derived["pageBg"])
+    container_bg = _nullish(theme_export.get("cardBg"), derived["cardBg"])
+    info_bg = _nullish(theme_export.get("infoBg"), derived["infoBg"])
 
-    encoded_session_data = base64.b64encode(json.dumps(session_data).encode("utf-8")).decode("ascii")
+    encoded_session_data = base64.b64encode(
+        json.dumps(session_data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii")
 
     css = (
         template_css.replace("{{THEME_VARS}}", theme_vars)
@@ -198,7 +203,7 @@ def _get_value(obj: Any, key: str, default: Any = None) -> Any:
 
 def _get_message_role(message: Any) -> str | None:
     role = _get_value(message, "role")
-    return str(role) if role is not None else None
+    return role if isinstance(role, str) else None
 
 
 def _get_content_blocks(message: Any) -> list[Any]:
@@ -208,7 +213,7 @@ def _get_content_blocks(message: Any) -> list[Any]:
 
 def _get_block_type(block: Any) -> str | None:
     block_type = _get_value(block, "type")
-    return str(block_type) if block_type is not None else None
+    return block_type if isinstance(block_type, str) else None
 
 
 def _get_render_result_payload(message: Any) -> list[dict[str, Any]]:
@@ -286,9 +291,9 @@ async def export_session_to_html(
     resolved_options = _normalize_options(options)
     session_file = session_manager.getSessionFile()
     if not session_file:
-        raise ValueError("Cannot export in-memory session to HTML")
+        raise RuntimeError("Cannot export in-memory session to HTML")
     if not os.path.exists(session_file):
-        raise FileNotFoundError("Nothing to export yet - start a conversation first")
+        raise RuntimeError("Nothing to export yet - start a conversation first")
 
     entries = session_manager.getEntries()
     rendered_tools: dict[str, RenderedToolHtml] | None = None
@@ -303,9 +308,12 @@ async def export_session_to_html(
         "header": session_manager.getHeader(),
         "entries": entries,
         "leafId": session_manager.getLeafId(),
-        "systemPrompt": _get_value(state, "systemPrompt") if state is not None else None,
-        "tools": [_serialize_tool(tool) for tool in state_tools] if isinstance(state_tools, list) else None,
     }
+    system_prompt = _get_value(state, "systemPrompt") if state is not None else None
+    if system_prompt is not None:
+        session_data["systemPrompt"] = system_prompt
+    if isinstance(state_tools, list):
+        session_data["tools"] = [_serialize_tool(tool) for tool in state_tools]
     if rendered_tools:
         session_data["renderedTools"] = rendered_tools
 
@@ -324,15 +332,13 @@ async def export_from_file(
     resolved_options = _normalize_options(options)
     resolved_input_path = resolve_path(input_path)
     if not os.path.exists(resolved_input_path):
-        raise FileNotFoundError(f"File not found: {resolved_input_path}")
+        raise RuntimeError(f"File not found: {resolved_input_path}")
 
     session_manager = SessionManager.open(resolved_input_path)
     session_data: SessionData = {
         "header": session_manager.getHeader(),
         "entries": session_manager.getEntries(),
         "leafId": session_manager.getLeafId(),
-        "systemPrompt": None,
-        "tools": None,
     }
     html = generate_html(session_data, resolved_options.get("themeName"))
 
@@ -351,33 +357,8 @@ generateThemeVars = generate_theme_vars
 preRenderCustomTools = pre_render_custom_tools
 
 __all__ = [
-    "AgentStateLike",
     "ExportOptions",
-    "RenderedToolHtml",
-    "SessionData",
     "ToolHtmlRenderer",
-    "ToolHtmlRendererDeps",
-    "ToolHtmlResult",
-    "ToolRenderContext",
-    "ansi_lines_to_html",
-    "ansi_to_html",
-    "color256_to_hex",
-    "createToolHtmlRenderer",
-    "create_tool_html_renderer",
-    "deriveExportColors",
-    "derive_export_colors",
     "exportFromFile",
     "exportSessionToHtml",
-    "export_from_file",
-    "export_session_to_html",
-    "generateHtml",
-    "generateThemeVars",
-    "generate_html",
-    "generate_theme_vars",
-    "get_resolved_theme_colors",
-    "get_theme_export_colors",
-    "is_blank_rendered_line",
-    "preRenderCustomTools",
-    "pre_render_custom_tools",
-    "trim_rendered_result_lines",
 ]

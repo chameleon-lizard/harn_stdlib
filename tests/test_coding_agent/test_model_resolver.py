@@ -226,3 +226,4 @@ def test_model_resolver_exports_match_ts_surface() -> None:
     assert not hasattr(model_resolver, "buildFallbackModel")
     assert not hasattr(model_resolver, "tryMatchModel")
     assert not hasattr(model_resolver, "isAlias")
+    assert not hasattr(model_resolver, "isValidThinkingLevel")

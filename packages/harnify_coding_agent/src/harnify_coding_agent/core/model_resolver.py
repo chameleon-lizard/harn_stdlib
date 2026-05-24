@@ -87,6 +87,22 @@ async def _maybe_await(value: Any) -> Any:
     return value
 
 
+def _color(message: str, code: str) -> str:
+    return f"\x1b[{code}m{message}\x1b[0m"
+
+
+def _dim(message: str) -> str:
+    return _color(message, "2")
+
+
+def _yellow(message: str) -> str:
+    return _color(message, "33")
+
+
+def _red(message: str) -> str:
+    return _color(message, "31")
+
+
 def _isAlias(model_id: str) -> bool:
     if model_id.endswith("-latest"):
         return True
@@ -224,7 +240,7 @@ async def resolveModelScope(patterns: list[str], modelRegistry: Any) -> list[Sco
                 or fnmatch.fnmatch(model.id.lower(), glob_pattern.lower())
             ]
             if not matching_models:
-                print(f'Warning: No models match pattern "{pattern}"', file=sys.stderr)
+                print(_yellow(f'Warning: No models match pattern "{pattern}"'), file=sys.stderr)
                 continue
             for model in matching_models:
                 if not any(models_are_equal(item.model, model) for item in scoped_models):
@@ -233,9 +249,9 @@ async def resolveModelScope(patterns: list[str], modelRegistry: Any) -> list[Sco
 
         result = parseModelPattern(pattern, available_models)
         if result.warning:
-            print(f"Warning: {result.warning}", file=sys.stderr)
+            print(_yellow(f"Warning: {result.warning}"), file=sys.stderr)
         if result.model is None:
-            print(f'Warning: No models match pattern "{pattern}"', file=sys.stderr)
+            print(_yellow(f'Warning: No models match pattern "{pattern}"'), file=sys.stderr)
             continue
         if not any(models_are_equal(item.model, result.model) for item in scoped_models):
             scoped_models.append(ScopedModel(model=result.model, thinkingLevel=result.thinkingLevel))
@@ -367,7 +383,7 @@ async def findInitialModel(options: dict[str, Any]) -> InitialModelResult:
             }
         )
         if resolved.error:
-            print(resolved.error, file=sys.stderr)
+            print(_red(resolved.error), file=sys.stderr)
             raise SystemExit(1)
         if resolved.model is not None:
             return InitialModelResult(
@@ -418,16 +434,16 @@ async def restoreModelFromSession(
 
     if restored_model is not None and has_configured_auth:
         if shouldPrintMessages:
-            print(f"Restored model: {savedProvider}/{savedModelId}")
+            print(_dim(f"Restored model: {savedProvider}/{savedModelId}"))
         return {"model": restored_model, "fallbackMessage": None}
 
     reason = "model no longer exists" if restored_model is None else "no auth configured"
     if shouldPrintMessages:
-        print(f"Warning: Could not restore model {savedProvider}/{savedModelId} ({reason}).", file=sys.stderr)
+        print(_yellow(f"Warning: Could not restore model {savedProvider}/{savedModelId} ({reason})."), file=sys.stderr)
 
     if currentModel is not None:
         if shouldPrintMessages:
-            print(f"Falling back to: {currentModel.provider}/{currentModel.id}")
+            print(_dim(f"Falling back to: {currentModel.provider}/{currentModel.id}"))
         return {
             "model": currentModel,
             "fallbackMessage": (
@@ -448,7 +464,7 @@ async def restoreModelFromSession(
                 break
         fallback_model = fallback_model or available_models[0]
         if shouldPrintMessages:
-            print(f"Falling back to: {fallback_model.provider}/{fallback_model.id}")
+            print(_dim(f"Falling back to: {fallback_model.provider}/{fallback_model.id}"))
         return {
             "model": fallback_model,
             "fallbackMessage": (

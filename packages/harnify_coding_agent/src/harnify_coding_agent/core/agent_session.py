@@ -2338,6 +2338,14 @@ class AgentSession:
         finally:
             self._auto_compaction_abort_controller = None
 
+    def _spawn_background(self, awaitable: Any) -> None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(awaitable)
+            return
+        loop.create_task(awaitable)
+
 
 def _definition_attr(definition: Any, name: str) -> Any:
     if isinstance(definition, dict):

@@ -11,6 +11,7 @@ import pytest
 import harnify_ai
 import harnify_ai.oauth as oauth_alias
 import harnify_ai.utils.oauth as oauth_registry
+import harnify_ai.utils.oauth.types as oauth_types
 from harnify_ai.utils import node_http_proxy
 from harnify_ai.utils.oauth import anthropic, device_code, github_copilot, oauth_page, openai_codex
 from harnify_ai.utils.oauth.types import OAuthCredentials
@@ -465,3 +466,30 @@ def test_package_exports_include_oauth_helpers_and_event_streams() -> None:
     assert hasattr(harnify_ai, "AssistantMessageEventStream")
     assert hasattr(oauth_alias, "getOAuthProvider")
     assert hasattr(oauth_alias, "OAuthDeviceCodePollResult")
+
+
+def test_oauth_types_match_ts_numeric_fields_and_exports() -> None:
+    credentials = oauth_types.OAuthCredentials(refresh="r", access="a", expires=1.5, accountId="acct_123")
+    device_info = oauth_types.OAuthDeviceCodeInfo(
+        userCode="code",
+        verificationUri="https://example.com/verify",
+        intervalSeconds=1.5,
+        expiresInSeconds=2.5,
+    )
+
+    assert credentials.expires == 1.5
+    assert device_info.intervalSeconds == 1.5
+    assert device_info.expiresInSeconds == 2.5
+    assert oauth_types.__all__ == [
+        "OAuthAuthInfo",
+        "OAuthCredentials",
+        "OAuthDeviceCodeInfo",
+        "OAuthLoginCallbacks",
+        "OAuthPrompt",
+        "OAuthProvider",
+        "OAuthProviderId",
+        "OAuthProviderInfo",
+        "OAuthProviderInterface",
+        "OAuthSelectOption",
+        "OAuthSelectPrompt",
+    ]

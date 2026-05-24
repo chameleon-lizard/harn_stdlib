@@ -2699,23 +2699,6 @@ def _estimate_message_tokens(message: Any) -> int:
     return max(1, math.ceil(len(text) / 4)) if text else 0
 
 
-def _apply_extension_flag_values(resource_loader: ResourceLoaderLike, values: dict[str, bool | str]) -> None:
-    if not values:
-        return
-    try:
-        extensions_result = resource_loader.getExtensions()
-    except Exception:
-        return
-
-    runtime = getattr(extensions_result, "runtime", None)
-    flag_values = getattr(runtime, "flagValues", None)
-    if not isinstance(flag_values, dict):
-        return
-
-    for name, value in values.items():
-        flag_values[name] = value
-
-
 parseSkillBlock = parse_skill_block
 
 __all__ = [

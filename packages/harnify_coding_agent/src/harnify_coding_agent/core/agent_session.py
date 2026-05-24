@@ -915,19 +915,9 @@ class AgentSession:
             await self._extend_resources_from_extensions("reload")
 
     def createReplacedSessionContext(self) -> Any:
-        context = self._extensionRunner.create_command_context()
-
-        async def _send_message(message: Any, options: dict[str, Any] | None = None) -> None:
-            await self.sendCustomMessage(message, options)
-
-        async def _send_user_message(
-            content: str | list[TextContent | ImageContent | dict[str, Any]],
-            options: dict[str, Any] | None = None,
-        ) -> None:
-            await self._send_user_message(content, options)
-
-        setattr(context, "sendMessage", _send_message)
-        setattr(context, "sendUserMessage", _send_user_message)
+        context = copy(self._extensionRunner.create_command_context())
+        setattr(context, "sendMessage", self.sendMessage)
+        setattr(context, "sendUserMessage", self.sendUserMessage)
         return context
 
     def hasExtensionHandlers(self, eventType: str) -> bool:
@@ -972,8 +962,8 @@ class AgentSession:
             self._emit({"type": "message_start", "message": app_message})
             self._emit({"type": "message_end", "message": app_message})
 
-    def sendMessage(self, message: Any, options: dict[str, Any] | None = None) -> None:
-        self._spawn_background(self.sendCustomMessage(message, options))
+    async def sendMessage(self, message: Any, options: dict[str, Any] | None = None) -> None:
+        await self.sendCustomMessage(message, options)
 
     async def _send_user_message(
         self,
@@ -1005,12 +995,12 @@ class AgentSession:
             },
         )
 
-    def sendUserMessage(
+    async def sendUserMessage(
         self,
         content: str | list[TextContent | ImageContent | dict[str, Any]],
         options: dict[str, Any] | None = None,
     ) -> None:
-        self._spawn_background(self._send_user_message(content, options))
+        await self._send_user_message(content, options)
 
     def getUserMessagesForForking(self) -> list[dict[str, str]]:
         result: list[dict[str, str]] = []

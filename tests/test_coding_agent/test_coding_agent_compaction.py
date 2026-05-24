@@ -485,6 +485,8 @@ async def test_generate_summary_and_compact_behaviour(registrations: list[Any]) 
     with pytest.raises(RuntimeError, match="Summarization failed: history failed"):
         await compact(invalid_prep, history_model, "test-key")
 
+    uuid_error_model = create_faux_model(registrations, reasoning=False)
+    registrations[-1].set_responses([faux_assistant_message("## Goal\nGenerated before UUID error")])
     with pytest.raises(RuntimeError, match="First kept entry has no UUID - session may need migration"):
         await compact(
             CompactionPreparation(
@@ -497,7 +499,7 @@ async def test_generate_summary_and_compact_behaviour(registrations: list[Any]) 
                 fileOps=FileOperations(),
                 settings=CompactionSettings(enabled=True, reserveTokens=2000, keepRecentTokens=20),
             ),
-            history_model,
+            uuid_error_model,
             "test-key",
         )
 

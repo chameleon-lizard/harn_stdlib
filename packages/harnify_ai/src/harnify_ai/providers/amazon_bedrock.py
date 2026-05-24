@@ -115,8 +115,10 @@ def _option(options: Any, name: str, default: Any = None) -> Any:
     if options is None:
         return default
     if isinstance(options, dict):
-        return options.get(name, default)
-    return getattr(options, name, default)
+        value = options.get(name, default)
+    else:
+        value = getattr(options, name, default)
+    return default if value is None else value
 
 
 async def _maybe_await(value: Any) -> Any:
@@ -143,6 +145,61 @@ def _is_aborted(signal: Any) -> bool:
     if getattr(signal, "aborted", False):
         return True
     return bool(getattr(signal, "is_set", lambda: False)())
+
+
+def _create_abort_wait_task(signal: Any) -> asyncio.Task[None] | None:
+    if signal is None or not hasattr(signal, "wait"):
+        return None
+    return asyncio.create_task(signal.wait())
+
+
+async def _close_stream(stream_obj: Any) -> None:
+    close = getattr(stream_obj, "close", None)
+    if callable(close):
+        try:
+            await _maybe_await(close())
+        except Exception:  # noqa: BLE001
+            return
+
+
+async def _await_with_signal(awaitable: Any, signal: Any, *, on_abort: Any = None) -> Any:
+    if _is_aborted(signal):
+        if isinstance(awaitable, asyncio.Future):
+            awaitable.cancel()
+        else:
+            close = getattr(awaitable, "close", None)
+            if callable(close):
+                close()
+        if on_abort is not None:
+            await _maybe_await(on_abort())
+        raise RuntimeError("Request was aborted")
+
+    task = asyncio.ensure_future(awaitable)
+    abort_task = _create_abort_wait_task(signal)
+    try:
+        if abort_task is not None:
+            done, _ = await asyncio.wait({task, abort_task}, return_when=asyncio.FIRST_COMPLETED)
+            if abort_task in done and not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+                if on_abort is not None:
+                    await _maybe_await(on_abort())
+                raise RuntimeError("Request was aborted")
+        return await task
+    finally:
+        if abort_task is not None:
+            abort_task.cancel()
+            await asyncio.gather(abort_task, return_exceptions=True)
+
+
+async def _await_maybe_with_signal(value: Any, signal: Any, *, on_abort: Any = None) -> Any:
+    if hasattr(value, "__await__"):
+        return await _await_with_signal(value, signal, on_abort=on_abort)
+    if _is_aborted(signal):
+        if on_abort is not None:
+            await _maybe_await(on_abort())
+        raise RuntimeError("Request was aborted")
+    return value
 
 
 def _empty_usage() -> Usage:
@@ -262,21 +319,15 @@ def stream_bedrock(
             command_input: dict[str, Any] = {
                 "modelId": model.id,
                 "messages": convert_messages(context, model, cache_retention),
+                "system": build_system_prompt(context.systemPrompt, model, cache_retention),
                 "inferenceConfig": {
                     **({"maxTokens": inference_max_tokens} if inference_max_tokens is not None else {}),
                     **({"temperature": _option(options, "temperature")} if _option(options, "temperature") is not None else {}),
                 },
+                "toolConfig": convert_tool_config(context.tools, _option(options, "toolChoice")),
+                "additionalModelRequestFields": build_additional_model_request_fields(model, options),
                 **({"requestMetadata": _option(options, "requestMetadata")} if _option(options, "requestMetadata") is not None else {}),
             }
-            system_blocks = build_system_prompt(context.systemPrompt, model, cache_retention)
-            if system_blocks is not None:
-                command_input["system"] = system_blocks
-            tool_config = convert_tool_config(context.tools, _option(options, "toolChoice"))
-            if tool_config is not None:
-                command_input["toolConfig"] = tool_config
-            additional_fields = build_additional_model_request_fields(model, options)
-            if additional_fields is not None:
-                command_input["additionalModelRequestFields"] = additional_fields
 
             on_payload = _option(options, "onPayload")
             if callable(on_payload):
@@ -288,7 +339,7 @@ def stream_bedrock(
                 raise RuntimeError("Request was aborted")
 
             request_input = {key: value for key, value in command_input.items() if value is not None}
-            response = await _maybe_await(client.converse_stream(**request_input))
+            response = await _await_maybe_with_signal(client.converse_stream(**request_input), signal)
             response_metadata = response.get("ResponseMetadata", {}) if isinstance(response, dict) else {}
             on_response = _option(options, "onResponse")
             if callable(on_response) and response_metadata.get("HTTPStatusCode") is not None:
@@ -304,7 +355,7 @@ def stream_bedrock(
             partial_json: dict[int, str] = {}
             started = False
 
-            async for item in iterate_stream_events(response_stream):
+            async for item in iterate_stream_events(response_stream, signal):
                 if _is_aborted(signal):
                     raise RuntimeError("Request was aborted")
 
@@ -426,11 +477,20 @@ def stream_simple_bedrock(
     )
 
 
-async def iterate_stream_events(response_stream: Any):
+async def iterate_stream_events(response_stream: Any, signal: Any = None):
     if response_stream is None:
         return
     if hasattr(response_stream, "__aiter__"):
-        async for item in response_stream:
+        iterator = response_stream.__aiter__()
+        while True:
+            try:
+                item = await _await_with_signal(
+                    iterator.__anext__(),
+                    signal,
+                    on_abort=lambda: _close_stream(response_stream),
+                )
+            except StopAsyncIteration:
+                return
             yield item
         return
 
@@ -449,7 +509,11 @@ async def iterate_stream_events(response_stream: Any):
     threading.Thread(target=worker, daemon=True).start()
 
     while True:
-        item = await queue.get()
+        item = await _await_with_signal(
+            queue.get(),
+            signal,
+            on_abort=lambda: _close_stream(response_stream),
+        )
         if item is _STREAM_SENTINEL:
             return
         if isinstance(item, Exception):

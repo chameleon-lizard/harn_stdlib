@@ -26,3 +26,5 @@ def sanitize_surrogates(text: str) -> str:
 
 
 sanitizeSurrogates = sanitize_surrogates
+
+__all__ = ["sanitizeSurrogates", "sanitize_surrogates"]

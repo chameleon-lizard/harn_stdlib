@@ -159,6 +159,19 @@ def test_model_registry_module_exports_match_ts_surface() -> None:
     ]
 
 
+def test_model_registry_private_helpers_are_not_public() -> None:
+    assert not hasattr(ModelRegistry, "loadModels")
+    assert not hasattr(ModelRegistry, "loadCustomModels")
+    assert not hasattr(ModelRegistry, "parseModels")
+    assert not hasattr(ModelRegistry, "getModelRequestKey")
+    assert not hasattr(ModelRegistry, "applyProviderConfig")
+    assert hasattr(ModelRegistry, "_loadModels")
+    assert hasattr(ModelRegistry, "_loadCustomModels")
+    assert hasattr(ModelRegistry, "_parseModels")
+    assert hasattr(ModelRegistry, "_getModelRequestKey")
+    assert hasattr(ModelRegistry, "_applyProviderConfig")
+
+
 @pytest.mark.asyncio
 async def test_register_provider_accepts_oauth_objects_and_overrides_id() -> None:
     registry = ModelRegistry.inMemory(AuthStorage.inMemory())
@@ -212,6 +225,50 @@ def test_dynamic_provider_registration_and_unregister_restores_state() -> None:
 
     registry.unregisterProvider("dynamic-demo")
     assert registry.find("dynamic-demo", "dynamic-model") is None
+
+
+@pytest.mark.asyncio
+async def test_register_provider_keeps_live_config_references_like_ts() -> None:
+    registry = ModelRegistry.inMemory(AuthStorage.inMemory())
+    config: dict[str, object] = {
+        "baseUrl": "https://dynamic.example.com/v1",
+        "apiKey": "DYNAMIC_KEY",
+        "api": "openai-completions",
+        "headers": {"X-Demo": "one"},
+        "models": [
+            {
+                "id": "dynamic-model",
+                "name": "Dynamic Model",
+                "reasoning": False,
+                "input": ["text"],
+                "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
+                "contextWindow": 1000,
+                "maxTokens": 100,
+            }
+        ],
+    }
+    registry.registerProvider("dynamic-demo", config)
+    try:
+        model = registry.find("dynamic-demo", "dynamic-model")
+        assert model is not None
+
+        auth = await registry.getApiKeyAndHeaders(model)
+        assert auth["ok"] is True
+        assert auth["headers"] == {"X-Demo": "one"}
+
+        config["baseUrl"] = "https://changed.example.com/v1"
+        config["headers"]["X-Demo"] = "two"  # type: ignore[index]
+
+        auth = await registry.getApiKeyAndHeaders(model)
+        assert auth["ok"] is True
+        assert auth["headers"] == {"X-Demo": "two"}
+
+        registry.refresh()
+        refreshed_model = registry.find("dynamic-demo", "dynamic-model")
+        assert refreshed_model is not None
+        assert refreshed_model.baseUrl == "https://changed.example.com/v1"
+    finally:
+        registry.unregisterProvider("dynamic-demo")
 
 
 def test_dynamic_provider_registration_does_not_apply_python_only_defaults() -> None:

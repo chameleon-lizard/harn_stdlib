@@ -167,11 +167,7 @@ def _is_aborted(signal: Any) -> bool:
 
 
 async def _sleep(ms: int, signal: Any = None) -> None:
-    if _is_aborted(signal):
-        raise RuntimeError("Request was aborted")
-    await asyncio.sleep(ms / 1000)
-    if _is_aborted(signal):
-        raise RuntimeError("Request was aborted")
+    await _await_with_abort(asyncio.sleep(ms / 1000), signal)
 
 
 def _is_retryable_error(status: int, error_text: str) -> bool:
@@ -212,6 +208,36 @@ def _create_abort_wait_task(signal: Any) -> asyncio.Task[None] | None:
     if signal is None or not hasattr(signal, "wait"):
         return None
     return asyncio.create_task(signal.wait())
+
+
+async def _await_with_abort(awaitable: Any, signal: Any, *, on_abort: Any = None) -> Any:
+    if _is_aborted(signal):
+        if isinstance(awaitable, asyncio.Future):
+            awaitable.cancel()
+        else:
+            close = getattr(awaitable, "close", None)
+            if callable(close):
+                close()
+        if on_abort is not None:
+            await _maybe_await(on_abort())
+        raise RuntimeError("Request was aborted")
+
+    task = asyncio.ensure_future(awaitable)
+    abort_task = _create_abort_wait_task(signal)
+    try:
+        if abort_task is not None:
+            done, _ = await asyncio.wait({task, abort_task}, return_when=asyncio.FIRST_COMPLETED)
+            if abort_task in done and not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+                if on_abort is not None:
+                    await _maybe_await(on_abort())
+                raise RuntimeError("Request was aborted")
+        return await task
+    finally:
+        if abort_task is not None:
+            abort_task.cancel()
+            await asyncio.gather(abort_task, return_exceptions=True)
 
 
 def _create_debug_stats(session_id: str) -> dict[str, Any]:

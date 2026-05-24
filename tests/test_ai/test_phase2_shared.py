@@ -6,6 +6,7 @@ import pytest
 
 from harnify_ai.models import get_model
 from harnify_ai.providers.openai_prompt_cache import clamp_openai_prompt_cache_key
+import harnify_ai.providers.simple_options as simple_options_provider
 from harnify_ai.providers.simple_options import adjust_max_tokens_for_thinking, build_base_options, clamp_reasoning
 from harnify_ai.providers.transform_messages import (
     transform_messages,
@@ -102,6 +103,14 @@ def test_simple_option_helpers_and_prompt_cache_clamp_match_upstream_behavior() 
     assert adjusted.maxTokens == 2048 + adjusted.thinkingBudget
     assert adjusted.thinkingBudget == 16384
     assert clamp_openai_prompt_cache_key("x" * 80) == "x" * 64
+
+
+def test_simple_options_module_exports_expected_names() -> None:
+    assert simple_options_provider.__all__ == [
+        "adjustMaxTokensForThinking",
+        "buildBaseOptions",
+        "clampReasoning",
+    ]
 
 
 def test_transform_messages_downgrades_images_and_normalizes_cross_model_tool_calls() -> None:

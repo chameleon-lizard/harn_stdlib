@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import json
 from typing import Any
 from urllib.parse import urlencode, urlparse
 
@@ -29,7 +28,10 @@ def normalize_domain(input_text: str) -> str | None:
         return None
     try:
         parsed = urlparse(trimmed if "://" in trimmed else f"https://{trimmed}")
-        return parsed.hostname
+        hostname = parsed.hostname
+        if not hostname or any(character.isspace() for character in hostname):
+            return None
+        return hostname
     except Exception:
         return None
 
@@ -73,7 +75,7 @@ def get_github_copilot_base_url(token: str | None = None, enterprise_domain: str
 
 
 async def _fetch_json(url: str, **kwargs: Any) -> Any:
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=None) as client:
         response = await client.request(kwargs.pop("method", "GET"), url, **kwargs)
     if response.status_code >= 400:
         raise RuntimeError(f"{response.status_code} {response.reason_phrase}: {response.text}")
@@ -107,7 +109,13 @@ async def _start_device_flow(domain: str) -> dict[str, Any]:
         or not isinstance(expires_in, (int, float))
     ):
         raise RuntimeError("Invalid device code response fields")
-    return data
+    return {
+        "device_code": device_code,
+        "user_code": user_code,
+        "verification_uri": verification_uri,
+        "interval": interval,
+        "expires_in": expires_in,
+    }
 
 
 async def _poll_for_github_access_token(domain: str, device: dict[str, Any], signal: Any = None) -> str:
@@ -178,7 +186,7 @@ async def _enable_github_copilot_model(token: str, model_id: str, enterprise_dom
     base_url = get_github_copilot_base_url(token, enterprise_domain)
     url = f"{base_url}/models/{model_id}/policy"
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=None) as client:
             response = await client.post(
                 url,
                 headers={
@@ -287,3 +295,16 @@ getGitHubCopilotBaseUrl = get_github_copilot_base_url
 loginGitHubCopilot = login_github_copilot
 refreshGitHubCopilotToken = refresh_github_copilot_token
 githubCopilotOAuthProvider = github_copilot_oauth_provider
+
+__all__ = [
+    "getGitHubCopilotBaseUrl",
+    "get_github_copilot_base_url",
+    "githubCopilotOAuthProvider",
+    "github_copilot_oauth_provider",
+    "loginGitHubCopilot",
+    "login_github_copilot",
+    "normalizeDomain",
+    "normalize_domain",
+    "refreshGitHubCopilotToken",
+    "refresh_github_copilot_token",
+]

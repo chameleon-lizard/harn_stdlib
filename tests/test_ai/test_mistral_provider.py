@@ -61,6 +61,24 @@ class _FakeClient:
         self.chat = _FakeChat(events)
 
 
+class _BlockingStream:
+    def __init__(self) -> None:
+        self.entered = asyncio.Event()
+        self.cancelled = False
+
+    def __aiter__(self) -> _BlockingStream:
+        return self
+
+    async def __anext__(self):
+        self.entered.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.cancelled = True
+            raise
+        raise StopAsyncIteration
+
+
 def _make_model(model_id: str) -> Model:
     return Model(
         id=model_id,
@@ -328,3 +346,46 @@ async def test_stream_mistral_returns_aborted_result_for_preaborted_signal() -> 
     assert result.stopReason == "aborted"
     assert result.errorMessage == "Request was aborted"
     assert fake_client.chat.calls == []
+
+
+def test_map_reasoning_effort_uses_high_when_thinking_level_map_value_is_none() -> None:
+    model = _make_model("mistral-small-2603")
+    model.thinkingLevelMap = {"medium": None}
+
+    assert mistral_provider.map_reasoning_effort(model, "medium") == "high"
+
+
+@pytest.mark.asyncio
+async def test_stream_mistral_aborts_while_waiting_for_stream_chunk() -> None:
+    blocking_stream = _BlockingStream()
+
+    class _BlockingChat:
+        async def stream_async(self, **kwargs: Any):
+            return blocking_stream
+
+    class _BlockingClient:
+        def __init__(self) -> None:
+            self.chat = _BlockingChat()
+
+    signal = asyncio.Event()
+    stream = mistral_provider.stream_mistral(
+        _make_model("mistral-small-2603"),
+        _make_context(),
+        {"apiKey": "test-key", "client": _BlockingClient(), "signal": signal},
+    )
+
+    await asyncio.wait_for(blocking_stream.entered.wait(), timeout=1)
+    signal.set()
+    result = await asyncio.wait_for(stream.result(), timeout=1)
+
+    assert result.stopReason == "aborted"
+    assert result.errorMessage == "Request was aborted"
+    assert blocking_stream.cancelled is True
+
+
+def test_mistral_module_exports_expected_names() -> None:
+    assert mistral_provider.__all__ == [
+        "MistralOptions",
+        "streamMistral",
+        "streamSimpleMistral",
+    ]

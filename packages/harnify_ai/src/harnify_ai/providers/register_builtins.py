@@ -27,6 +27,11 @@ _module_tasks: dict[str, asyncio.Task[LazyProviderModule]] = {}
 _bedrock_provider_module_override: LazyProviderModule | None = None
 
 
+def _error_message(error: Exception) -> str:
+    message = getattr(error, "message", None)
+    return message if isinstance(message, str) else str(error)
+
+
 def _forward_stream(target: AssistantMessageEventStream, source: AsyncIterable[Any]) -> None:
     async def run() -> None:
         async for event in source:
@@ -37,6 +42,7 @@ def _forward_stream(target: AssistantMessageEventStream, source: AsyncIterable[A
 
 
 def _create_lazy_load_error_message(model: Model, error: Any) -> AssistantMessage:
+    error_message = _error_message(error) if isinstance(error, Exception) else str(error)
     return AssistantMessage(
         content=[],
         api=model.api,
@@ -51,8 +57,8 @@ def _create_lazy_load_error_message(model: Model, error: Any) -> AssistantMessag
             "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0},
         },
         stopReason="error",
-        errorMessage=str(error),
-        timestamp=int(time.time() * 1000),
+        errorMessage=error_message,
+        timestamp=time.time_ns() // 1_000_000,
     )
 
 
@@ -138,8 +144,8 @@ async def _load_provider_module(
 
 def set_bedrock_provider_module(module: Any) -> None:
     global _bedrock_provider_module_override
-    stream = getattr(module, "stream_bedrock", None) or getattr(module, "streamBedrock")
-    stream_simple = getattr(module, "stream_simple_bedrock", None) or getattr(module, "streamSimpleBedrock")
+    stream = getattr(module, "streamBedrock")
+    stream_simple = getattr(module, "streamSimpleBedrock")
     _bedrock_provider_module_override = LazyProviderModule(stream=stream, streamSimple=stream_simple)
 
 
@@ -147,8 +153,8 @@ async def _load_anthropic_provider_module() -> LazyProviderModule:
     return await _load_provider_module(
         "anthropic-messages",
         "harnify_ai.providers.anthropic",
-        "stream_anthropic",
-        "stream_simple_anthropic",
+        "streamAnthropic",
+        "streamSimpleAnthropic",
     )
 
 
@@ -156,8 +162,8 @@ async def _load_azure_openai_responses_provider_module() -> LazyProviderModule:
     return await _load_provider_module(
         "azure-openai-responses",
         "harnify_ai.providers.azure_openai_responses",
-        "stream_azure_openai_responses",
-        "stream_simple_azure_openai_responses",
+        "streamAzureOpenAIResponses",
+        "streamSimpleAzureOpenAIResponses",
     )
 
 
@@ -165,8 +171,8 @@ async def _load_google_provider_module() -> LazyProviderModule:
     return await _load_provider_module(
         "google-generative-ai",
         "harnify_ai.providers.google",
-        "stream_google",
-        "stream_simple_google",
+        "streamGoogle",
+        "streamSimpleGoogle",
     )
 
 
@@ -174,8 +180,8 @@ async def _load_google_vertex_provider_module() -> LazyProviderModule:
     return await _load_provider_module(
         "google-vertex",
         "harnify_ai.providers.google_vertex",
-        "stream_google_vertex",
-        "stream_simple_google_vertex",
+        "streamGoogleVertex",
+        "streamSimpleGoogleVertex",
     )
 
 
@@ -183,8 +189,8 @@ async def _load_mistral_provider_module() -> LazyProviderModule:
     return await _load_provider_module(
         "mistral-conversations",
         "harnify_ai.providers.mistral",
-        "stream_mistral",
-        "stream_simple_mistral",
+        "streamMistral",
+        "streamSimpleMistral",
     )
 
 
@@ -192,8 +198,8 @@ async def _load_openai_codex_responses_provider_module() -> LazyProviderModule:
     return await _load_provider_module(
         "openai-codex-responses",
         "harnify_ai.providers.openai_codex_responses",
-        "stream_openai_codex_responses",
-        "stream_simple_openai_codex_responses",
+        "streamOpenAICodexResponses",
+        "streamSimpleOpenAICodexResponses",
     )
 
 
@@ -201,8 +207,8 @@ async def _load_openai_completions_provider_module() -> LazyProviderModule:
     return await _load_provider_module(
         "openai-completions",
         "harnify_ai.providers.openai_completions",
-        "stream_openai_completions",
-        "stream_simple_openai_completions",
+        "streamOpenAICompletions",
+        "streamSimpleOpenAICompletions",
     )
 
 
@@ -210,8 +216,8 @@ async def _load_openai_responses_provider_module() -> LazyProviderModule:
     return await _load_provider_module(
         "openai-responses",
         "harnify_ai.providers.openai_responses",
-        "stream_openai_responses",
-        "stream_simple_openai_responses",
+        "streamOpenAIResponses",
+        "streamSimpleOpenAIResponses",
     )
 
 
@@ -221,8 +227,8 @@ async def _load_bedrock_provider_module() -> LazyProviderModule:
     return await _load_provider_module(
         "bedrock-converse-stream",
         "harnify_ai.providers.amazon_bedrock",
-        "stream_bedrock",
-        "stream_simple_bedrock",
+        "streamBedrock",
+        "streamSimpleBedrock",
     )
 
 
@@ -308,12 +314,7 @@ streamOpenAIResponses = stream_openai_responses
 streamSimpleOpenAIResponses = stream_simple_openai_responses
 
 __all__ = [
-    "registerBuiltInApiProviders",
-    "register_built_in_api_providers",
-    "resetApiProviders",
-    "reset_api_providers",
     "setBedrockProviderModule",
-    "set_bedrock_provider_module",
     "streamAnthropic",
     "streamSimpleAnthropic",
     "streamAzureOpenAIResponses",
@@ -330,20 +331,6 @@ __all__ = [
     "streamSimpleOpenAICompletions",
     "streamOpenAIResponses",
     "streamSimpleOpenAIResponses",
-    "stream_anthropic",
-    "stream_simple_anthropic",
-    "stream_azure_openai_responses",
-    "stream_simple_azure_openai_responses",
-    "stream_google",
-    "stream_simple_google",
-    "stream_google_vertex",
-    "stream_simple_google_vertex",
-    "stream_mistral",
-    "stream_simple_mistral",
-    "stream_openai_codex_responses",
-    "stream_simple_openai_codex_responses",
-    "stream_openai_completions",
-    "stream_simple_openai_completions",
-    "stream_openai_responses",
-    "stream_simple_openai_responses",
+    "registerBuiltInApiProviders",
+    "resetApiProviders",
 ]

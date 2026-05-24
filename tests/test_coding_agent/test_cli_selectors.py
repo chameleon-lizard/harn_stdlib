@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import harnify_coding_agent.cli.config_selector as config_selector_module
 from harnify_coding_agent.cli.config_selector import ConfigSelectorOptions, select_config
 from harnify_coding_agent.cli.session_picker import select_session
 from harnify_coding_agent.config import APP_NAME
@@ -121,7 +122,7 @@ async def test_select_config_initializes_theme_and_mounts_component() -> None:
     init_calls: list[tuple[str | None, bool]] = []
     stop_calls: list[str] = []
 
-    await select_config(
+    await config_selector_module._select_config(
         ConfigSelectorOptions(
             resolvedPaths=ResolvedPaths(),
             settingsManager=settings,

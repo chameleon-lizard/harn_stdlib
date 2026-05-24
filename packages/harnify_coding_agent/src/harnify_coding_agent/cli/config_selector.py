@@ -27,7 +27,13 @@ class _ConfigSelectorComponentLike(Protocol):
 
 
 async def select_config(
-    options: ConfigSelectorOptions | dict[str, Any],
+    options: ConfigSelectorOptions,
+) -> None:
+    await _select_config(options)
+
+
+async def _select_config(
+    options: ConfigSelectorOptions,
     *,
     terminalFactory: type[ProcessTerminal] = ProcessTerminal,
     uiFactory: type[TUI] = TUI,
@@ -35,17 +41,7 @@ async def select_config(
     initTheme: Any = init_theme,
     stopThemeWatcher: Any = stop_theme_watcher,
 ) -> None:
-    resolved_options = (
-        options
-        if isinstance(options, ConfigSelectorOptions)
-        else ConfigSelectorOptions(
-            resolvedPaths=options["resolvedPaths"],
-            settingsManager=options["settingsManager"],
-            cwd=options["cwd"],
-            agentDir=options["agentDir"],
-        )
-    )
-    initTheme(resolved_options.settingsManager.getTheme(), True)
+    initTheme(options.settingsManager.getTheme(), True)
 
     loop = asyncio.get_running_loop()
     done: asyncio.Future[None] = loop.create_future()
@@ -65,10 +61,10 @@ async def select_config(
         done.set_result(None)
 
     selector: _ConfigSelectorComponentLike = componentFactory(
-        resolved_options.resolvedPaths,
-        resolved_options.settingsManager,
-        resolved_options.cwd,
-        resolved_options.agentDir,
+        options.resolvedPaths,
+        options.settingsManager,
+        options.cwd,
+        options.agentDir,
         lambda: finish(exit_immediately=False),
         lambda: finish(exit_immediately=True),
         lambda: ui.requestRender(),

@@ -273,9 +273,13 @@ class FooterDataProvider:
         if self.gitPaths is None:
             return
 
+        def on_head_directory_change(_event_type: str, filename: str | None = None) -> None:
+            if filename is None or filename == "HEAD":
+                self.scheduleRefresh()
+
         self.headWatcher = watch_with_error_handler(
             os.path.dirname(self.gitPaths.headPath),
-            lambda _event_type, _filename=None: self.scheduleRefresh(),
+            on_head_directory_change,
             lambda: self.handleGitWatcherError(),
         )
         if self.headWatcher is None:

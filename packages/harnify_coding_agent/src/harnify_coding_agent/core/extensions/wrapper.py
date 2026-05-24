@@ -10,13 +10,13 @@ from harnify_coding_agent.core.tools.tool_definition_wrapper import wrap_tool_de
 
 
 def wrap_registered_tool(registered_tool: RegisteredTool, runner: ExtensionRunner) -> AgentTool:
-    return wrap_tool_definition(registered_tool.definition, lambda: runner.create_context())
+    return wrap_tool_definition(registered_tool.definition, lambda: runner.createContext())
 
 
 def wrap_registered_tools(registered_tools: list[RegisteredTool], runner: ExtensionRunner) -> list[AgentTool]:
     return wrap_tool_definitions(
         [registered_tool.definition for registered_tool in registered_tools],
-        lambda: runner.create_context(),
+        lambda: runner.createContext(),
     )
 
 
@@ -26,6 +26,4 @@ wrapRegisteredTools = wrap_registered_tools
 __all__ = [
     "wrapRegisteredTool",
     "wrapRegisteredTools",
-    "wrap_registered_tool",
-    "wrap_registered_tools",
 ]

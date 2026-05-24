@@ -159,6 +159,20 @@ def test_model_registry_module_exports_match_ts_surface() -> None:
     ]
 
 
+def test_provider_config_input_model_shape_matches_ts_required_keys() -> None:
+    from harnify_coding_agent.core import model_registry
+
+    assert model_registry._ProviderModelInput.__required_keys__ == {
+        "id",
+        "name",
+        "reasoning",
+        "input",
+        "cost",
+        "contextWindow",
+        "maxTokens",
+    }
+
+
 def test_model_registry_private_helpers_are_not_public() -> None:
     registry = ModelRegistry.inMemory(AuthStorage.inMemory())
 

@@ -2786,7 +2786,13 @@ class InteractiveMode:
         original_escape = getattr(self.defaultEditor, "onEscape", None)
         bash_component = BashExecutionComponent(command, self.ui, excludeFromContext)
         bash_component.setExpanded(self.toolOutputExpanded)
-        self.chatContainer.addChild(bash_component)
+        is_deferred = bool(getattr(self.session, "isStreaming", False))
+        if is_deferred:
+            self.pendingMessagesContainer.addChild(bash_component)
+            self.pendingBashComponents.append(bash_component)
+        else:
+            self.chatContainer.addChild(bash_component)
+        self.bashComponent = bash_component
         self.defaultEditor.onEscape = lambda: _callable_attr(self.session, "abortBash") and self.session.abortBash()
         self._request_render()
         try:
@@ -2802,11 +2808,12 @@ class InteractiveMode:
                 _value(result, "fullOutputPath"),
             )
         except Exception as error:  # noqa: BLE001
-            bash_component.setComplete(1, False)
+            bash_component.setComplete(None, False)
             self.showError(f"Bash command failed: {error}")
         finally:
             self.defaultEditor.onEscape = original_escape
-            self.renderCurrentSessionState()
+            self.bashComponent = None
+            self._request_render()
 
     async def handleSubmittedText(self, text: str) -> None:
         text = text.strip()
@@ -2928,25 +2935,49 @@ class InteractiveMode:
             is_excluded = text.startswith("!!")
             command = text[2:].strip() if is_excluded else text[1:].strip()
             if command:
+                if bool(getattr(self.session, "isBashRunning", False)):
+                    self.showWarning("A bash command is already running. Press Esc to cancel it first.")
+                    self._set_editor_text(text)
+                    return
                 add_history = _callable_attr(self.editor, "addToHistory")
                 if add_history is not None:
                     add_history(text)
                 self._set_editor_text("")
                 await self.handleBashCommand(command, is_excluded)
+                self.updateEditorBorderColor()
             return
 
+        if bool(getattr(self.session, "isCompacting", False)):
+            if self.isExtensionCommand(text):
+                add_history = _callable_attr(self.editor, "addToHistory")
+                if add_history is not None:
+                    add_history(text)
+                self._set_editor_text("")
+                await self.session.prompt(text)
+            else:
+                self.queueCompactionMessage(text, "steer")
+            return
+
+        if bool(getattr(self.session, "isStreaming", False)):
+            if self.onInputCallback is not None:
+                self.onInputCallback(text)
+            add_history = _callable_attr(self.editor, "addToHistory")
+            if add_history is not None:
+                add_history(text)
+            self._set_editor_text("")
+            await self.session.prompt(text, {"streamingBehavior": "steer"})
+            self.updatePendingMessagesDisplay()
+            self._request_render()
+            return
+
+        self.flushPendingBashComponents()
         if self.onInputCallback is not None:
             self.onInputCallback(text)
         add_history = _callable_attr(self.editor, "addToHistory")
         if add_history is not None:
             add_history(text)
         self._set_editor_text("")
-
-        prompt_options: dict[str, Any] = {}
-        if bool(getattr(self.session, "isStreaming", False)):
-            prompt_options["streamingBehavior"] = "steer"
-        await self.session.prompt(text, prompt_options or None)
-        self.renderCurrentSessionState()
+        await self.session.prompt(text)
 
     async def handleThemeCommand(self, themeName: str) -> None:
         if not themeName:

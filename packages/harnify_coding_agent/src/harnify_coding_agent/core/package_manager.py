@@ -2152,7 +2152,7 @@ class DefaultPackageManager:
             stdio=("ignore", "pipe", "pipe"),
         )
         if result.error is not None or result.status != 0:
-            details = result.error.args[0] if result.error is not None and result.error.args else None
+            details = str(result.error) if result.error is not None else None
             raise RuntimeError(
                 f"Failed to run {self._format_command_display(command, args)}: "
                 f"{details or result.stderr or result.stdout}"

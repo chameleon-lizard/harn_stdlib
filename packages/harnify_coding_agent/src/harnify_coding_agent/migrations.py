@@ -16,6 +16,10 @@ MIGRATION_GUIDE_URL = (
     "https://github.com/earendil-works/pi-mono/blob/main/packages/coding-agent/CHANGELOG.md#extensions-migration"
 )
 EXTENSIONS_DOC_URL = "https://github.com/earendil-works/pi-mono/blob/main/packages/coding-agent/docs/extensions.md"
+_GREEN = "\x1b[32m"
+_YELLOW = "\x1b[33m"
+_DIM = "\x1b[2m"
+_RESET = "\x1b[0m"
 
 
 def migrate_auth_to_auth_json() -> list[str]:
@@ -91,10 +95,10 @@ def migrate_commands_to_prompts(base_dir: str, label: str) -> bool:
     if commands_dir.exists() and not prompts_dir.exists():
         try:
             commands_dir.rename(prompts_dir)
-            print(f"Migrated {label} commands/ → prompts/")
+            print(f"{_GREEN}Migrated {label} commands/ → prompts/{_RESET}")
             return True
         except OSError as error:
-            print(f"Warning: Could not migrate {label} commands/ to prompts/: {error}")
+            print(f"{_YELLOW}Warning: Could not migrate {label} commands/ to prompts/: {error}{_RESET}")
     return False
 
 
@@ -141,7 +145,7 @@ def migrate_tools_to_bin() -> None:
                 pass
 
     if moved_any:
-        print("Migrated managed binaries tools/ → bin/")
+        print(f"{_GREEN}Migrated managed binaries tools/ → bin/{_RESET}")
 
 
 def check_deprecated_extension_dirs(base_dir: str, label: str) -> list[str]:
@@ -182,11 +186,11 @@ async def show_deprecation_warnings(warnings: list[str]) -> None:
     if not warnings:
         return
     for warning in warnings:
-        print(f"Warning: {warning}")
-    print("\nMove your extensions to the extensions/ directory.")
-    print(f"Migration guide: {MIGRATION_GUIDE_URL}")
-    print(f"Documentation: {EXTENSIONS_DOC_URL}")
-    print("\nPress any key to continue...", end="", flush=True)
+        print(f"{_YELLOW}Warning: {warning}{_RESET}")
+    print(f"{_YELLOW}\nMove your extensions to the extensions/ directory.{_RESET}")
+    print(f"{_YELLOW}Migration guide: {MIGRATION_GUIDE_URL}{_RESET}")
+    print(f"{_YELLOW}Documentation: {EXTENSIONS_DOC_URL}{_RESET}")
+    print(f"{_DIM}\nPress any key to continue...{_RESET}")
     if sys.stdin.isatty():
         await asyncio.to_thread(_read_single_keypress)
     print()

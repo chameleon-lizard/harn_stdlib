@@ -23,6 +23,7 @@ import harnify_coding_agent.modes.interactive.components.assistant_message as as
 import harnify_coding_agent.modes.interactive.components.bash_execution as bash_execution_module
 import harnify_coding_agent.modes.interactive.components.tool_execution as tool_execution_module
 import harnify_coding_agent.modes.interactive.components.user_message as user_message_module
+import harnify_coding_agent.modes.interactive.components.visual_truncate as visual_truncate_module
 from harnify_tui import Text, setKeybindings, visibleWidth
 
 OSC133_ZONE_START = "\x1b]133;A\x07"
@@ -130,6 +131,13 @@ def test_tool_execution_module_exports_match_ts_surface() -> None:
 
 def test_user_message_module_exports_match_ts_surface() -> None:
     assert user_message_module.__all__ == ["UserMessageComponent"]
+
+
+def test_visual_truncate_module_exports_match_ts_surface() -> None:
+    assert visual_truncate_module.__all__ == [
+        "VisualTruncateResult",
+        "truncateToVisualLines",
+    ]
 
 
 def test_truncate_to_visual_lines_counts_wrapped_lines() -> None:

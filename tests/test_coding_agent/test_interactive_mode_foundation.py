@@ -1692,6 +1692,24 @@ async def test_setup_key_handlers_registers_new_session_action_via_handle_clear_
     assert calls == ["new"]
 
 
+@pytest.mark.asyncio
+async def test_setup_key_handlers_registers_external_editor_action() -> None:
+    editor = FakeEditor()
+    calls: list[str] = []
+    mode = InteractiveMode(defaultEditor=editor, editor=editor)
+
+    async def open_external() -> None:
+        calls.append("external")
+
+    mode.openExternalEditor = open_external  # type: ignore[method-assign]
+
+    mode.setupKeyHandlers()
+    editor.actions["app.editor.external"]()
+    await asyncio.sleep(0)
+
+    assert calls == ["external"]
+
+
 def test_setup_key_handlers_registers_paste_image_handler() -> None:
     editor = FakeEditor()
     mode = InteractiveMode(defaultEditor=editor, editor=editor, ui=FakeUi())
@@ -1728,6 +1746,22 @@ async def test_handle_clear_command_renders_new_session_message() -> None:
     assert stopped == [True]
     assert cleared == [True]
     assert "✓ New session started" in stripped
+
+
+@pytest.mark.asyncio
+async def test_open_external_editor_warns_when_editor_env_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("VISUAL", raising=False)
+    monkeypatch.delenv("EDITOR", raising=False)
+    warnings: list[str] = []
+
+    mode = InteractiveMode(editor=FakeEditor(), defaultEditor=FakeEditor())
+    mode.showWarning = warnings.append  # type: ignore[method-assign]
+
+    await mode.openExternalEditor()
+
+    assert warnings == ["No editor configured. Set $VISUAL or $EDITOR environment variable."]
 
 
 def test_handle_debug_command_writes_log_and_renders_status(
@@ -1770,6 +1804,73 @@ def test_handle_debug_command_writes_log_and_renders_status(
     stripped = _strip_ansi(rendered)
     assert "✓ Debug log written" in stripped
     assert str(debug_log_path) in stripped
+
+
+@pytest.mark.asyncio
+async def test_cycle_model_matches_ts_status_messages() -> None:
+    statuses: list[str] = []
+    warnings: list[str] = []
+    mode = InteractiveMode(
+        session=SimpleNamespace(
+            cycleModel=lambda direction: asyncio.sleep(
+                0,
+                result=SimpleNamespace(
+                    model=SimpleNamespace(id="sonnet", name="Claude Sonnet", reasoning=True),
+                    thinkingLevel="high",
+                ),
+            ),
+            scopedModels=[],
+        ),
+    )
+    mode.showStatus = statuses.append  # type: ignore[method-assign]
+    mode.updateEditorBorderColor = lambda: warnings.append("border")  # type: ignore[method-assign]
+    mode.maybeWarnAboutAnthropicSubscriptionAuth = lambda _model: asyncio.sleep(0)  # type: ignore[method-assign]
+
+    await mode._cycle_model("forward")
+
+    assert statuses == ["Switched to Claude Sonnet (thinking: high)"]
+    assert warnings == ["border"]
+
+
+@pytest.mark.asyncio
+async def test_cycle_model_reports_single_model_and_errors_like_ts() -> None:
+    statuses: list[str] = []
+    errors: list[str] = []
+    mode = InteractiveMode(session=SimpleNamespace(cycleModel=lambda _direction: asyncio.sleep(0, result=None), scopedModels=[1]))
+    mode.showStatus = statuses.append  # type: ignore[method-assign]
+    mode.showError = errors.append  # type: ignore[method-assign]
+
+    await mode._cycle_model("forward")
+
+    assert statuses == ["Only one model in scope"]
+    assert errors == []
+
+    async def fail_cycle(_direction: str) -> Any:
+        raise RuntimeError("boom")
+
+    mode.session = SimpleNamespace(cycleModel=fail_cycle, scopedModels=[])
+    await mode._cycle_model("forward")
+
+    assert errors == ["boom"]
+
+
+@pytest.mark.asyncio
+async def test_cycle_thinking_level_matches_ts_status_messages() -> None:
+    statuses: list[str] = []
+    border_updates: list[bool] = []
+    mode = InteractiveMode(session=SimpleNamespace(cycleThinkingLevel=lambda: None))
+    mode.showStatus = statuses.append  # type: ignore[method-assign]
+
+    await mode._cycle_thinking_level()
+
+    assert statuses == ["Current model does not support thinking"]
+
+    mode.session = SimpleNamespace(cycleThinkingLevel=lambda: "high")
+    mode.updateEditorBorderColor = lambda: border_updates.append(True)  # type: ignore[method-assign]
+    await mode._cycle_thinking_level()
+
+    assert statuses[-1] == "Thinking level: high"
+    assert border_updates == [True]
 
 
 @pytest.mark.asyncio

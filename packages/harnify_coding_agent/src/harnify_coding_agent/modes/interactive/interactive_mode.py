@@ -2989,7 +2989,7 @@ class InteractiveMode:
         try:
             result = await self.runtimeHost.switchSession(
                 sessionPath,
-                {"withSession": options.get("withSession")} if options else None,
+                {"withSession": options.get("withSession") if options else None},
             )
             if _value(result, "cancelled", False):
                 return result

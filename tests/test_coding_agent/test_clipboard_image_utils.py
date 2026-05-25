@@ -58,6 +58,15 @@ def _write_i32_le(buffer: bytearray, offset: int, value: int) -> None:
     buffer[offset : offset + 4] = value.to_bytes(4, "little", signed=True)
 
 
+def test_clipboard_image_module_exports_match_ts_surface() -> None:
+    assert clipboard_image_utils.__all__ == [
+        "ClipboardImage",
+        "extensionForImageMimeType",
+        "isWaylandSession",
+        "readClipboardImage",
+    ]
+
+
 @pytest.mark.asyncio
 async def test_read_clipboard_image_wayland_uses_wl_paste(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_run(command: str, args: list[str], **_kwargs):

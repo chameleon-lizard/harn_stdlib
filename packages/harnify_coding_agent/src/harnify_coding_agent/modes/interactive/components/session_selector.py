@@ -18,11 +18,9 @@ from harnify_tui import (
     Container,
     Focusable,
     Input,
-    Key,
     Spacer,
     Text,
     getKeybindings,
-    matchesKey,
     truncateToWidth,
     visibleWidth,
 )

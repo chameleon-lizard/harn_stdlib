@@ -20,16 +20,16 @@ class ToolRenderResultLike(Protocol[TDetails]):
 
 
 def shorten_path(path: object) -> str:
-    if not isinstance(path, str):
+    if not isinstance(path, builtins.str):
         return ""
-    home = str(os.path.expanduser("~"))
+    home = builtins.str(os.path.expanduser("~"))
     if path.startswith(home):
         return f"~{path[len(home):]}"
     return path
 
 
 def str_value(value: object) -> str | None:
-    if isinstance(value, str):
+    if isinstance(value, builtins.str):
         return value
     if value is None:
         return ""
@@ -99,15 +99,9 @@ invalidArgText = invalid_arg_text
 __all__ = [
     "ToolRenderResultLike",
     "getTextOutput",
-    "get_text_output",
     "invalidArgText",
-    "invalid_arg_text",
     "normalizeDisplayText",
-    "normalize_display_text",
     "replaceTabs",
-    "replace_tabs",
     "shortenPath",
-    "shorten_path",
     "str",
-    "str_value",
 ]

@@ -9,6 +9,7 @@ import pytest
 from harnify_agent.agent import AbortController
 import harnify_coding_agent.utils.changelog as changelog_module
 import harnify_coding_agent.utils.child_process as child_process_module
+import harnify_coding_agent.utils.fs_watch as fs_watch_module
 import harnify_coding_agent.utils.frontmatter as frontmatter_module
 from harnify_coding_agent.utils.changelog import ChangelogEntry, compare_versions, get_new_entries, parse_changelog
 from harnify_coding_agent.utils.child_process import spawn_process, spawn_process_sync, wait_for_child_process
@@ -207,6 +208,14 @@ def test_watch_with_error_handler_handles_missing_paths_and_changes(tmp_path: Pa
     close_watcher(watcher)
     assert changes[0][0] == "change"
     assert changes[0][1] == "watched.txt"
+
+
+def test_fs_watch_module_exports_match_ts_surface() -> None:
+    assert fs_watch_module.__all__ == [
+        "FS_WATCH_RETRY_DELAY_MS",
+        "closeWatcher",
+        "watchWithErrorHandler",
+    ]
 
 
 @pytest.mark.asyncio

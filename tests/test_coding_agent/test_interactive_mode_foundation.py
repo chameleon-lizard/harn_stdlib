@@ -803,7 +803,9 @@ async def test_rebind_current_session_shows_loaded_resources_and_diagnostics() -
 
 
 @pytest.mark.asyncio
-async def test_show_extension_selector_and_confirm_use_real_overlay_flow(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_show_extension_selector_and_confirm_use_editor_container_lifecycle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     captured: list[Any] = []
 
     class FakeExtensionSelectorComponent:
@@ -813,7 +815,11 @@ async def test_show_extension_selector_and_confirm_use_real_overlay_flow(monkeyp
             self.onSelect = onSelect
             self.onCancel = onCancel
             self.opts = opts
+            self.disposed = False
             captured.append(self)
+
+        def dispose(self) -> None:
+            self.disposed = True
 
     monkeypatch.setattr(
         "harnify_coding_agent.modes.interactive.interactive_mode.ExtensionSelectorComponent",
@@ -821,17 +827,121 @@ async def test_show_extension_selector_and_confirm_use_real_overlay_flow(monkeyp
     )
 
     ui = FakeUi()
-    mode = InteractiveMode(ui=ui)
+    editor = FakeEditor()
+    mode = InteractiveMode(ui=ui, defaultEditor=editor, editor=editor)
 
     select_task = asyncio.create_task(mode.showExtensionSelector("Pick one", ["A", "B"]))
     await asyncio.sleep(0)
-    captured[-1].onSelect("B")
+    selector = captured[-1]
+    assert mode.extensionSelector is selector
+    assert mode.editorContainer.children == [selector]
+    assert ui.focused is selector
+    selector.onSelect("B")
     assert await select_task == "B"
+    assert selector.disposed is True
+    assert mode.extensionSelector is None
+    assert mode.editorContainer.children == [editor]
+    assert ui.focused is editor
 
     confirm_task = asyncio.create_task(mode.showExtensionConfirm("Delete", "Really?"))
     await asyncio.sleep(0)
-    captured[-1].onSelect("Yes")
+    selector = captured[-1]
+    assert mode.editorContainer.children == [selector]
+    assert ui.focused is selector
+    selector.onSelect("Yes")
     assert await confirm_task is True
+    assert selector.disposed is True
+    assert mode.editorContainer.children == [editor]
+    assert ui.focused is editor
+
+
+@pytest.mark.asyncio
+async def test_show_extension_input_uses_editor_container_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: list[Any] = []
+
+    class FakeExtensionInputComponent:
+        def __init__(self, title: str, placeholder: str | None, onSubmit: Any, onCancel: Any, opts: Any) -> None:
+            self.title = title
+            self.placeholder = placeholder
+            self.onSubmit = onSubmit
+            self.onCancel = onCancel
+            self.opts = opts
+            self.disposed = False
+            captured.append(self)
+
+        def dispose(self) -> None:
+            self.disposed = True
+
+    monkeypatch.setattr(
+        "harnify_coding_agent.modes.interactive.interactive_mode.ExtensionInputComponent",
+        FakeExtensionInputComponent,
+    )
+
+    ui = FakeUi()
+    editor = FakeEditor()
+    mode = InteractiveMode(ui=ui, defaultEditor=editor, editor=editor)
+
+    input_task = asyncio.create_task(mode.showExtensionInput("Name", "placeholder"))
+    await asyncio.sleep(0)
+    dialog = captured[-1]
+    assert mode.extensionInput is dialog
+    assert mode.editorContainer.children == [dialog]
+    assert ui.focused is dialog
+    dialog.onSubmit("typed value")
+    assert await input_task == "typed value"
+    assert dialog.disposed is True
+    assert mode.extensionInput is None
+    assert mode.editorContainer.children == [editor]
+    assert ui.focused is editor
+
+
+@pytest.mark.asyncio
+async def test_show_extension_editor_uses_editor_container_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: list[Any] = []
+
+    class FakeExtensionEditorComponent:
+        def __init__(
+            self,
+            tui: Any,
+            keybindings: Any,
+            title: str,
+            prefill: str | None,
+            onSubmit: Any,
+            onCancel: Any,
+        ) -> None:
+            self.tui = tui
+            self.keybindings = keybindings
+            self.title = title
+            self.prefill = prefill
+            self.onSubmit = onSubmit
+            self.onCancel = onCancel
+            self.disposed = False
+            captured.append(self)
+
+        def dispose(self) -> None:
+            self.disposed = True
+
+    monkeypatch.setattr(
+        "harnify_coding_agent.modes.interactive.interactive_mode.ExtensionEditorComponent",
+        FakeExtensionEditorComponent,
+    )
+
+    ui = FakeUi()
+    editor = FakeEditor()
+    mode = InteractiveMode(ui=ui, defaultEditor=editor, editor=editor)
+
+    editor_task = asyncio.create_task(mode.showExtensionEditor("Edit", "prefill"))
+    await asyncio.sleep(0)
+    dialog = captured[-1]
+    assert mode.extensionEditor is dialog
+    assert mode.editorContainer.children == [dialog]
+    assert ui.focused is dialog
+    dialog.onCancel()
+    assert await editor_task is None
+    assert dialog.disposed is True
+    assert mode.extensionEditor is None
+    assert mode.editorContainer.children == [editor]
+    assert ui.focused is editor
 
 
 def test_setup_autocomplete_provider_stacks_wrappers() -> None:

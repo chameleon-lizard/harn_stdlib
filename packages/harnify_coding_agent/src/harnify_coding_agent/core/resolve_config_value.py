@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import os
 import subprocess
 
@@ -21,12 +22,22 @@ def _execute_with_configured_shell(command: str) -> tuple[bool, str | None]:
         shell_config = get_shell_config()
         result = subprocess.run(
             [shell_config.shell, *shell_config.args, command],
-            capture_output=True,
             check=False,
             encoding="utf-8",
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
             timeout=10,
             shell=False,
         )
+    except FileNotFoundError:
+        return False, None
+    except OSError as error:
+        if error.errno == errno.ENOENT:
+            return False, None
+        return True, None
+    except subprocess.TimeoutExpired:
+        return True, None
     except Exception:
         return False, None
 
@@ -40,9 +51,11 @@ def _execute_with_default_shell(command: str) -> str | None:
     try:
         result = subprocess.run(
             command,
-            capture_output=True,
             check=False,
             encoding="utf-8",
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
             timeout=10,
             shell=True,
         )
@@ -84,8 +97,8 @@ def resolve_config_value_or_throw(config: str, description: str) -> str:
         return resolved
 
     if config.startswith("!"):
-        raise RuntimeError(f"Failed to resolve {description} from shell command: {config[1:]}")
-    raise RuntimeError(f"Failed to resolve {description}")
+        raise Exception(f"Failed to resolve {description} from shell command: {config[1:]}")
+    raise Exception(f"Failed to resolve {description}")
 
 
 def resolve_headers(headers: dict[str, str] | None) -> dict[str, str] | None:
@@ -125,15 +138,9 @@ clearConfigValueCache = clear_config_value_cache
 
 __all__ = [
     "clearConfigValueCache",
-    "clear_config_value_cache",
     "resolveConfigValue",
     "resolveConfigValueOrThrow",
     "resolveConfigValueUncached",
     "resolveHeaders",
     "resolveHeadersOrThrow",
-    "resolve_config_value",
-    "resolve_config_value_or_throw",
-    "resolve_config_value_uncached",
-    "resolve_headers",
-    "resolve_headers_or_throw",
 ]

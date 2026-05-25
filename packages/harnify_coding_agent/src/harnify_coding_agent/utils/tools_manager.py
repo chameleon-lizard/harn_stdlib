@@ -7,7 +7,6 @@ import json
 import os
 import secrets
 import shutil
-import stat
 import subprocess
 import tarfile
 import time
@@ -225,7 +224,7 @@ async def download_tool(tool: ToolName, *, tools_dir: str | None = None) -> str:
         extracted_binary.replace(binary_path)
 
         if plat != "win32":
-            binary_path.chmod(stat.S_IMODE(0o755))
+            binary_path.chmod(0o755)
     finally:
         archive_path.unlink(missing_ok=True)
         shutil.rmtree(extract_dir, ignore_errors=True)

@@ -9,6 +9,7 @@ from harnify_agent.types import AgentToolResult
 from harnify_ai.types import AssistantMessage, TextContent, ToolCall, Usage, UsageCost
 from harnify_coding_agent.core.extensions.types import ToolDefinition
 from harnify_coding_agent.core.keybindings import KeybindingsManager
+from harnify_coding_agent.core.tools.truncate import TruncationResult
 from harnify_coding_agent.modes.interactive.components import (
     AssistantMessageComponent,
     BashExecutionComponent,
@@ -208,3 +209,66 @@ async def test_tool_execution_generic_fallback_includes_args_and_output() -> Non
     assert "custom_tool" in rendered
     assert '"foo": "bar"' in rendered
     assert "done" in rendered
+
+
+def test_tool_execution_uses_builtin_bash_renderer() -> None:
+    component = ToolExecutionComponent(
+        "bash",
+        "tool-3",
+        {"command": "printf 'alpha\\n'", "timeout": 5},
+        {},
+        None,
+        FakeUi(),
+        ".",
+    )
+    component.markExecutionStarted()
+    component.updateResult({"content": [{"type": "text", "text": "alpha\n"}], "details": None, "isError": False}, False)
+    rendered = _strip_ansi("\n".join(component.render(120)))
+
+    assert "$ printf 'alpha\\n'" in rendered
+    assert "(timeout 5s)" in rendered
+    assert "alpha" in rendered
+    assert "Took " in rendered
+
+
+def test_builtin_bash_renderer_dedupes_truncation_footer() -> None:
+    truncation = TruncationResult(
+        content="line 1\nline 2",
+        truncated=True,
+        truncatedBy="lines",
+        totalLines=10,
+        totalBytes=60,
+        outputLines=2,
+        outputBytes=13,
+        lastLinePartial=False,
+        firstLineExceedsLimit=False,
+        maxLines=2000,
+        maxBytes=51200,
+    )
+    component = ToolExecutionComponent(
+        "bash",
+        "tool-4",
+        {"command": "tail -n 2"},
+        {},
+        None,
+        FakeUi(),
+        ".",
+    )
+    component.markExecutionStarted()
+    component.updateResult(
+        {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "line 1\nline 2\n\n[Showing lines 9-10 of 10. Full output: /tmp/full.log]",
+                }
+            ],
+            "details": {"truncation": truncation, "fullOutputPath": "/tmp/full.log"},
+            "isError": False,
+        },
+        False,
+    )
+    rendered = _strip_ansi("\n".join(component.render(120)))
+
+    assert rendered.count("Full output: /tmp/full.log") == 1
+    assert "Truncated: showing 2 of 10 lines" in rendered

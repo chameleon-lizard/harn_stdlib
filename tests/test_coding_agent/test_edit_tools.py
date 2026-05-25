@@ -10,6 +10,8 @@ from harnify_coding_agent.core.tools import (
     create_edit_tool_definition,
     create_write_tool,
 )
+from harnify_coding_agent.core.tools import edit_diff as edit_diff_module
+from harnify_coding_agent.core.tools.edit_diff import generate_diff_string, generate_unified_patch, strip_bom
 
 
 def _read(path: Path) -> str:
@@ -257,6 +259,67 @@ async def test_compute_edits_diff_reports_missing_files(tmp_path: Path) -> None:
 
     assert hasattr(result, "error")
     assert result.error == f"Could not edit file: {missing}. Error code: ENOENT."
+
+
+def test_strip_bom_returns_named_fields_and_supports_unpacking() -> None:
+    result = strip_bom("\ufeffhello")
+    bom, text = result
+
+    assert result.bom == "\ufeff"
+    assert result.text == "hello"
+    assert bom == "\ufeff"
+    assert text == "hello"
+
+
+def test_generate_diff_string_detects_missing_final_newline() -> None:
+    result = generate_diff_string("alpha\n", "alpha")
+
+    assert result.firstChangedLine == 1
+    assert result.diff == "-1 alpha\n+1 alpha"
+
+
+def test_generate_unified_patch_detects_missing_final_newline() -> None:
+    patch = generate_unified_patch("demo.txt", "alpha\n", "alpha")
+
+    assert patch.startswith("--- demo.txt\n+++ demo.txt\n@@ -1 +1 @@\n")
+    assert "-alpha\n+alpha" in patch
+
+
+@pytest.mark.asyncio
+async def test_compute_edits_diff_formats_generic_access_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_access(_absolute_path: str) -> None:
+        raise RuntimeError("disk offline")
+
+    monkeypatch.setattr(edit_diff_module, "_check_readable_file", fail_access)
+
+    result = await compute_edits_diff("broken.txt", [{"oldText": "hello", "newText": "world"}], str(tmp_path))
+
+    assert hasattr(result, "error")
+    assert result.error == "Could not edit file: broken.txt. Error: disk offline."
+
+
+def test_edit_diff_module_exports_match_ts_surface() -> None:
+    assert edit_diff_module.__all__ == [
+        "AppliedEditsResult",
+        "Edit",
+        "EditDiffError",
+        "EditDiffResult",
+        "FuzzyMatchResult",
+        "applyEditsToNormalizedContent",
+        "computeEditDiff",
+        "computeEditsDiff",
+        "detectLineEnding",
+        "fuzzyFindText",
+        "generateDiffString",
+        "generateUnifiedPatch",
+        "normalizeForFuzzyMatch",
+        "normalizeToLF",
+        "restoreLineEndings",
+        "stripBom",
+    ]
 
 
 @pytest.mark.asyncio

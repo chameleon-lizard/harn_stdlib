@@ -680,6 +680,7 @@ class InteractiveMode:
         self.retryEscapeHandler = getattr(self, "retryEscapeHandler", None)
         self.retryCountdown = getattr(self, "retryCountdown", None)
         self.retryLoader = getattr(self, "retryLoader", None)
+        self.isBashMode = bool(getattr(self, "isBashMode", False))
         self.shutdownRequested = bool(getattr(self, "shutdownRequested", False))
         self.isShuttingDown = bool(getattr(self, "isShuttingDown", False))
         self.signalCleanupHandlers: list[Callable[[], None]] = list(

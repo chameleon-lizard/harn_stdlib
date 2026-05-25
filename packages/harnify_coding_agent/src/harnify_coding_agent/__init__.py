@@ -308,11 +308,14 @@ _register(
     "harnify_coding_agent.modes.rpc.rpc_client",
     "RpcClient",
     "RpcClientOptions",
-    "RpcEventListener",
 )
 _register(
     "harnify_coding_agent.modes.rpc.rpc_types",
     "RpcCommand",
+)
+_register("harnify_coding_agent.modes.rpc.rpc_client", "RpcEventListener")
+_register(
+    "harnify_coding_agent.modes.rpc.rpc_types",
     "RpcResponse",
     "RpcSessionState",
 )

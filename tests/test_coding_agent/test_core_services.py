@@ -22,6 +22,7 @@ from harnify_coding_agent.core.output_guard import (
     takeOverStdout,
     writeRawStdout,
 )
+from harnify_coding_agent.core import slash_commands as slash_commands_module
 from harnify_coding_agent.core.tools.truncate import DEFAULT_MAX_BYTES
 
 
@@ -60,6 +61,17 @@ class _FakeBashOperations:
             await signal.wait()
             raise RuntimeError("aborted")
         return {"exitCode": self._exit_code}
+
+
+def test_slash_commands_surface_matches_ts() -> None:
+    assert slash_commands_module.__all__ == [
+        "SlashCommandSource",
+        "SlashCommandInfo",
+        "BuiltinSlashCommand",
+        "BUILTIN_SLASH_COMMANDS",
+    ]
+    assert slash_commands_module.BUILTIN_SLASH_COMMANDS[2].description == "Enable/disable models for Ctrl+P cycling"
+    assert "_LOCAL_ALIAS_SLASH_COMMANDS" in vars(slash_commands_module)
 
 
 @pytest.mark.asyncio

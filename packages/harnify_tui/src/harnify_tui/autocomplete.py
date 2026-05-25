@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from harnify_tui.fuzzy import fuzzy_filter
+from harnify_tui.fuzzy import fuzzyFilter
 
 PATH_DELIMITERS = {" ", "\t", '"', "'", "="}
 _MISSING = object()
@@ -360,7 +360,7 @@ class CombinedAutocompleteProvider:
                     )
                     command_items.append({"name": name, "label": name, "description": full_description})
 
-                filtered = fuzzy_filter(command_items, prefix, lambda item: str(item["name"]))
+                filtered = fuzzyFilter(command_items, prefix, lambda item: str(item["name"]))
                 if not filtered:
                     return None
                 return AutocompleteSuggestions(

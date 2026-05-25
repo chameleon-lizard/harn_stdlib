@@ -27,6 +27,9 @@ from harnify_tui import Text, setKeybindings, visibleWidth
 _ANSI_RE = re.compile(r"\x1b(?:\[[0-9;]*m|\]8;;.*?\x07)", re.DOTALL)
 interactive_theme_module = importlib.import_module("harnify_coding_agent.modes.interactive.theme.theme")
 bordered_loader_module = importlib.import_module("harnify_coding_agent.modes.interactive.components.bordered_loader")
+branch_summary_message_module = importlib.import_module(
+    "harnify_coding_agent.modes.interactive.components.branch_summary_message"
+)
 
 
 def _strip_ansi(text: str) -> str:
@@ -50,6 +53,10 @@ def test_branch_and_compaction_summary_components_expand() -> None:
     assert "Compacted from 12,345 tokens" in _strip_ansi("\n".join(compaction_component.render(80)))
     compaction_component.setExpanded(True)
     assert "summary body" in _strip_ansi("\n".join(compaction_component.render(80)))
+
+
+def test_branch_summary_message_module_exports_match_ts_surface() -> None:
+    assert branch_summary_message_module.__all__ == ["BranchSummaryMessageComponent"]
 
 
 def test_custom_message_uses_custom_renderer_and_falls_back() -> None:

@@ -32,6 +32,9 @@ from harnify_tui import setKeybindings
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 interactive_theme_module = importlib.import_module("harnify_coding_agent.modes.interactive.theme.theme")
+countdown_timer_module = importlib.import_module(
+    "harnify_coding_agent.modes.interactive.components.countdown_timer"
+)
 
 
 def _strip_ansi(text: str) -> str:
@@ -119,6 +122,24 @@ def test_countdown_timer_ticks_and_expires() -> None:
     assert ticks[-1] == 0
     assert expired == [True]
     assert render_calls
+
+
+def test_countdown_timer_zero_timeout_matches_ts_tick_sequence() -> None:
+    ticks: list[int] = []
+    expired: list[bool] = []
+
+    timer = CountdownTimer(0, None, ticks.append, lambda: expired.append(True))
+    try:
+        time.sleep(1.2)
+    finally:
+        timer.dispose()
+
+    assert ticks == [0, -1]
+    assert expired == [True]
+
+
+def test_countdown_timer_module_exports_match_ts_surface() -> None:
+    assert countdown_timer_module.__all__ == ["CountdownTimer"]
 
 
 def test_theme_selector_previews_and_confirms() -> None:

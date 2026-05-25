@@ -4359,6 +4359,7 @@ class InteractiveMode:
         if self.isInitialized:
             return
 
+        self.registerSignalHandlers()
         setKeybindings(self.keybindings)
         themes_result = {}
         get_themes = _callable_attr(getattr(self.session, "resourceLoader", None), "getThemes")

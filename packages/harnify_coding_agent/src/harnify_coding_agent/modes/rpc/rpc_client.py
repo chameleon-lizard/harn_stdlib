@@ -15,7 +15,7 @@ from harnify_ai.types import ImageContent
 from harnify_coding_agent.modes.rpc.jsonl import JsonlLineBuffer, serialize_json_line
 from harnify_coding_agent.modes.rpc.rpc_types import RpcCommand, RpcResponse, RpcSessionState, RpcSlashCommand
 
-type RpcEventListener = Callable[[dict[str, Any]], None]
+type RpcEventListener = Callable[[Any], None]
 
 
 class ModelInfo(TypedDict):
@@ -305,9 +305,8 @@ class RpcClient:
             if not future.done():
                 future.set_result(data)
             return
-        if isinstance(data, dict):
-            for listener in list(self._event_listeners):
-                listener(data)
+        for listener in list(self._event_listeners):
+            listener(data)
 
     async def _send(self, command: RpcCommand, timeout: float = 30.0) -> RpcResponse:
         if self.process is None or self.process.stdin is None:

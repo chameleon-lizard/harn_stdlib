@@ -162,7 +162,9 @@ def test_theme_helpers_match_ts_detection_and_name_contracts(
 ) -> None:
     custom_theme_dir = tmp_path / "themes"
     custom_theme_dir.mkdir()
-    (custom_theme_dir / "oceanic-next.json").write_text('{"name":"Oceanic Next","colors":{}}', encoding="utf-8")
+    payload = interactive_theme_module.load_theme_json("dark")
+    payload = {"name": "Oceanic Next", "colors": dict(payload["colors"])}
+    (custom_theme_dir / "oceanic-next.json").write_text(json.dumps(payload), encoding="utf-8")
     monkeypatch.setattr(interactive_theme_module, "get_custom_themes_dir", lambda: str(custom_theme_dir))
     interactive_theme_module.set_registered_themes([])
 

@@ -48,6 +48,21 @@ def setup_function() -> None:
     interactive_theme_module.init_theme("dark")
 
 
+class FakeTimer:
+    def __init__(self, interval: float, callback) -> None:  # noqa: ANN001
+        self.interval = interval
+        self.callback = callback
+        self.started = False
+        self.cancelled = False
+        self.daemon = False
+
+    def start(self) -> None:
+        self.started = True
+
+    def cancel(self) -> None:
+        self.cancelled = True
+
+
 def test_theme_helpers_load_builtin_themes() -> None:
     names = [item["name"] for item in interactive_theme_module.get_available_themes_with_paths()]
     assert "dark" in names

@@ -1223,8 +1223,8 @@ __all__ = [
     "parseSessionEntries",
     "getLatestCompactionEntry",
     "buildSessionContext",
-    "findMostRecentSession",
     "getDefaultSessionDir",
     "loadEntriesFromFile",
+    "findMostRecentSession",
     "SessionManager",
 ]

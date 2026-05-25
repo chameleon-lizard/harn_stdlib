@@ -5748,7 +5748,7 @@ class InteractiveMode:
             if not bool(_value(result, "cancelled", False)):
                 self.renderCurrentSessionState()
                 self._request_render()
-            return dict(result) if isinstance(result, dict) else {"cancelled": False}
+            return result
         except Exception as error:  # noqa: BLE001
             await self.handleFatalRuntimeError("Failed to create session", error)
             return {"cancelled": True}

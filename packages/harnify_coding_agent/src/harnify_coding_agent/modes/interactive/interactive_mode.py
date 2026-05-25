@@ -4018,7 +4018,7 @@ class InteractiveMode:
 
         flush_queue = _callable_attr(self, "flushCompactionQueue")
         if flush_queue is not None:
-            await _maybe_await(flush_queue({"willRetry": bool(_value(event, "willRetry", False))}))
+            self._schedule_task(_maybe_await(flush_queue({"willRetry": bool(_value(event, "willRetry", False))})))
         self._request_render()
 
     def applyRuntimeSettings(self) -> None:

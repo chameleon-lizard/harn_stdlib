@@ -66,7 +66,7 @@ from harnify_coding_agent.core.session_manager import (
     get_latest_compaction_entry,
 )
 from harnify_coding_agent.core.settings_manager import SettingsManager
-from harnify_coding_agent.core.slash_commands import SlashCommandInfo, make_slash_command_info
+from harnify_coding_agent.core.slash_commands import SlashCommandInfo, _make_slash_command_info
 from harnify_coding_agent.core.source_info import SourceInfo, create_synthetic_source_info
 from harnify_coding_agent.core.system_prompt import BuildSystemPromptOptions, build_system_prompt
 from harnify_coding_agent.core.tools import create_all_tool_definitions
@@ -795,7 +795,7 @@ class AgentSession:
             if not invocation_name:
                 continue
             commands.append(
-                make_slash_command_info(
+                _make_slash_command_info(
                     invocation_name,
                     "extension",
                     _value(command, "sourceInfo")
@@ -809,7 +809,7 @@ class AgentSession:
 
         for template in self.promptTemplates:
             commands.append(
-                make_slash_command_info(
+                _make_slash_command_info(
                     str(template.name),
                     "prompt",
                     template.sourceInfo
@@ -827,7 +827,7 @@ class AgentSession:
             if not name:
                 continue
             commands.append(
-                make_slash_command_info(
+                _make_slash_command_info(
                     f"skill:{name}",
                     "skill",
                     _value(skill, "sourceInfo")

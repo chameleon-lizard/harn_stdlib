@@ -64,7 +64,7 @@ from harnify_coding_agent.core.model_resolver import findExactModelReferenceMatc
 from harnify_coding_agent.core.package_manager import DefaultPackageManager
 from harnify_coding_agent.core.session_cwd import MissingSessionCwdError, format_missing_session_cwd_prompt
 from harnify_coding_agent.core.session_manager import SessionManager
-from harnify_coding_agent.core.slash_commands import BUILTIN_SLASH_COMMANDS, LOCAL_ALIAS_SLASH_COMMANDS
+from harnify_coding_agent.core.slash_commands import BUILTIN_SLASH_COMMANDS, _LOCAL_ALIAS_SLASH_COMMANDS
 from harnify_coding_agent.core.telemetry import is_install_telemetry_enabled
 from harnify_coding_agent.modes.interactive.components.assistant_message import AssistantMessageComponent
 from harnify_coding_agent.modes.interactive.components.bash_execution import BashExecutionComponent
@@ -657,7 +657,7 @@ class InteractiveMode:
             SlashCommand(name=command.name, description=command.description) for command in BUILTIN_SLASH_COMMANDS
         ]
         builtin_commands.extend(
-            SlashCommand(name=command.name, description=command.description) for command in LOCAL_ALIAS_SLASH_COMMANDS
+            SlashCommand(name=command.name, description=command.description) for command in _LOCAL_ALIAS_SLASH_COMMANDS
         )
         model_command = next((command for command in builtin_commands if command.name == "model"), None)
         if model_command is not None:

@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import shutil
+import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+import harnify_tui.autocomplete as autocomplete
 from harnify_tui.autocomplete import CombinedAutocompleteProvider, SlashCommand
 
 
@@ -23,6 +26,52 @@ async def get_suggestions(
     )
 
 
+class DummyAbortSignal:
+    def __init__(self) -> None:
+        self.aborted = False
+        self._listeners: list[object] = []
+
+    def addEventListener(self, event: str, callback: object, _options: dict[str, object] | None = None) -> None:
+        if event != "abort":
+            return
+        if self.aborted:
+            if callable(callback):
+                callback()
+            return
+        self._listeners.append(callback)
+
+    def removeEventListener(self, event: str, callback: object) -> None:
+        if event != "abort":
+            return
+        self._listeners = [listener for listener in self._listeners if listener is not callback]
+
+    def abort(self) -> None:
+        if self.aborted:
+            return
+        self.aborted = True
+        listeners = list(self._listeners)
+        self._listeners.clear()
+        for callback in listeners:
+            if callable(callback):
+                callback()
+
+
+def test_autocomplete_module_exports_match_ts_surface() -> None:
+    assert autocomplete.__all__ == [
+        "AutocompleteItem",
+        "AutocompleteProvider",
+        "AutocompleteSuggestions",
+        "CombinedAutocompleteProvider",
+        "SlashCommand",
+    ]
+
+
+def test_combined_autocomplete_provider_keeps_null_fd_path_by_default() -> None:
+    provider = CombinedAutocompleteProvider([], "/tmp")
+
+    assert provider.fdPath is None
+
+
 @pytest.mark.asyncio
 async def test_command_completion_uses_fuzzy_matching() -> None:
     provider = CombinedAutocompleteProvider(
@@ -35,6 +84,33 @@ async def test_command_completion_uses_fuzzy_matching() -> None:
     assert result is not None
     assert result.prefix == "/mod"
     assert [item.value for item in result.items] == ["model"]
+
+
+@pytest.mark.asyncio
+async def test_duck_typed_command_and_future_argument_completion_match_ts() -> None:
+    loop = asyncio.get_running_loop()
+
+    def get_argument_completions(prefix: str) -> asyncio.Future[list[autocomplete.AutocompleteItem] | None]:
+        future: asyncio.Future[list[autocomplete.AutocompleteItem] | None] = loop.create_future()
+        future.set_result([autocomplete.AutocompleteItem(value=f"{prefix}-opus", label=f"{prefix}-opus")])
+        return future
+
+    command = SimpleNamespace(
+        name="model",
+        description="Change model",
+        argumentHint="<name>",
+        getArgumentCompletions=get_argument_completions,
+    )
+    provider = CombinedAutocompleteProvider([command], "/tmp")
+
+    command_result = await get_suggestions(provider, "/mod")
+    assert command_result is not None
+    assert [(item.value, item.description) for item in command_result.items] == [("model", "<name> — Change model")]
+
+    argument_result = await get_suggestions(provider, "/model claude")
+    assert argument_result is not None
+    assert argument_result.prefix == "claude"
+    assert [item.value for item in argument_result.items] == ["claude-opus"]
 
 
 @pytest.mark.asyncio
@@ -86,3 +162,21 @@ async def test_fd_file_completion_quotes_space_paths(tmp_path: Path) -> None:
 
     assert result is not None
     assert '@"my folder/"' in [item.value for item in result.items]
+
+
+@pytest.mark.asyncio
+async def test_walk_directory_with_fd_aborts_running_process(tmp_path: Path) -> None:
+    fake_fd = tmp_path / "fake-fd"
+    fake_fd.write_text("#!/bin/sh\nsleep 1\nprintf 'slow.txt\\n'\n", encoding="utf-8")
+    fake_fd.chmod(0o755)
+    signal = DummyAbortSignal()
+
+    started = time.monotonic()
+    task = asyncio.create_task(autocomplete.walk_directory_with_fd(str(tmp_path), str(fake_fd), "", 100, signal))
+    await asyncio.sleep(0.05)
+    signal.abort()
+    result = await task
+    elapsed = time.monotonic() - started
+
+    assert result == []
+    assert elapsed < 0.5

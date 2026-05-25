@@ -59,6 +59,7 @@ def format_missing_session_cwd_prompt(issue: SessionCwdIssue) -> str:
 class MissingSessionCwdError(Exception):
     def __init__(self, issue: SessionCwdIssue) -> None:
         super().__init__(format_missing_session_cwd_error(issue))
+        self.name = "MissingSessionCwdError"
         self.issue = issue
 
 
@@ -76,13 +77,8 @@ assertSessionCwdExists = assert_session_cwd_exists
 __all__ = [
     "MissingSessionCwdError",
     "SessionCwdIssue",
-    "SessionCwdSource",
     "assertSessionCwdExists",
-    "assert_session_cwd_exists",
     "formatMissingSessionCwdError",
     "formatMissingSessionCwdPrompt",
-    "format_missing_session_cwd_error",
-    "format_missing_session_cwd_prompt",
     "getMissingSessionCwdIssue",
-    "get_missing_session_cwd_issue",
 ]

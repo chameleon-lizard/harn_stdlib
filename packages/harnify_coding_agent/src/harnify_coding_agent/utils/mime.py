@@ -76,10 +76,6 @@ detectSupportedImageMimeType = detect_supported_image_mime_type
 detectSupportedImageMimeTypeFromFile = detect_supported_image_mime_type_from_file
 
 __all__ = [
-    "IMAGE_TYPE_SNIFF_BYTES",
-    "PNG_SIGNATURE",
     "detectSupportedImageMimeType",
     "detectSupportedImageMimeTypeFromFile",
-    "detect_supported_image_mime_type",
-    "detect_supported_image_mime_type_from_file",
 ]

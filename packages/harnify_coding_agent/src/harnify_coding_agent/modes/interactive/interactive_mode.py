@@ -4360,7 +4360,7 @@ class InteractiveMode:
     def updateEditorBorderColor(self) -> None:
         border = (
             interactive_theme.theme.getBashModeBorderColor()
-            if _is_bash_mode(self.editor)
+            if self.isBashMode
             else interactive_theme.theme.getThinkingBorderColor(self._get_session_thinking_level())
         )
         if hasattr(self.editor, "borderColor"):

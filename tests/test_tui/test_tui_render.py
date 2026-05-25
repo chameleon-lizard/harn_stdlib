@@ -123,6 +123,19 @@ def test_tui_overlay_composition_works_with_short_content() -> None:
     assert any("OVERLAY" in line for line in tui.previousLines)
 
 
+def test_tui_overlay_uses_live_options_reference_like_ts() -> None:
+    terminal = FakeTerminal(columns=80, rows=24)
+    tui = TUI(terminal)
+    options: dict[str, Any] = {}
+    overlay = DemoComponent(["OVERLAY"])
+
+    tui.showOverlay(overlay, options)
+    assert tui.hasOverlay() is True
+
+    options["visible"] = lambda _width, _height: False
+    assert tui.hasOverlay() is False
+
+
 def test_tui_deletes_changed_kitty_image_before_redrawing_new_placement() -> None:
     terminal = FakeTerminal()
     tui = TUI(terminal)

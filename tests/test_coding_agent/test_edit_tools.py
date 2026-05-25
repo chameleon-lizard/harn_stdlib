@@ -129,7 +129,7 @@ def test_edit_render_result_reuses_non_container_last_component_like_ts() -> Non
     definition = create_edit_tool_definition(str(Path.cwd()))
     last_component = Box(0, 0, lambda text: text)
     context = SimpleNamespace(
-        state={},
+        state={"callComponent": last_component},
         lastComponent=last_component,
         args={"path": "demo.txt"},
         isError=True,
@@ -139,6 +139,7 @@ def test_edit_render_result_reuses_non_container_last_component_like_ts() -> Non
     rendered = definition.renderResult(result, {}, _fake_theme(), context)
 
     assert rendered is last_component
+    assert last_component.settledError is True
 
 
 @pytest.mark.asyncio

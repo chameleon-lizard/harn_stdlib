@@ -94,7 +94,7 @@ class CreateAgentSessionOptions(TypedDict, total=False):
     agentDir: str
     authStorage: AuthStorage
     modelRegistry: ModelRegistry
-    model: Model[Any] | None
+    model: Model[Any]
     thinkingLevel: ThinkingLevel
     scopedModels: list[ScopedModel]
     noTools: Literal["all", "builtin"]

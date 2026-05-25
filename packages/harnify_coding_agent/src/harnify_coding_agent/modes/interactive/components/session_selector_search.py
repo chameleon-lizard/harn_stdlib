@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Literal
 
-from harnify_tui.fuzzy import fuzzy_match
+from harnify_tui import fuzzyMatch
 
 from harnify_coding_agent.core.session_manager import SessionInfo
 
-type SortMode = str
-type NameFilter = str
+type SortMode = Literal["threaded", "recent", "relevance"]
+type NameFilter = Literal["all", "named"]
 
 
 @dataclass(slots=True)
@@ -132,7 +133,7 @@ def match_session(session: SessionInfo, parsed: ParsedSearchQuery) -> MatchResul
             total_score += index * 0.1
             continue
 
-        match = fuzzy_match(token.value, text)
+        match = fuzzyMatch(token.value, text)
         if not match.matches:
             return MatchResult(matches=False, score=0)
         total_score += match.score
@@ -172,11 +173,8 @@ def filter_and_sort_sessions(
 
 
 filterAndSortSessions = filter_and_sort_sessions
-getSessionSearchText = get_session_search_text
 hasSessionName = has_session_name
 matchSession = match_session
-matchesNameFilter = matches_name_filter
-normalizeWhitespaceLower = normalize_whitespace_lower
 parseSearchQuery = parse_search_query
 
 __all__ = [
@@ -185,7 +183,6 @@ __all__ = [
     "ParsedSearchQuery",
     "SortMode",
     "filterAndSortSessions",
-    "getSessionSearchText",
     "hasSessionName",
     "matchSession",
     "parseSearchQuery",

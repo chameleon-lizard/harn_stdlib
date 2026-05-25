@@ -643,6 +643,9 @@ class InteractiveMode:
         self.builtInHeader = getattr(self, "builtInHeader", None)
         self.customFooter = getattr(self, "customFooter", None)
         self.editorComponentFactory = getattr(self, "editorComponentFactory", None)
+        self.extensionSelector = getattr(self, "extensionSelector", None)
+        self.extensionInput = getattr(self, "extensionInput", None)
+        self.extensionEditor = getattr(self, "extensionEditor", None)
         self.loadingAnimation = getattr(self, "loadingAnimation", None)
         self.autoCompactionEscapeHandler = getattr(self, "autoCompactionEscapeHandler", None)
         self.autoCompactionLoader = getattr(self, "autoCompactionLoader", None)
@@ -1377,6 +1380,12 @@ class InteractiveMode:
         self.extensionTerminalInputUnsubscribers.clear()
 
     def resetExtensionUI(self) -> None:
+        if self.extensionSelector is not None:
+            self.hideExtensionSelector()
+        if self.extensionInput is not None:
+            self.hideExtensionInput()
+        if self.extensionEditor is not None:
+            self.hideExtensionEditor()
         self._clear_selector()
         hide_overlay = _callable_attr(self.ui, "hideOverlay")
         if hide_overlay is not None:
@@ -2183,38 +2192,59 @@ class InteractiveMode:
                 future.set_result(value)
 
         def abort() -> None:
-            self._clear_selector()
+            self.hideExtensionSelector()
             finish(None)
 
         unregister_abort = _register_abort_handler(signal, abort)
 
         def select(option: str) -> None:
             unregister_abort()
-            self._clear_selector()
+            self.hideExtensionSelector()
             finish(option)
 
         def cancel() -> None:
             unregister_abort()
-            self._clear_selector()
+            self.hideExtensionSelector()
             finish(None)
 
-        self.showSelector(
-            lambda _done: {
-                "component": ExtensionSelectorComponent(
-                    title,
-                    options,
-                    select,
-                    cancel,
-                    {
-                        "tui": self.ui,
-                        "timeout": _value(opts, "timeout"),
-                        "onToggleToolsExpanded": self.toggleToolOutputExpansion,
-                    },
-                ),
-                "focus": True,
-            }
+        self.extensionSelector = ExtensionSelectorComponent(
+            title,
+            options,
+            select,
+            cancel,
+            {
+                "tui": self.ui,
+                "timeout": _value(opts, "timeout"),
+                "onToggleToolsExpanded": self.toggleToolOutputExpansion,
+            },
         )
+        clear = _callable_attr(self.editorContainer, "clear")
+        if clear is not None:
+            clear()
+        add_child = _callable_attr(self.editorContainer, "addChild")
+        if add_child is not None:
+            add_child(self.extensionSelector)
+        set_focus = _callable_attr(self.ui, "setFocus")
+        if set_focus is not None:
+            set_focus(self.extensionSelector)
+        self._request_render()
         return await future
+
+    def hideExtensionSelector(self) -> None:
+        dispose = _callable_attr(self.extensionSelector, "dispose")
+        if dispose is not None:
+            dispose()
+        clear = _callable_attr(self.editorContainer, "clear")
+        if clear is not None:
+            clear()
+        add_child = _callable_attr(self.editorContainer, "addChild")
+        if add_child is not None:
+            add_child(self.editor)
+        self.extensionSelector = None
+        set_focus = _callable_attr(self.ui, "setFocus")
+        if set_focus is not None:
+            set_focus(self.editor)
+        self._request_render()
 
     async def showExtensionConfirm(
         self,
@@ -2243,34 +2273,55 @@ class InteractiveMode:
                 future.set_result(value)
 
         def abort() -> None:
-            self._clear_selector()
+            self.hideExtensionInput()
             finish(None)
 
         unregister_abort = _register_abort_handler(signal, abort)
 
         def submit(value: str) -> None:
             unregister_abort()
-            self._clear_selector()
+            self.hideExtensionInput()
             finish(value)
 
         def cancel() -> None:
             unregister_abort()
-            self._clear_selector()
+            self.hideExtensionInput()
             finish(None)
 
-        self.showSelector(
-            lambda _done: {
-                "component": ExtensionInputComponent(
-                    title,
-                    placeholder,
-                    submit,
-                    cancel,
-                    {"tui": self.ui, "timeout": _value(opts, "timeout")},
-                ),
-                "focus": True,
-            }
+        self.extensionInput = ExtensionInputComponent(
+            title,
+            placeholder,
+            submit,
+            cancel,
+            {"tui": self.ui, "timeout": _value(opts, "timeout")},
         )
+        clear = _callable_attr(self.editorContainer, "clear")
+        if clear is not None:
+            clear()
+        add_child = _callable_attr(self.editorContainer, "addChild")
+        if add_child is not None:
+            add_child(self.extensionInput)
+        set_focus = _callable_attr(self.ui, "setFocus")
+        if set_focus is not None:
+            set_focus(self.extensionInput)
+        self._request_render()
         return await future
+
+    def hideExtensionInput(self) -> None:
+        dispose = _callable_attr(self.extensionInput, "dispose")
+        if dispose is not None:
+            dispose()
+        clear = _callable_attr(self.editorContainer, "clear")
+        if clear is not None:
+            clear()
+        add_child = _callable_attr(self.editorContainer, "addChild")
+        if add_child is not None:
+            add_child(self.editor)
+        self.extensionInput = None
+        set_focus = _callable_attr(self.ui, "setFocus")
+        if set_focus is not None:
+            set_focus(self.editor)
+        self._request_render()
 
     async def showExtensionEditor(self, title: str, prefill: str | None = None) -> str | None:
         loop = asyncio.get_running_loop()
@@ -2281,27 +2332,48 @@ class InteractiveMode:
                 future.set_result(value)
 
         def submit(value: str) -> None:
-            self._clear_selector()
+            self.hideExtensionEditor()
             finish(value)
 
         def cancel() -> None:
-            self._clear_selector()
+            self.hideExtensionEditor()
             finish(None)
 
-        self.showSelector(
-            lambda _done: {
-                "component": ExtensionEditorComponent(
-                    self.ui,
-                    self.keybindings,
-                    title,
-                    prefill,
-                    submit,
-                    cancel,
-                ),
-                "focus": True,
-            }
+        self.extensionEditor = ExtensionEditorComponent(
+            self.ui,
+            self.keybindings,
+            title,
+            prefill,
+            submit,
+            cancel,
         )
+        clear = _callable_attr(self.editorContainer, "clear")
+        if clear is not None:
+            clear()
+        add_child = _callable_attr(self.editorContainer, "addChild")
+        if add_child is not None:
+            add_child(self.extensionEditor)
+        set_focus = _callable_attr(self.ui, "setFocus")
+        if set_focus is not None:
+            set_focus(self.extensionEditor)
+        self._request_render()
         return await future
+
+    def hideExtensionEditor(self) -> None:
+        dispose = _callable_attr(self.extensionEditor, "dispose")
+        if dispose is not None:
+            dispose()
+        clear = _callable_attr(self.editorContainer, "clear")
+        if clear is not None:
+            clear()
+        add_child = _callable_attr(self.editorContainer, "addChild")
+        if add_child is not None:
+            add_child(self.editor)
+        self.extensionEditor = None
+        set_focus = _callable_attr(self.ui, "setFocus")
+        if set_focus is not None:
+            set_focus(self.editor)
+        self._request_render()
 
     async def handleFatalRuntimeError(self, prefix: str, error: Exception | BaseException | Any) -> None:
         message = str(error) if error is not None else "Unknown error"

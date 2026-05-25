@@ -186,7 +186,7 @@ async def test_list_models_formats_rows_and_searches(capsys: pytest.CaptureFixtu
     assert "claude-sonnet-4-5" in rendered
     assert "200K" in rendered
     assert "gpt-4o-mini" not in rendered
-    assert list_models_module.__all__ == ["formatTokenCount", "listModels"]
+    assert list_models_module.__all__ == ["listModels"]
 
 
 @pytest.mark.asyncio

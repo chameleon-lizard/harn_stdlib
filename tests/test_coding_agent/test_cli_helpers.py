@@ -8,6 +8,7 @@ from harnify_ai.types import Model
 import harnify_coding_agent.cli.file_processor as file_processor_module
 import harnify_coding_agent.cli.initial_message as initial_message_module
 import harnify_coding_agent.cli.list_models as list_models_module
+import harnify_coding_agent.main as main_module
 from harnify_coding_agent.cli.args import parse_args, print_help
 from harnify_coding_agent.cli.file_processor import process_file_arguments
 from harnify_coding_agent.cli.initial_message import build_initial_message
@@ -214,12 +215,16 @@ def test_config_helpers_point_at_bundled_assets() -> None:
 
 @pytest.mark.asyncio
 async def test_main_supports_version_and_export_errors(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    tty = type("TTY", (), {"isatty": lambda self: True})()
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr("sys.stdin", tty)
     assert await main(["--version"]) == 0
     assert capsys.readouterr().out.strip() == VERSION
 
     missing = tmp_path / "missing.jsonl"
     assert await main(["--export", str(missing)]) == 1
     assert "Error:" in capsys.readouterr().err
+    monkeypatch.undo()
 
 
 def test_resolve_app_mode_matches_cli_rules() -> None:
@@ -414,6 +419,10 @@ def test_build_session_options_prefers_cli_model_and_scoped_defaults() -> None:
     defaulted = build_session_options(parse_args([]), scoped_models, False, Registry(), settings)
     assert defaulted.options["model"].provider == "openai"
     assert defaulted.options["thinkingLevel"] == "low"
+
+
+def test_main_module_exports_match_ts_surface() -> None:
+    assert main_module.__all__ == ["MainOptions", "main"]
 
 
 @pytest.mark.asyncio

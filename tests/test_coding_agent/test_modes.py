@@ -243,7 +243,22 @@ class _FakeRuntime:
         self.session = _FakeSession()
         self.disposed = False
         self.rebind = None
-        self.services = type("Services", (), {"settingsManager": object(), "resourceLoader": object()})()
+        self.services = type(
+            "Services",
+            (),
+            {
+                "settingsManager": type(
+                    "Settings",
+                    (),
+                    {
+                        "getTheme": lambda self: None,
+                        "getImageAutoResize": lambda self: True,
+                        "getHttpIdleTimeoutMs": lambda self: 30_000,
+                    },
+                )(),
+                "resourceLoader": object(),
+            },
+        )()
         self.diagnostics = []
         self.modelFallbackMessage = None
 
@@ -362,6 +377,7 @@ async def test_main_dispatches_print_and_rpc(monkeypatch, tmp_path: Path) -> Non
 
     monkeypatch.setattr("harnify_coding_agent.main.run_print_mode", fake_print_mode)
     monkeypatch.setattr("harnify_coding_agent.main.run_rpc_mode", fake_rpc_mode)
+    monkeypatch.setattr("harnify_coding_agent.main.configureHttpDispatcher", lambda _ms: None)
     monkeypatch.setattr("sys.stdin", type("TTY", (), {"isatty": lambda self: True})())
 
     assert await main(["-p", "hello"]) == 7
@@ -392,12 +408,14 @@ async def test_main_initializes_theme_and_prints_timings_for_noninteractive_mode
 
     monkeypatch.setattr("harnify_coding_agent.main.run_print_mode", fake_print_mode)
     monkeypatch.setattr("harnify_coding_agent.main.run_rpc_mode", fake_rpc_mode)
+    monkeypatch.setattr("harnify_coding_agent.main.configureHttpDispatcher", lambda _ms: calls.append(("dispatcher", _ms)))
     monkeypatch.setattr("harnify_coding_agent.main.init_theme", lambda name, enable=False: calls.append(("init", (name, enable))))
     monkeypatch.setattr("harnify_coding_agent.main.print_timings", lambda: calls.append(("timings", None)))
     monkeypatch.setattr("harnify_coding_agent.main.stop_theme_watcher", lambda: calls.append(("stop", None)))
 
     assert await main(["-p", "hello"]) == 0
-    assert calls[:4] == [
+    assert calls[:5] == [
+        ("dispatcher", 30_000),
         ("init", (None, False)),
         ("timings", None),
         ("print", {"mode": "text", "messages": [], "initialMessage": "hello", "initialImages": None}),
@@ -407,10 +425,10 @@ async def test_main_initializes_theme_and_prints_timings_for_noninteractive_mode
     calls.clear()
     assert await main(["--mode", "rpc"]) == 0
     assert calls == [
+        ("dispatcher", 30_000),
         ("init", (None, False)),
         ("timings", None),
         ("rpc", ANY),
-        ("stop", None),
     ]
 
 
@@ -420,6 +438,7 @@ async def test_main_dispatches_interactive(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr("harnify_coding_agent.main.run_migrations", lambda _cwd: None)
     monkeypatch.setattr("harnify_coding_agent.main.create_session_manager", _fake_create_session_manager)
     monkeypatch.setattr("harnify_coding_agent.main.create_agent_session_runtime", _fake_create_runtime)
+    monkeypatch.setattr("harnify_coding_agent.main.configureHttpDispatcher", lambda _ms: None)
     monkeypatch.setattr("sys.stdin", type("TTY", (), {"isatty": lambda self: True})())
 
     captured: dict[str, Any] = {}
@@ -440,8 +459,8 @@ async def test_main_dispatches_interactive(monkeypatch, tmp_path: Path) -> None:
 
     assert await main(["first", "second", "--verbose"]) == 11
     assert captured["ran"] is True
-    assert captured["disposed"] is True
-    assert captured["runtime"].disposed is True
+    assert "disposed" not in captured
+    assert captured["runtime"].disposed is False
     assert captured["options"]["initialMessage"] == "first"
     assert captured["options"]["initialMessages"] == ["second"]
     assert captured["options"]["initialImages"] is None

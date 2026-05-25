@@ -18,7 +18,7 @@ from harnify_coding_agent.cli.args import Args, parse_args, print_help
 from harnify_coding_agent.cli.file_processor import ProcessFileOptions, process_file_arguments
 from harnify_coding_agent.cli.initial_message import build_initial_message
 from harnify_coding_agent.cli.list_models import list_models
-from harnify_coding_agent.config import ENV_SESSION_DIR, VERSION, expand_tilde_path, get_agent_dir
+from harnify_coding_agent.config import ENV_SESSION_DIR, VERSION, expand_tilde_path, get_agent_dir, get_package_dir
 from harnify_coding_agent.core.agent_session_runtime import (
     CreateAgentSessionRuntimeResult,
     create_agent_session_runtime,
@@ -28,11 +28,14 @@ from harnify_coding_agent.core.agent_session_services import (
     create_agent_session_from_services,
     create_agent_session_services,
 )
+from harnify_coding_agent.core.auth_guidance import formatNoModelsAvailableMessage
 from harnify_coding_agent.core.auth_storage import AuthStorage
 from harnify_coding_agent.core.export_html import export_from_file
+from harnify_coding_agent.core.http_dispatcher import configureHttpDispatcher
 from harnify_coding_agent.core.keybindings import KeybindingsManager
 from harnify_coding_agent.core.model_registry import ModelRegistry
 from harnify_coding_agent.core.model_resolver import ScopedModel, resolveCliModel, resolveModelScope
+from harnify_coding_agent.core.output_guard import isStdoutTakenOver, restoreStdout, takeOverStdout
 from harnify_coding_agent.core.session_cwd import (
     MissingSessionCwdError,
     SessionCwdIssue,
@@ -42,7 +45,7 @@ from harnify_coding_agent.core.session_cwd import (
 from harnify_coding_agent.core.session_manager import SessionManager
 from harnify_coding_agent.core.settings_manager import SettingsManager
 from harnify_coding_agent.core.timings import print_timings, reset_timings, time as time_mark
-from harnify_coding_agent.migrations import run_migrations
+from harnify_coding_agent.migrations import run_migrations, show_deprecation_warnings
 from harnify_coding_agent.modes import run_print_mode
 from harnify_coding_agent.modes.interactive.components.extension_selector import ExtensionSelectorComponent
 from harnify_coding_agent.modes.interactive import InteractiveMode
@@ -50,6 +53,7 @@ from harnify_coding_agent.modes.interactive.theme.theme import init_theme, stop_
 from harnify_coding_agent.modes.rpc import run_rpc_mode
 from harnify_coding_agent.package_manager_cli import handle_config_command, handle_package_command
 from harnify_coding_agent.utils.paths import is_local_path, normalize_path, resolve_path
+from harnify_coding_agent.utils.windows_self_update import cleanup_windows_self_update_quarantine
 
 AppMode = Literal["interactive", "print", "json", "rpc"]
 PrintOutputMode = Literal["text", "json"]
@@ -95,7 +99,8 @@ ConfirmFn = Callable[[str], Awaitable[bool]]
 async def read_piped_stdin() -> str | None:
     if sys.stdin.isatty():
         return None
-    return await asyncio.to_thread(sys.stdin.read) or None
+    content = await asyncio.to_thread(sys.stdin.read)
+    return content.strip() or None
 
 
 def is_truthy_env_flag(value: str | None) -> bool:
@@ -351,17 +356,17 @@ def create_runtime_factory(
                 "authStorage": auth_storage,
                 "extensionFlagValues": parsed.unknownFlags,
                 "resourceLoaderOptions": {
-                    "additionalExtensionPaths": resolved_extension_paths or [],
-                    "additionalSkillPaths": resolved_skill_paths or [],
-                    "additionalPromptTemplatePaths": resolved_prompt_template_paths or [],
-                    "additionalThemePaths": resolved_theme_paths or [],
+                    "additionalExtensionPaths": resolved_extension_paths,
+                    "additionalSkillPaths": resolved_skill_paths,
+                    "additionalPromptTemplatePaths": resolved_prompt_template_paths,
+                    "additionalThemePaths": resolved_theme_paths,
                     "noExtensions": parsed.noExtensions,
                     "noSkills": parsed.noSkills,
                     "noPromptTemplates": parsed.noPromptTemplates,
                     "noThemes": parsed.noThemes,
                     "noContextFiles": parsed.noContextFiles,
                     "systemPrompt": parsed.systemPrompt,
-                    "appendSystemPrompt": parsed.appendSystemPrompt or [],
+                    "appendSystemPrompt": parsed.appendSystemPrompt,
                     "extensionFactories": extension_factories,
                 },
             }
@@ -457,7 +462,7 @@ async def create_session_manager(
     selector = select_session_fn or session_picker.select_session
 
     if parsed.noSession:
-        return SessionManager.inMemory(cwd)
+        return SessionManager.inMemory()
 
     if parsed.fork:
         resolved = await resolve_session_path(parsed.fork, cwd, session_dir)
@@ -506,25 +511,28 @@ async def main(args: list[str], options: MainOptions | None = None) -> int:
         os.environ["PI_OFFLINE"] = "1"
         os.environ["PI_SKIP_VERSION_CHECK"] = "1"
 
+    if sys.platform == "win32":
+        cleanup_windows_self_update_quarantine(get_package_dir())
+
     package_command_result = await handle_package_command(args)
     if package_command_result is not None:
         return package_command_result
-
-    try:
-        config_command_result = await handle_config_command(args)
-    except SystemExit as exit_signal:
-        code = exit_signal.code
-        return int(code) if isinstance(code, int) else 1
+    config_command_result = await handle_config_command(args)
     if config_command_result is not None:
         return config_command_result
 
     parsed = parse_args(args)
-    time_mark("parseArgs")
     for diagnostic in parsed.diagnostics:
         prefix = "Error" if diagnostic.type == "error" else "Warning"
         print(f"{prefix}: {diagnostic.message}", file=sys.stderr)
     if any(diagnostic.type == "error" for diagnostic in parsed.diagnostics):
         return 1
+    time_mark("parseArgs")
+
+    app_mode = resolve_app_mode(parsed, sys.stdin.isatty())
+    took_over_stdout = app_mode != "interactive"
+    if took_over_stdout:
+        takeOverStdout()
 
     if parsed.version:
         print(VERSION)
@@ -553,7 +561,9 @@ async def main(args: list[str], options: MainOptions | None = None) -> int:
     cwd = os.getcwd()
     migration_result = run_migrations(cwd) or {}
     time_mark("runMigrations")
-    startup_settings_manager = SettingsManager.create(cwd)
+    agent_dir = get_agent_dir()
+    startup_settings_manager = SettingsManager.create(cwd, agent_dir)
+    report_diagnostics(collect_settings_diagnostics(startup_settings_manager, "startup session lookup"))
     session_dir = (
         normalize_path(parsed.sessionDir)
         if parsed.sessionDir
@@ -587,16 +597,20 @@ async def main(args: list[str], options: MainOptions | None = None) -> int:
             return 1
     time_mark("createSessionManager")
 
-    agent_dir = get_agent_dir()
+    resolved_extension_paths = resolve_cli_paths(cwd, parsed.extensions)
+    resolved_skill_paths = resolve_cli_paths(cwd, parsed.skills)
+    resolved_prompt_template_paths = resolve_cli_paths(cwd, parsed.promptTemplates)
+    resolved_theme_paths = resolve_cli_paths(cwd, parsed.themes)
+    auth_storage = AuthStorage.create()
     runtime = await create_agent_session_runtime(
         create_runtime_factory(
             parsed,
-            AuthStorage.create(),
-            resolved_extension_paths=resolve_cli_paths(cwd, parsed.extensions),
-            resolved_skill_paths=resolve_cli_paths(cwd, parsed.skills),
-            resolved_prompt_template_paths=resolve_cli_paths(cwd, parsed.promptTemplates),
-            resolved_theme_paths=resolve_cli_paths(cwd, parsed.themes),
-            extension_factories=list((options or {}).get("extensionFactories", []) or []),
+            auth_storage,
+            resolved_extension_paths=resolved_extension_paths,
+            resolved_skill_paths=resolved_skill_paths,
+            resolved_prompt_template_paths=resolved_prompt_template_paths,
+            resolved_theme_paths=resolved_theme_paths,
+            extension_factories=options.get("extensionFactories") if options else None,
         ),
         {
             "cwd": session_manager.getCwd(),
@@ -604,12 +618,18 @@ async def main(args: list[str], options: MainOptions | None = None) -> int:
             "sessionManager": session_manager,
         },
     )
+    services = runtime.services
+    session = runtime.session
+    settings_manager = services.settingsManager
+    model_registry = services.modelRegistry
+    configureHttpDispatcher(settings_manager.getHttpIdleTimeoutMs())
     time_mark("createAgentSessionRuntime")
+
     try:
         if parsed.help:
             extension_flags = [
                 flag
-                for extension in runtime.services.resourceLoader.getExtensions().extensions
+                for extension in services.resourceLoader.getExtensions().extensions
                 for flag in extension.flags.values()
             ]
             print_help(extension_flags)
@@ -617,123 +637,93 @@ async def main(args: list[str], options: MainOptions | None = None) -> int:
 
         if parsed.listModels is not None:
             await list_models(
-                runtime.services.modelRegistry,
+                model_registry,
                 parsed.listModels if isinstance(parsed.listModels, str) else None,
             )
             return 0
 
-        app_mode = resolve_app_mode(parsed, sys.stdin.isatty())
-        stdin_content = None if app_mode == "rpc" else await read_piped_stdin()
+        stdin_content = None
+        if app_mode != "rpc":
+            stdin_content = await read_piped_stdin()
+            if stdin_content is not None and app_mode == "interactive":
+                app_mode = "print"
         time_mark("readPipedStdin")
-        initial_message, initial_images = await prepare_initial_message(parsed, True, stdin_content)
+
+        initial_message, initial_images = await prepare_initial_message(
+            parsed,
+            settings_manager.getImageAutoResize(),
+            stdin_content,
+        )
         time_mark("prepareInitialMessage")
-        runtime_theme = getattr(runtime.services.settingsManager, "getTheme", startup_settings_manager.getTheme)()
-        init_theme(runtime_theme, app_mode == "interactive")
+        init_theme(settings_manager.getTheme(), app_mode == "interactive")
         time_mark("initTheme")
 
-        runtime_diagnostics = [
-            *collect_settings_diagnostics(startup_settings_manager, "startup"),
-            *[
-                RuntimeDiagnostic(type=item.type, message=item.message)
-                for item in runtime.diagnostics
-            ],
-        ]
-        if runtime.modelFallbackMessage:
-            runtime_diagnostics.append(RuntimeDiagnostic(type="warning", message=runtime.modelFallbackMessage))
-        report_diagnostics(runtime_diagnostics)
-        if any(item.type == "error" for item in runtime_diagnostics):
+        deprecation_warnings = migration_result.get("deprecationWarnings") or []
+        if app_mode == "interactive" and deprecation_warnings:
+            await show_deprecation_warnings(deprecation_warnings)
+
+        time_mark("resolveModelScope")
+        report_diagnostics(list(runtime.diagnostics))
+        if any(item.type == "error" for item in runtime.diagnostics):
+            return 1
+        time_mark("createAgentSession")
+
+        if app_mode != "interactive" and session.model is None:
+            print(formatNoModelsAvailableMessage(), file=sys.stderr)
             return 1
 
-        if app_mode in {"print", "json"}:
-            print_timings()
-            return await run_print_mode(
-                runtime,
-                {
-                    "mode": to_print_output_mode(app_mode),
-                    "messages": list(parsed.messages),
-                    "initialMessage": initial_message,
-                    "initialImages": initial_images,
-                },
-            )
+        startup_benchmark = is_truthy_env_flag(os.environ.get("PI_STARTUP_BENCHMARK"))
+        if startup_benchmark and app_mode != "interactive":
+            print("Error: PI_STARTUP_BENCHMARK only supports interactive mode", file=sys.stderr)
+            return 1
 
         if app_mode == "rpc":
             print_timings()
             return await run_rpc_mode(runtime)
 
-        interactive_mode = InteractiveMode(
-            runtimeHost=runtime,
-            options={
-                "migratedProviders": migration_result.get("migratedAuthProviders"),
-                "initialMessage": initial_message,
-                "initialImages": initial_images,
-                "initialMessages": list(parsed.messages),
-                "modelFallbackMessage": runtime.modelFallbackMessage,
-                "verbose": parsed.verbose,
-            },
-        )
-        try:
+        if app_mode == "interactive":
+            interactive_mode = InteractiveMode(
+                runtime,
+                {
+                    "migratedProviders": migration_result.get("migratedAuthProviders"),
+                    "modelFallbackMessage": runtime.modelFallbackMessage,
+                    "initialMessage": initial_message,
+                    "initialImages": initial_images,
+                    "initialMessages": list(parsed.messages),
+                    "verbose": parsed.verbose,
+                },
+            )
+            if startup_benchmark:
+                await interactive_mode.init()
+                time_mark("interactiveMode.init")
+                print_timings()
+                interactive_mode.requestShutdown()
+                interactive_mode.dispose()
+                flush_stdout = getattr(sys.stdout, "flush", None)
+                if callable(flush_stdout):
+                    flush_stdout()
+                flush_stderr = getattr(sys.stderr, "flush", None)
+                if callable(flush_stderr):
+                    flush_stderr()
+                return 0
+
             print_timings()
             return await interactive_mode.run()
-        finally:
-            interactive_mode.dispose()
-    finally:
+
+        print_timings()
+        exit_code = await run_print_mode(
+            runtime,
+            {
+                "mode": to_print_output_mode(app_mode),
+                "messages": list(parsed.messages),
+                "initialMessage": initial_message,
+                "initialImages": initial_images,
+            },
+        )
         stop_theme_watcher()
-        await runtime.dispose()
+        return exit_code
+    finally:
+        if took_over_stdout and isStdoutTakenOver():
+            restoreStdout()
 
-
-BuildSessionOptionsResult = BuildSessionOptionsResult
-MainOptions = MainOptions
-ResolvedSession = ResolvedSession
-buildSessionOptions = build_session_options
-collectSettingsDiagnostics = collect_settings_diagnostics
-createRuntimeFactory = create_runtime_factory
-createSessionManager = create_session_manager
-promptForMissingSessionCwd = prompt_for_missing_session_cwd
-promptConfirm = prompt_confirm
-reportDiagnostics = report_diagnostics
-resolveCliPaths = resolve_cli_paths
-resolveSessionPath = resolve_session_path
-resolveAppMode = resolve_app_mode
-readPipedStdin = read_piped_stdin
-prepareInitialMessage = prepare_initial_message
-toPrintOutputMode = to_print_output_mode
-validateForkFlags = validate_fork_flags
-
-__all__ = [
-    "AppMode",
-    "BuildSessionOptionsResult",
-    "MainOptions",
-    "PrintOutputMode",
-    "ResolvedSession",
-    "RuntimeDiagnostic",
-    "buildSessionOptions",
-    "build_session_options",
-    "collectSettingsDiagnostics",
-    "collect_settings_diagnostics",
-    "createRuntimeFactory",
-    "create_runtime_factory",
-    "createSessionManager",
-    "create_session_manager",
-    "is_truthy_env_flag",
-    "main",
-    "promptConfirm",
-    "promptForMissingSessionCwd",
-    "prompt_confirm",
-    "prompt_for_missing_session_cwd",
-    "prepareInitialMessage",
-    "prepare_initial_message",
-    "readPipedStdin",
-    "read_piped_stdin",
-    "reportDiagnostics",
-    "report_diagnostics",
-    "resolveCliPaths",
-    "resolveAppMode",
-    "resolveSessionPath",
-    "resolve_cli_paths",
-    "resolve_app_mode",
-    "resolve_session_path",
-    "toPrintOutputMode",
-    "to_print_output_mode",
-    "validateForkFlags",
-    "validate_fork_flags",
-]
+__all__ = ["MainOptions", "main"]

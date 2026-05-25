@@ -82,7 +82,6 @@ from harnify_coding_agent.core.telemetry import is_install_telemetry_enabled
 from harnify_coding_agent.modes.interactive.components.assistant_message import AssistantMessageComponent
 from harnify_coding_agent.modes.interactive.components.armin import ArminComponent
 from harnify_coding_agent.modes.interactive.components.bash_execution import BashExecutionComponent
-from harnify_coding_agent.modes.interactive.components.bordered_loader import BorderedLoader
 from harnify_coding_agent.modes.interactive.components.branch_summary_message import (
     BranchSummaryMessageComponent,
 )
@@ -5392,14 +5391,14 @@ class InteractiveMode:
             self.defaultEditor.onEscape = (
                 (lambda: abort_branch_summary()) if abort_branch_summary is not None else original_escape
             )
-            clear_status = _callable_attr(self.statusContainer, "clear")
-            if clear_status is not None:
-                clear_status()
-            summary_loader = BorderedLoader(
+            add_chat_child = _callable_attr(self.chatContainer, "addChild")
+            if add_chat_child is not None:
+                add_chat_child(Spacer(1))
+            summary_loader = Loader(
                 self.ui,
-                interactive_theme.theme,
+                lambda spinner: interactive_theme.theme.fg("accent", spinner),
+                lambda text: interactive_theme.theme.fg("muted", text),
                 f"Summarizing branch... ({key_text('app.interrupt')} to cancel)",
-                {"cancellable": False},
             )
             add_child = _callable_attr(self.statusContainer, "addChild")
             if add_child is not None:
@@ -5434,13 +5433,12 @@ class InteractiveMode:
         finally:
             self.defaultEditor.onEscape = original_escape
             if summary_loader is not None:
-                dispose = _callable_attr(summary_loader, "dispose")
-                if dispose is not None:
-                    dispose()
+                stop = _callable_attr(summary_loader, "stop")
+                if stop is not None:
+                    stop()
                 clear_status = _callable_attr(self.statusContainer, "clear")
                 if clear_status is not None:
                     clear_status()
-                self._request_render()
 
     async def _new_session_from_command_context(
         self,

@@ -22,6 +22,8 @@ from harnify_coding_agent.modes.rpc.rpc_types import (
     RpcSlashCommand,
 )
 
+_UNSET = object()
+
 
 def _value(obj: Any, name: str, default: Any = None) -> Any:
     if isinstance(obj, dict):
@@ -276,20 +278,23 @@ async def run_rpc_mode(runtime_host: Any, *, input_stream: Any | None = None) ->
     def output(obj: RpcResponse | RpcExtensionUIRequest | dict[str, Any]) -> None:
         writeRawStdout(serialize_json_line(obj))
 
-    def success(request_id: str | None, command: str, data: Any = None) -> RpcResponse:
-        response: RpcResponse = {"id": request_id, "type": "response", "command": command, "success": True}
-        if data is not None:
+    def success(request_id: str | None, command: str | None, data: Any = _UNSET) -> RpcResponse:
+        response: RpcResponse = {"type": "response", "success": True}
+        if request_id is not None:
+            response["id"] = request_id
+        if command is not None:
+            response["command"] = command
+        if data is not _UNSET:
             response["data"] = data
         return response
 
-    def failure(request_id: str | None, command: str, message: str) -> RpcResponse:
-        return {
-            "id": request_id,
-            "type": "response",
-            "command": command,
-            "success": False,
-            "error": message,
-        }
+    def failure(request_id: str | None, command: str | None, message: str) -> RpcResponse:
+        response: RpcResponse = {"type": "response", "success": False, "error": message}
+        if request_id is not None:
+            response["id"] = request_id
+        if command is not None:
+            response["command"] = command
+        return response
 
     async def rebind_session() -> None:
         nonlocal session, unsubscribe
@@ -370,8 +375,9 @@ async def run_rpc_mode(runtime_host: Any, *, input_stream: Any | None = None) ->
     register_signal_handlers()
 
     async def handle_command(command: RpcCommand) -> RpcResponse | None:
-        request_id = command.get("id")
-        command_type = str(command.get("type"))
+        request_id = _value(command, "id")
+        raw_command_type = _value(command, "type")
+        command_type = raw_command_type if isinstance(raw_command_type, str) else None
 
         if command_type == "prompt":
             preflight_succeeded = False
@@ -627,13 +633,13 @@ async def run_rpc_mode(runtime_host: Any, *, input_stream: Any | None = None) ->
                 if not future.done():
                     future.set_result(response)
             return
-        command = parsed if isinstance(parsed, dict) else {"type": "invalid"}
+        command = parsed
         try:
             response = await handle_command(command)
             if response is not None:
                 output(response)
         except Exception as error:  # noqa: BLE001
-            output(failure(command.get("id"), str(command.get("type")), str(error)))
+            output(failure(_value(command, "id"), _value(command, "type"), str(error)))
 
     source = getattr(input_stream or sys.stdin, "buffer", input_stream or sys.stdin)
     reader = JsonlLineBuffer()

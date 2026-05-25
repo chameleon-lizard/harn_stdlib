@@ -25,7 +25,7 @@ KITTY_SEQUENCE_PREFIX = "\x1b_G"
 CURSOR_MARKER = "\x1b_pi:c\x07"
 
 
-def extract_kitty_image_ids(line: str) -> list[int]:
+def _extract_kitty_image_ids(line: str) -> list[int]:
     sequence_start = line.find(KITTY_SEQUENCE_PREFIX)
     if sequence_start == -1:
         return []
@@ -50,7 +50,7 @@ def extract_kitty_image_ids(line: str) -> list[int]:
 
 
 class Component(Protocol):
-    wantsKeyRelease: bool
+    wantsKeyRelease: bool | None
 
     def render(self, width: int) -> list[str]: ...
 
@@ -63,7 +63,7 @@ class Focusable(Protocol):
     focused: bool
 
 
-def is_focusable(component: Component | None) -> bool:
+def isFocusable(component: Component | None) -> bool:
     return component is not None and hasattr(component, "focused")
 
 
@@ -102,7 +102,7 @@ class OverlayOptions(TypedDict, total=False):
     nonCapturing: bool
 
 
-def parse_size_value(value: SizeValue | None, reference_size: int) -> int | None:
+def _parse_size_value(value: SizeValue | None, reference_size: int) -> int | None:
     if value is None:
         return None
     if isinstance(value, int):
@@ -118,7 +118,7 @@ def _is_termux_session() -> bool:
 
 
 @dataclass(slots=True)
-class OverlayLayout:
+class _OverlayLayout:
     width: int
     row: int
     col: int
@@ -276,10 +276,10 @@ class TUI(Container):
         self.clearOnShrink = enabled
 
     def setFocus(self, component: Component | None) -> None:
-        if is_focusable(self.focusedComponent):
+        if isFocusable(self.focusedComponent):
             self.focusedComponent.focused = False
         self.focusedComponent = component
-        if is_focusable(component):
+        if isFocusable(component):
             component.focused = True
 
     def showOverlay(self, component: Component, options: OverlayOptions | None = None) -> OverlayHandle:
@@ -450,7 +450,7 @@ class TUI(Container):
         overlayHeight: int,
         termWidth: int,
         termHeight: int,
-    ) -> OverlayLayout:
+    ) -> _OverlayLayout:
         opt = options or {}
         margin_opt = opt.get("margin", {})
         if isinstance(margin_opt, int):
@@ -465,12 +465,12 @@ class TUI(Container):
         avail_width = max(1, termWidth - margin_left - margin_right)
         avail_height = max(1, termHeight - margin_top - margin_bottom)
 
-        width = parse_size_value(opt.get("width"), termWidth) or min(80, avail_width)
+        width = _parse_size_value(opt.get("width"), termWidth) or min(80, avail_width)
         if opt.get("minWidth") is not None:
             width = max(width, int(opt["minWidth"]))
         width = max(1, min(width, avail_width))
 
-        max_height = parse_size_value(opt.get("maxHeight"), termHeight)
+        max_height = _parse_size_value(opt.get("maxHeight"), termHeight)
         if max_height is not None:
             max_height = max(1, min(max_height, avail_height))
         effective_height = min(overlayHeight, max_height) if max_height is not None else overlayHeight
@@ -510,7 +510,7 @@ class TUI(Container):
 
         row = max(margin_top, min(row, termHeight - margin_bottom - effective_height))
         col = max(margin_left, min(col, termWidth - margin_right - width))
-        return OverlayLayout(width=width, row=row, col=col, maxHeight=max_height)
+        return _OverlayLayout(width=width, row=row, col=col, maxHeight=max_height)
 
     def resolveAnchorRow(self, anchor: OverlayAnchor, height: int, availHeight: int, marginTop: int) -> int:
         if anchor in {"top-left", "top-center", "top-right"}:
@@ -585,7 +585,7 @@ class TUI(Container):
     def collectKittyImageIds(self, lines: list[str]) -> set[int]:
         ids: set[int] = set()
         for line in lines:
-            ids.update(extract_kitty_image_ids(line))
+            ids.update(_extract_kitty_image_ids(line))
         return ids
 
     def deleteKittyImages(self, ids: set[int] | list[int]) -> str:
@@ -594,7 +594,7 @@ class TUI(Container):
     def expandLastChangedForKittyImages(self, firstChanged: int, lastChanged: int) -> int:
         expanded = lastChanged
         for index in range(firstChanged, len(self.previousLines)):
-            if extract_kitty_image_ids(self.previousLines[index]):
+            if _extract_kitty_image_ids(self.previousLines[index]):
                 expanded = max(expanded, index)
         return expanded
 
@@ -604,7 +604,7 @@ class TUI(Container):
         ids: set[int] = set()
         max_line = min(lastChanged, len(self.previousLines) - 1)
         for index in range(firstChanged, max_line + 1):
-            ids.update(extract_kitty_image_ids(self.previousLines[index] if index < len(self.previousLines) else ""))
+            ids.update(_extract_kitty_image_ids(self.previousLines[index] if index < len(self.previousLines) else ""))
         return self.deleteKittyImages(ids)
 
     def compositeLineAt(
@@ -884,23 +884,17 @@ class TUI(Container):
             self.terminal.hideCursor()
 
 
-isFocusable = is_focusable
-
 __all__ = [
-    "CURSOR_MARKER",
     "Component",
     "Container",
+    "CURSOR_MARKER",
     "Focusable",
+    "isFocusable",
     "OverlayAnchor",
     "OverlayHandle",
-    "OverlayLayout",
     "OverlayMargin",
     "OverlayOptions",
     "SizeValue",
     "TUI",
-    "extract_kitty_image_ids",
-    "isFocusable",
-    "is_focusable",
-    "parse_size_value",
     "visibleWidth",
 ]

@@ -15,21 +15,21 @@ from harnify_coding_agent.core.source_info import SourceInfo
 
 class RpcSlashCommand(TypedDict):
     name: str
-    description: NotRequired[str | None]
+    description: NotRequired[str]
     source: Literal["extension", "prompt", "skill"]
     sourceInfo: SourceInfo
 
 
 class RpcSessionState(TypedDict):
-    model: NotRequired[Model[Any] | None]
+    model: NotRequired[Model[Any]]
     thinkingLevel: ThinkingLevel
     isStreaming: bool
     isCompacting: bool
     steeringMode: Literal["all", "one-at-a-time"]
     followUpMode: Literal["all", "one-at-a-time"]
-    sessionFile: NotRequired[str | None]
+    sessionFile: NotRequired[str]
     sessionId: str
-    sessionName: NotRequired[str | None]
+    sessionName: NotRequired[str]
     autoCompactionEnabled: bool
     messageCount: int
     pendingMessageCount: int
@@ -573,7 +573,7 @@ class RpcExtensionUISetStatusRequest(TypedDict):
     id: str
     method: Literal["setStatus"]
     statusKey: str
-    statusText: NotRequired[str | None]
+    statusText: NotRequired[str]
 
 
 class RpcExtensionUISetWidgetRequest(TypedDict):
@@ -581,7 +581,7 @@ class RpcExtensionUISetWidgetRequest(TypedDict):
     id: str
     method: Literal["setWidget"]
     widgetKey: str
-    widgetLines: NotRequired[list[str] | None]
+    widgetLines: NotRequired[list[str]]
     widgetPlacement: NotRequired[Literal["aboveEditor", "belowEditor"]]
 
 
@@ -640,7 +640,6 @@ type RpcExtensionUIResponse = (
 __all__ = [
     "RpcCommand",
     "RpcCommandType",
-    "RpcErrorResponse",
     "RpcExtensionUIRequest",
     "RpcExtensionUIResponse",
     "RpcResponse",

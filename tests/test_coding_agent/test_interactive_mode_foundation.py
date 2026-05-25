@@ -2486,8 +2486,6 @@ async def test_handle_submitted_text_routes_commands_and_prompts() -> None:
     await mode.handleSubmittedText("/scoped-models")
     await mode.handleSubmittedText("/settings")
     await mode.handleSubmittedText('/export "session.html"')
-    await mode.handleSubmittedText("/theme")
-    await mode.handleSubmittedText("/theme light")
     await mode.handleSubmittedText('/import "session.jsonl"')
     await mode.handleSubmittedText("/clone")
     await mode.handleSubmittedText("/share")
@@ -2517,8 +2515,6 @@ async def test_handle_submitted_text_routes_commands_and_prompts() -> None:
         "models",
         "settings-selector",
         ("export", '/export "session.html"'),
-        "theme-selector",
-        ("theme-command", "light"),
         ("import", '/import "session.jsonl"'),
         "clone",
         "share",

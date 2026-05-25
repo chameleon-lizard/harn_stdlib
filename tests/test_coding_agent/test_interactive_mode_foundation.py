@@ -819,6 +819,7 @@ async def test_clone_command_and_compaction_end_rebuild_chat() -> None:
     mode.flushCompactionQueue = lambda options: flush_calls.append(options)  # type: ignore[method-assign]
     mode.footer = SimpleNamespace(invalidate=lambda: footer_calls.append(True))
     mode.statusContainer = SimpleNamespace(clear=lambda: None)
+    mode.isInitialized = True
 
     await mode.handleEvent(
         {
@@ -862,6 +863,7 @@ async def test_handle_event_compaction_start_sets_escape_handler_loader_and_prog
         setProgress=lambda value: progress.append(value),
         setTitle=lambda _value: None,
     )
+    mode.isInitialized = True
 
     await mode.handleEvent({"type": "compaction_start", "reason": "manual"})
 
@@ -898,6 +900,7 @@ async def test_handle_event_agent_start_restores_retry_state_and_starts_working_
         setProgress=lambda value: progress.append(value),
         setTitle=lambda _value: None,
     )
+    mode.isInitialized = True
     mode._toolComponentsById = {"tool-1": object()}
     mode.retryEscapeHandler = original_escape
     mode.retryCountdown = SimpleNamespace(dispose=lambda: retry_calls.append("countdown-dispose"))
@@ -926,6 +929,7 @@ async def test_handle_event_session_info_changed_updates_terminal_title() -> Non
     mode.updateTerminalTitle = lambda: updates.append("title")  # type: ignore[method-assign]
     mode.footer = SimpleNamespace(invalidate=lambda: renders.append("footer"))
     mode._request_render = lambda force=None: renders.append("render")  # type: ignore[method-assign]
+    mode.isInitialized = True
 
     await mode.handleEvent({"type": "session_info_changed"})
 
@@ -944,6 +948,7 @@ async def test_handle_event_assistant_streaming_updates_tool_components_and_abor
         session=SimpleNamespace(retryAttempt=0),
         footer=SimpleNamespace(invalidate=lambda: footer_calls.append("footer")),
     )
+    mode.isInitialized = True
 
     tool_call = {"type": "toolCall", "id": "tool-1", "name": "read", "arguments": {"filePath": "a.txt"}}
 
@@ -985,6 +990,7 @@ async def test_handle_event_tool_execution_lifecycle_updates_component() -> None
         settingsManager=SimpleNamespace(getShowImages=lambda: True, getImageWidthCells=lambda: 48),
         footer=SimpleNamespace(invalidate=lambda: None),
     )
+    mode.isInitialized = True
 
     await mode.handleEvent(
         {
@@ -1068,6 +1074,7 @@ async def test_handle_event_auto_retry_start_and_end_manage_escape_and_loader(
         footer=SimpleNamespace(invalidate=lambda: None),
     )
     mode.showError = errors.append  # type: ignore[method-assign]
+    mode.isInitialized = True
 
     await mode.handleEvent(
         {
@@ -1829,10 +1836,24 @@ async def test_handle_event_queue_update_refreshes_pending_messages() -> None:
     mode = InteractiveMode()
     mode.updatePendingMessagesDisplay = lambda: calls.append("pending")  # type: ignore[method-assign]
     mode._request_render = lambda force=None: calls.append("render")  # type: ignore[method-assign]
+    mode.isInitialized = True
 
     await mode.handleEvent({"type": "queue_update"})
 
     assert calls == ["pending", "render"]
+
+
+@pytest.mark.asyncio
+async def test_handle_event_initializes_mode_before_processing() -> None:
+    calls: list[str] = []
+    mode = InteractiveMode()
+    mode.init = lambda: asyncio.sleep(0, result=calls.append("init"))  # type: ignore[method-assign]
+    mode.updatePendingMessagesDisplay = lambda: calls.append("pending")  # type: ignore[method-assign]
+    mode._request_render = lambda force=None: calls.append("render")  # type: ignore[method-assign]
+
+    await mode.handleEvent({"type": "queue_update"})
+
+    assert calls[:2] == ["init", "pending"]
 
 
 def test_check_daxnuts_easter_egg_renders_for_kimi_k25_opencode_model() -> None:

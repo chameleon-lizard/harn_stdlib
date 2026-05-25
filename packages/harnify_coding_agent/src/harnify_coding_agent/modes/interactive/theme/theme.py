@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import threading
 from dataclasses import dataclass
@@ -77,6 +78,26 @@ class ThemeExportColors(TypedDict, total=False):
 class ThemeInfo(TypedDict):
     name: str
     path: str | None
+
+
+type TerminalTheme = Literal["dark", "light"]
+
+
+class RgbColor(TypedDict):
+    r: int
+    g: int
+    b: int
+
+
+class TerminalThemeDetection(TypedDict):
+    theme: TerminalTheme
+    source: Literal["terminal background", "COLORFGBG", "fallback"]
+    detail: str
+    confidence: Literal["high", "low"]
+
+
+class TerminalThemeDetectionOptions(TypedDict, total=False):
+    env: dict[str, str]
 
 
 @dataclass(slots=True)
@@ -310,15 +331,93 @@ def _ansi_luminance(index: int) -> float:
     return 0.2126 * to_linear(red) + 0.7152 * to_linear(green) + 0.0722 * to_linear(blue)
 
 
-def get_default_theme() -> str:
-    colorfgbg = os.environ.get("COLORFGBG")
-    if colorfgbg:
+def _get_colorfgbg_background_index(colorfgbg: str) -> int | None:
+    parts = colorfgbg.split(";")
+    for part in reversed(parts):
         try:
-            background = int(colorfgbg.split(";")[-1])
-            return "light" if _ansi_luminance(background) >= 0.5 else "dark"
+            background = int(part.strip())
         except (TypeError, ValueError):
-            pass
-    return "dark"
+            continue
+        if 0 <= background <= 255:
+            return background
+    return None
+
+
+def _get_rgb_color_luminance(rgb: RgbColor) -> float:
+    def to_linear(channel: int) -> float:
+        value = channel / 255
+        return value / 12.92 if value <= 0.03928 else ((value + 0.055) / 1.055) ** 2.4
+
+    return 0.2126 * to_linear(rgb["r"]) + 0.7152 * to_linear(rgb["g"]) + 0.0722 * to_linear(rgb["b"])
+
+
+def get_theme_for_rgb_color(rgb: RgbColor) -> TerminalTheme:
+    return "light" if _get_rgb_color_luminance(rgb) >= 0.5 else "dark"
+
+
+def _parse_osc_hex_channel(channel: str) -> int | None:
+    if not re.fullmatch(r"[0-9a-f]+", channel, re.IGNORECASE):
+        return None
+    max_value = 16 ** len(channel) - 1
+    if max_value <= 0:
+        return None
+    return round((int(channel, 16) / max_value) * 255)
+
+
+def parse_osc11_background_color(data: str) -> RgbColor | None:
+    match = re.match(r"^\x1b\]11;([^\x07\x1b]*)(?:\x07|\x1b\\)$", data, re.IGNORECASE)
+    if match is None:
+        return None
+
+    value = match.group(1).strip()
+    if value.startswith("#"):
+        hex_value = value[1:]
+        if re.fullmatch(r"[0-9a-f]{6}", hex_value, re.IGNORECASE):
+            red, green, blue = _hex_to_rgb(value)
+            return {"r": red, "g": green, "b": blue}
+        if re.fullmatch(r"[0-9a-f]{12}", hex_value, re.IGNORECASE):
+            red = _parse_osc_hex_channel(hex_value[0:4])
+            green = _parse_osc_hex_channel(hex_value[4:8])
+            blue = _parse_osc_hex_channel(hex_value[8:12])
+            if red is not None and green is not None and blue is not None:
+                return {"r": red, "g": green, "b": blue}
+        return None
+
+    rgb_value = re.sub(r"^rgba?:", "", value, flags=re.IGNORECASE)
+    channels = rgb_value.split("/")
+    if len(channels) != 3:
+        return None
+    red = _parse_osc_hex_channel(channels[0])
+    green = _parse_osc_hex_channel(channels[1])
+    blue = _parse_osc_hex_channel(channels[2])
+    if red is None or green is None or blue is None:
+        return None
+    return {"r": red, "g": green, "b": blue}
+
+
+def detect_terminal_background(
+    options: TerminalThemeDetectionOptions | None = None,
+) -> TerminalThemeDetection:
+    env = options.get("env") if isinstance(options, dict) else None
+    colorfgbg = (env or os.environ).get("COLORFGBG", "")
+    background = _get_colorfgbg_background_index(colorfgbg)
+    if background is not None:
+        return {
+            "theme": "light" if _ansi_luminance(background) >= 0.5 else "dark",
+            "source": "COLORFGBG",
+            "detail": f"background color index {background}",
+            "confidence": "high",
+        }
+    return {
+        "theme": "dark",
+        "source": "fallback",
+        "detail": "no terminal background hint found",
+        "confidence": "low",
+    }
+
+
+def get_default_theme() -> str:
+    return detect_terminal_background()["theme"]
 
 
 def set_registered_themes(themes: list[Any]) -> None:
@@ -397,12 +496,7 @@ def load_theme_json(name: str) -> ThemeJson:
 
 
 def get_available_themes() -> list[str]:
-    custom_dir = Path(get_custom_themes_dir())
-    names = set(get_builtin_themes())
-    if custom_dir.exists():
-        names.update(path.stem for path in custom_dir.glob("*.json"))
-    names.update(_REGISTERED_THEMES)
-    return sorted(names)
+    return [item["name"] for item in get_available_themes_with_paths()]
 
 
 def get_available_themes_with_paths() -> list[ThemeInfo]:
@@ -432,7 +526,7 @@ def get_available_themes_with_paths() -> list[ThemeInfo]:
     for name, record in sorted(_REGISTERED_THEMES.items()):
         add(name, record.path)
 
-    return result
+    return sorted(result, key=lambda item: item["name"])
 
 
 def load_theme(name: str) -> Theme:
@@ -536,7 +630,7 @@ def set_theme(name: str, enableWatcher: bool = False) -> dict[str, Any]:
 def set_theme_instance(theme_instance: Theme) -> None:
     global _CURRENT_THEME_NAME
     set_global_theme(theme_instance)
-    _CURRENT_THEME_NAME = theme_instance.name or "<in-memory>"
+    _CURRENT_THEME_NAME = "<in-memory>"
     stop_theme_watcher()
     if callable(_ON_THEME_CHANGE):
         _ON_THEME_CHANGE()
@@ -559,8 +653,11 @@ def stop_theme_watcher() -> None:
         watcher_thread.join(timeout=0.5)
 
 
-def get_theme_by_name(name: str | None = None) -> Theme:
-    return load_theme(name or _CURRENT_THEME_NAME or get_default_theme())
+def get_theme_by_name(name: str | None = None) -> Theme | None:
+    try:
+        return load_theme(name or _CURRENT_THEME_NAME or get_default_theme())
+    except Exception:
+        return None
 
 
 def get_resolved_theme_colors(theme_name: str | None = None) -> dict[str, str]:
@@ -831,9 +928,13 @@ except Exception:
 getAvailableThemes = get_available_themes
 getAvailableThemesWithPaths = get_available_themes_with_paths
 getBuiltinThemes = get_builtin_themes
+getThemeForRgbColor = get_theme_for_rgb_color
 getDefaultTheme = get_default_theme
+detectTerminalBackground = detect_terminal_background
 getEditorTheme = get_editor_theme
 getMarkdownTheme = get_markdown_theme
+isLightTheme = lambda theme_name=None: theme_name == "light"
+parseOsc11BackgroundColor = parse_osc11_background_color
 getResolvedThemeColors = get_resolved_theme_colors
 getSelectListTheme = get_select_list_theme
 getSettingsListTheme = get_settings_list_theme
@@ -854,63 +955,43 @@ stopThemeWatcher = stop_theme_watcher
 highlightCode = highlight_code
 getLanguageFromPath = get_language_from_path
 
+def is_light_theme(theme_name: str | None = None) -> bool:
+    return theme_name == "light"
+
+
+isLightTheme = is_light_theme
+
 __all__ = [
     "Theme",
     "ThemeBg",
     "ThemeColor",
-    "ThemeExportColors",
-    "ThemeExportSection",
     "ThemeInfo",
-    "ThemeJson",
+    "TerminalTheme",
+    "RgbColor",
+    "TerminalThemeDetection",
+    "TerminalThemeDetectionOptions",
     "getAvailableThemes",
     "getAvailableThemesWithPaths",
-    "getBuiltinThemes",
-    "getDefaultTheme",
-    "getEditorTheme",
-    "getLanguageFromPath",
-    "getMarkdownTheme",
-    "getResolvedThemeColors",
-    "getSelectListTheme",
-    "getSettingsListTheme",
-    "getThemeByName",
-    "getThemeExportColors",
-    "get_available_themes",
-    "get_available_themes_with_paths",
-    "get_builtin_themes",
-    "get_default_theme",
-    "get_editor_theme",
-    "get_language_from_path",
-    "get_markdown_theme",
-    "get_resolved_theme_colors",
-    "get_select_list_theme",
-    "get_settings_list_theme",
-    "get_theme_by_name",
-    "get_theme_export_colors",
-    "highlightCode",
-    "highlight_code",
-    "initTheme",
-    "init_theme",
-    "loadTheme",
     "loadThemeFromPath",
-    "loadThemeJson",
-    "load_theme",
-    "load_theme_from_path",
-    "load_theme_json",
-    "onThemeChange",
-    "on_theme_change",
-    "resolveThemeColors",
-    "resolve_theme_colors",
-    "setCurrentThemeName",
-    "setGlobalTheme",
+    "getThemeByName",
+    "getThemeForRgbColor",
+    "parseOsc11BackgroundColor",
+    "detectTerminalBackground",
+    "getDefaultTheme",
+    "theme",
     "setRegisteredThemes",
+    "initTheme",
     "setTheme",
     "setThemeInstance",
-    "set_current_theme_name",
-    "set_global_theme",
-    "set_registered_themes",
-    "set_theme",
-    "set_theme_instance",
+    "onThemeChange",
     "stopThemeWatcher",
-    "stop_theme_watcher",
-    "theme",
+    "getResolvedThemeColors",
+    "isLightTheme",
+    "getThemeExportColors",
+    "highlightCode",
+    "getLanguageFromPath",
+    "getMarkdownTheme",
+    "getSelectListTheme",
+    "getEditorTheme",
+    "getSettingsListTheme",
 ]

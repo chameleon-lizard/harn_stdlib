@@ -20,8 +20,6 @@ class UserMessageItem:
 
 
 class UserMessageList:
-    wantsKeyRelease = False
-
     def __init__(self, messages: list[UserMessageItem], initialSelectedId: str | None = None) -> None:
         self.messages = messages
         initial_index = (
@@ -51,10 +49,10 @@ class UserMessageList:
         for index in range(start_index, end_index):
             message = self.messages[index]
             is_selected = index == self.selectedIndex
-            normalized = " ".join(message.text.splitlines()).strip()
+            normalized = message.text.replace("\n", " ").strip()
 
             cursor = theme.fg("accent", "› ") if is_selected else "  "
-            truncated = truncateToWidth(normalized, max(1, width - 2))
+            truncated = truncateToWidth(normalized, width - 2)
             lines.append(cursor + (theme.bold(truncated) if is_selected else truncated))
 
             position = f"  Message {index + 1} of {len(self.messages)}"
@@ -80,8 +78,6 @@ class UserMessageList:
 
 
 class UserMessageSelectorComponent(Container):
-    wantsKeyRelease = False
-
     def __init__(
         self,
         messages: list[UserMessageItem],
@@ -123,4 +119,4 @@ class UserMessageSelectorComponent(Container):
         return self.messageList
 
 
-__all__ = ["UserMessageItem", "UserMessageList", "UserMessageSelectorComponent"]
+__all__ = ["UserMessageItem", "UserMessageSelectorComponent"]

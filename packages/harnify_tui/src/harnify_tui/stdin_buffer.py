@@ -16,7 +16,7 @@ type StdinBufferEvent = Literal["data", "paste"]
 
 
 def _is_complete_sequence(data: str) -> SequenceStatus:
-    if not data.startswith(ESC):
+    if not data.startswith(_ESC):
         return "not-escape"
     if len(data) == 1:
         return "incomplete"
@@ -40,7 +40,7 @@ def _is_complete_sequence(data: str) -> SequenceStatus:
 
 
 def _is_complete_csi_sequence(data: str) -> SequenceStatus:
-    if not data.startswith(f"{ESC}["):
+    if not data.startswith(f"{_ESC}["):
         return "complete"
     if len(data) < 3:
         return "incomplete"
@@ -62,21 +62,21 @@ def _is_complete_csi_sequence(data: str) -> SequenceStatus:
 
 
 def _is_complete_osc_sequence(data: str) -> SequenceStatus:
-    if not data.startswith(f"{ESC}]"):
+    if not data.startswith(f"{_ESC}]"):
         return "complete"
-    return "complete" if data.endswith(f"{ESC}\\") or data.endswith("\x07") else "incomplete"
+    return "complete" if data.endswith(f"{_ESC}\\") or data.endswith("\x07") else "incomplete"
 
 
 def _is_complete_dcs_sequence(data: str) -> SequenceStatus:
-    if not data.startswith(f"{ESC}P"):
+    if not data.startswith(f"{_ESC}P"):
         return "complete"
-    return "complete" if data.endswith(f"{ESC}\\") else "incomplete"
+    return "complete" if data.endswith(f"{_ESC}\\") else "incomplete"
 
 
 def _is_complete_apc_sequence(data: str) -> SequenceStatus:
-    if not data.startswith(f"{ESC}_"):
+    if not data.startswith(f"{_ESC}_"):
         return "complete"
-    return "complete" if data.endswith(f"{ESC}\\") else "incomplete"
+    return "complete" if data.endswith(f"{_ESC}\\") else "incomplete"
 
 
 def _matches_sgr_mouse(payload: str) -> bool:
@@ -102,7 +102,7 @@ def _extract_complete_sequences(buffer: str) -> tuple[list[str], str]:
 
     while pos < len(buffer):
         remaining = buffer[pos:]
-        if remaining.startswith(ESC):
+        if remaining.startswith(_ESC):
             seq_end = 1
             while seq_end <= len(remaining):
                 candidate = remaining[:seq_end]
@@ -111,7 +111,7 @@ def _extract_complete_sequences(buffer: str) -> tuple[list[str], str]:
                     if candidate == "\x1b\x1b":
                         next_char = remaining[seq_end] if seq_end < len(remaining) else None
                         if next_char in {"[", "]", "O", "P", "_"}:
-                            sequences.append(ESC)
+                            sequences.append(_ESC)
                             pos += 1
                             break
                     sequences.append(candidate)

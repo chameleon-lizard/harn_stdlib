@@ -63,6 +63,4 @@ __all__ = [
     "DecodedHtmlEntity",
     "decodeHtmlEntity",
     "decodeHtmlEntityAt",
-    "decode_html_entity",
-    "decode_html_entity_at",
 ]

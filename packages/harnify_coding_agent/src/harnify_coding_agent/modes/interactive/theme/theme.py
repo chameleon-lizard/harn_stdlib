@@ -767,7 +767,7 @@ def get_markdown_theme() -> MarkdownTheme:
         italic=theme.italic,
         strikethrough=theme.strikethrough,
         underline=theme.underline,
-        highlightCode=highlight_code,
+        highlightCode=_markdown_highlight_code,
     )
 
 
@@ -845,6 +845,23 @@ def _highlight_code_with_theme(theme_instance: Theme, code: str, language: str |
 
 def highlight_code(code: str, lang: str | None = None) -> list[str]:
     return _highlight_code_with_theme(theme, code, lang)
+
+
+def _markdown_highlight_code(code: str, lang: str | None = None) -> list[str]:
+    valid_language = lang if lang and supports_language(lang) else None
+    if not valid_language:
+        return [theme.fg("mdCodeBlock", line) for line in code.split("\n")]
+    try:
+        return highlight(
+            code,
+            {
+                "language": valid_language,
+                "ignoreIllegals": True,
+                "theme": _get_cli_highlight_theme(theme),
+            },
+        ).split("\n")
+    except Exception:
+        return [theme.fg("mdCodeBlock", line) for line in code.split("\n")]
 
 
 def get_language_from_path(file_path: str) -> str | None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from harnify_tui import fuzzy as fuzzy_module
 from harnify_tui.fuzzy import fuzzyFilter, fuzzyMatch
 
 
@@ -36,3 +37,9 @@ def test_fuzzy_filter_handles_multi_token_queries() -> None:
     items = ["packages/tui/src/autocomplete.ts", "packages/ai/src/autocomplete.ts", "README.md"]
     result = fuzzyFilter(items, "tui auto", lambda item: item)
     assert result == ["packages/tui/src/autocomplete.ts"]
+
+
+def test_fuzzy_module_exports_match_ts_surface() -> None:
+    assert fuzzy_module.__all__ == ["FuzzyMatch", "fuzzyFilter", "fuzzyMatch"]
+    assert not hasattr(fuzzy_module, "fuzzy_filter")
+    assert not hasattr(fuzzy_module, "fuzzy_match")

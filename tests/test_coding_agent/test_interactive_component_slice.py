@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from harnify_coding_agent.core.keybindings import KeybindingsManager
 from harnify_coding_agent.core.session_manager import SessionInfo
 from harnify_coding_agent.modes.interactive.components.countdown_timer import CountdownTimer
+from harnify_coding_agent.modes.interactive.components.daxnuts import DaxnutsComponent
 from harnify_coding_agent.modes.interactive.components.dynamic_border import DynamicBorder
 from harnify_coding_agent.modes.interactive.components.keybinding_hints import (
     KeyTextFormatOptions,
@@ -35,6 +36,7 @@ interactive_theme_module = importlib.import_module("harnify_coding_agent.modes.i
 countdown_timer_module = importlib.import_module(
     "harnify_coding_agent.modes.interactive.components.countdown_timer"
 )
+daxnuts_module = importlib.import_module("harnify_coding_agent.modes.interactive.components.daxnuts")
 
 
 def _strip_ansi(text: str) -> str:
@@ -140,6 +142,57 @@ def test_countdown_timer_zero_timeout_matches_ts_tick_sequence() -> None:
 
 def test_countdown_timer_module_exports_match_ts_surface() -> None:
     assert countdown_timer_module.__all__ == ["CountdownTimer"]
+
+
+def test_daxnuts_component_renders_and_stops_animation(monkeypatch) -> None:
+    timers: list[FakeTimer] = []
+
+    def timer_factory(interval: float, callback):  # noqa: ANN001
+        timer = FakeTimer(interval, callback)
+        timers.append(timer)
+        return timer
+
+    monkeypatch.setattr(daxnuts_module.threading, "Timer", timer_factory)
+
+    ui = FakeUi()
+    component = DaxnutsComponent(ui)
+    rendered = [_strip_ansi(line) for line in component.render(80)]
+
+    assert len(rendered) == 25
+    assert "▓" * 32 in rendered[1]
+    assert len(timers) == 1
+    assert timers[0].started is True
+
+    component.dispose()
+
+    assert timers[0].cancelled is True
+
+
+def test_daxnuts_component_advances_tick_and_requests_render(monkeypatch) -> None:
+    timers: list[FakeTimer] = []
+
+    def timer_factory(interval: float, callback):  # noqa: ANN001
+        timer = FakeTimer(interval, callback)
+        timers.append(timer)
+        return timer
+
+    monkeypatch.setattr(daxnuts_module.threading, "Timer", timer_factory)
+
+    ui = FakeUi()
+    component = DaxnutsComponent(ui)
+
+    timers[0].callback()
+
+    assert component.tick == 1
+    assert ui.render_calls == [None]
+    assert len(timers) == 2
+    assert timers[1].started is True
+
+    component.dispose()
+
+
+def test_daxnuts_module_exports_match_ts_surface() -> None:
+    assert daxnuts_module.__all__ == ["DaxnutsComponent"]
 
 
 def test_theme_selector_previews_and_confirms() -> None:

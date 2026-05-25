@@ -4660,18 +4660,22 @@ class InteractiveMode:
         self.showSelector(_build_tree_selector)
 
     def showSelector(self, builder: Callable[[Callable[[], None]], dict[str, Any]]) -> None:
-        self._clear_selector()
-
         def done() -> None:
             self._clear_selector()
 
         built = builder(done)
         component = built["component"]
-        options = built.get("options", {})
-        self._activeSelectorHandle = self.ui.showOverlay(component, options)
-        focus = built.get("focus")
-        if focus is not None and hasattr(self._activeSelectorHandle, "focus"):
-            self._activeSelectorHandle.focus()
+        focus = built.get("focus", component)
+        clear = _callable_attr(self.editorContainer, "clear")
+        add_child = _callable_attr(self.editorContainer, "addChild")
+        set_focus = _callable_attr(self.ui, "setFocus")
+        if clear is not None:
+            clear()
+        if add_child is not None:
+            add_child(component)
+        if set_focus is not None:
+            set_focus(focus)
+        self._request_render()
 
     async def init(self) -> None:
         if self.isInitialized:
@@ -5107,6 +5111,15 @@ class InteractiveMode:
         self._activeSelectorHandle = None
         if handle is not None and hasattr(handle, "hide"):
             handle.hide()
+        clear = _callable_attr(self.editorContainer, "clear")
+        add_child = _callable_attr(self.editorContainer, "addChild")
+        set_focus = _callable_attr(self.ui, "setFocus")
+        if clear is not None:
+            clear()
+        if add_child is not None:
+            add_child(self.editor)
+        if set_focus is not None:
+            set_focus(self.editor)
 
     def getStartupExpansionState(self) -> bool:
         return bool(self.options.verbose or self.toolOutputExpanded)

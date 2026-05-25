@@ -46,7 +46,7 @@ class ImageCellSize:
 
 
 @dataclass(slots=True)
-class RenderedImage:
+class _RenderedImage:
     sequence: str
     rows: int
     imageId: int | None = None
@@ -59,19 +59,19 @@ KITTY_PREFIX = "\x1b_G"
 ITERM2_PREFIX = "\x1b]1337;File="
 
 
-def get_cell_dimensions() -> CellDimensions:
-    return CellDimensions(widthPx=_cell_dimensions.widthPx, heightPx=_cell_dimensions.heightPx)
+def getCellDimensions() -> CellDimensions:
+    return _cell_dimensions
 
 
-def set_cell_dimensions(dims: CellDimensions | dict[str, int]) -> None:
+def setCellDimensions(dims: CellDimensions | dict[str, int]) -> None:
     global _cell_dimensions
     if isinstance(dims, dict):
         _cell_dimensions = CellDimensions(widthPx=int(dims["widthPx"]), heightPx=int(dims["heightPx"]))
         return
-    _cell_dimensions = CellDimensions(widthPx=int(dims.widthPx), heightPx=int(dims.heightPx))
+    _cell_dimensions = dims
 
 
-def detect_capabilities() -> TerminalCapabilities:
+def detectCapabilities() -> TerminalCapabilities:
     term_program = os.environ.get("TERM_PROGRAM", "").lower()
     term = os.environ.get("TERM", "").lower()
     color_term = os.environ.get("COLORTERM", "").lower()
@@ -106,45 +106,39 @@ def detect_capabilities() -> TerminalCapabilities:
     )
 
 
-def get_capabilities() -> TerminalCapabilities:
+def getCapabilities() -> TerminalCapabilities:
     global _cached_capabilities
     if _cached_capabilities is None:
-        _cached_capabilities = detect_capabilities()
-    return TerminalCapabilities(
-        images=_cached_capabilities.images,
-        trueColor=_cached_capabilities.trueColor,
-        hyperlinks=_cached_capabilities.hyperlinks,
-    )
+        _cached_capabilities = detectCapabilities()
+    return _cached_capabilities
 
 
-def reset_capabilities_cache() -> None:
+def resetCapabilitiesCache() -> None:
     global _cached_capabilities
     _cached_capabilities = None
 
 
-def set_capabilities(caps: TerminalCapabilities | dict[str, object]) -> None:
+def setCapabilities(caps: TerminalCapabilities | dict[str, object]) -> None:
     global _cached_capabilities
     if isinstance(caps, dict):
         _cached_capabilities = TerminalCapabilities(
             images=caps.get("images"), trueColor=bool(caps.get("trueColor")), hyperlinks=bool(caps.get("hyperlinks"))
         )
         return
-    _cached_capabilities = TerminalCapabilities(
-        images=caps.images, trueColor=caps.trueColor, hyperlinks=caps.hyperlinks
-    )
+    _cached_capabilities = caps
 
 
-def is_image_line(line: str) -> bool:
+def isImageLine(line: str) -> bool:
     return (
         line.startswith(KITTY_PREFIX) or line.startswith(ITERM2_PREFIX) or KITTY_PREFIX in line or ITERM2_PREFIX in line
     )
 
 
-def allocate_image_id() -> int:
+def allocateImageId() -> int:
     return random.randint(1, 0xFFFFFFFF)
 
 
-def encode_kitty(
+def encodeKitty(
     base64_data: str,
     options: dict[str, int | bool | None] | None = None,
 ) -> str:
@@ -181,15 +175,15 @@ def encode_kitty(
     return "".join(chunks)
 
 
-def delete_kitty_image(image_id: int) -> str:
+def deleteKittyImage(image_id: int) -> str:
     return f"\x1b_Ga=d,d=I,i={image_id},q=2\x1b\\"
 
 
-def delete_all_kitty_images() -> str:
+def deleteAllKittyImages() -> str:
     return "\x1b_Ga=d,d=A,q=2\x1b\\"
 
 
-def encode_iterm2(
+def encodeITerm2(
     base64_data: str,
     options: dict[str, int | str | bool | None] | None = None,
 ) -> str:
@@ -207,13 +201,13 @@ def encode_iterm2(
     return f"\x1b]1337;File={';'.join(params)}:{base64_data}\x07"
 
 
-def calculate_image_cell_size(
+def calculateImageCellSize(
     image_dimensions: ImageDimensions,
     max_width_cells: int,
     max_height_cells: int | None = None,
     cell_dimensions: CellDimensions | None = None,
 ) -> ImageCellSize:
-    dims = cell_dimensions or get_cell_dimensions()
+    dims = cell_dimensions or CellDimensions(widthPx=9, heightPx=18)
     max_width = max(1, int(max_width_cells))
     max_height = None if max_height_cells is None else max(1, int(max_height_cells))
     image_width = max(1, int(image_dimensions.widthPx))
@@ -232,15 +226,16 @@ def calculate_image_cell_size(
     return ImageCellSize(columns=columns, rows=max(1, rows))
 
 
-def calculate_image_rows(
+def calculateImageRows(
     image_dimensions: ImageDimensions,
     target_width_cells: int,
     cell_dimensions: CellDimensions | None = None,
 ) -> int:
-    return calculate_image_cell_size(image_dimensions, target_width_cells, None, cell_dimensions).rows
+    dims = cell_dimensions or CellDimensions(widthPx=9, heightPx=18)
+    return calculateImageCellSize(image_dimensions, target_width_cells, None, dims).rows
 
 
-def get_png_dimensions(base64_data: str) -> ImageDimensions | None:
+def getPngDimensions(base64_data: str) -> ImageDimensions | None:
     try:
         buffer = base64.b64decode(base64_data)
     except Exception:
@@ -252,7 +247,7 @@ def get_png_dimensions(base64_data: str) -> ImageDimensions | None:
     return ImageDimensions(widthPx=width, heightPx=height)
 
 
-def get_jpeg_dimensions(base64_data: str) -> ImageDimensions | None:
+def getJpegDimensions(base64_data: str) -> ImageDimensions | None:
     try:
         buffer = base64.b64decode(base64_data)
     except Exception:
@@ -278,7 +273,7 @@ def get_jpeg_dimensions(base64_data: str) -> ImageDimensions | None:
     return None
 
 
-def get_gif_dimensions(base64_data: str) -> ImageDimensions | None:
+def getGifDimensions(base64_data: str) -> ImageDimensions | None:
     try:
         buffer = base64.b64decode(base64_data)
     except Exception:
@@ -290,7 +285,7 @@ def get_gif_dimensions(base64_data: str) -> ImageDimensions | None:
     return ImageDimensions(widthPx=width, heightPx=height)
 
 
-def get_webp_dimensions(base64_data: str) -> ImageDimensions | None:
+def getWebpDimensions(base64_data: str) -> ImageDimensions | None:
     try:
         buffer = base64.b64decode(base64_data)
     except Exception:
@@ -314,24 +309,24 @@ def get_webp_dimensions(base64_data: str) -> ImageDimensions | None:
     return None
 
 
-def get_image_dimensions(base64_data: str, mime_type: str) -> ImageDimensions | None:
+def getImageDimensions(base64_data: str, mime_type: str) -> ImageDimensions | None:
     if mime_type == "image/png":
-        return get_png_dimensions(base64_data)
+        return getPngDimensions(base64_data)
     if mime_type == "image/jpeg":
-        return get_jpeg_dimensions(base64_data)
+        return getJpegDimensions(base64_data)
     if mime_type == "image/gif":
-        return get_gif_dimensions(base64_data)
+        return getGifDimensions(base64_data)
     if mime_type == "image/webp":
-        return get_webp_dimensions(base64_data)
+        return getWebpDimensions(base64_data)
     return None
 
 
-def render_image(
+def renderImage(
     base64_data: str,
     image_dimensions: ImageDimensions,
     options: ImageRenderOptions | dict[str, int | bool | None] | None = None,
-) -> RenderedImage | None:
-    caps = get_capabilities()
+) -> _RenderedImage | None:
+    caps = getCapabilities()
     if not caps.images:
         return None
 
@@ -348,10 +343,10 @@ def render_image(
     else:
         options_obj = options
 
-    max_width = options_obj.maxWidthCells or 80
-    size = calculate_image_cell_size(image_dimensions, max_width, options_obj.maxHeightCells, get_cell_dimensions())
+    max_width = 80 if options_obj.maxWidthCells is None else options_obj.maxWidthCells
+    size = calculateImageCellSize(image_dimensions, max_width, options_obj.maxHeightCells, getCellDimensions())
     if caps.images == "kitty":
-        sequence = encode_kitty(
+        sequence = encodeKitty(
             base64_data,
             {
                 "columns": size.columns,
@@ -360,9 +355,9 @@ def render_image(
                 "moveCursor": options_obj.moveCursor,
             },
         )
-        return RenderedImage(sequence=sequence, rows=size.rows, imageId=options_obj.imageId)
+        return _RenderedImage(sequence=sequence, rows=size.rows, imageId=options_obj.imageId)
     if caps.images == "iterm2":
-        sequence = encode_iterm2(
+        sequence = encodeITerm2(
             base64_data,
             {
                 "width": size.columns,
@@ -372,7 +367,7 @@ def render_image(
                 ),
             },
         )
-        return RenderedImage(sequence=sequence, rows=size.rows)
+        return _RenderedImage(sequence=sequence, rows=size.rows)
     return None
 
 
@@ -380,7 +375,7 @@ def hyperlink(text: str, url: str) -> str:
     return f"\x1b]8;;{url}\x1b\\{text}\x1b]8;;\x1b\\"
 
 
-def image_fallback(mime_type: str, dimensions: ImageDimensions | None = None, filename: str | None = None) -> str:
+def imageFallback(mime_type: str, dimensions: ImageDimensions | None = None, filename: str | None = None) -> str:
     parts: list[str] = []
     if filename:
         parts.append(filename)
@@ -389,78 +384,35 @@ def image_fallback(mime_type: str, dimensions: ImageDimensions | None = None, fi
         parts.append(f"{dimensions.widthPx}x{dimensions.heightPx}")
     return f"[Image: {' '.join(parts)}]"
 
-
-getCellDimensions = get_cell_dimensions
-setCellDimensions = set_cell_dimensions
-detectCapabilities = detect_capabilities
-getCapabilities = get_capabilities
-resetCapabilitiesCache = reset_capabilities_cache
-setCapabilities = set_capabilities
-isImageLine = is_image_line
-allocateImageId = allocate_image_id
-encodeKitty = encode_kitty
-deleteKittyImage = delete_kitty_image
-deleteAllKittyImages = delete_all_kitty_images
-encodeITerm2 = encode_iterm2
-calculateImageCellSize = calculate_image_cell_size
-calculateImageRows = calculate_image_rows
-getPngDimensions = get_png_dimensions
-getJpegDimensions = get_jpeg_dimensions
-getGifDimensions = get_gif_dimensions
-getWebpDimensions = get_webp_dimensions
-getImageDimensions = get_image_dimensions
-renderImage = render_image
-imageFallback = image_fallback
-
 __all__ = [
+    "ImageProtocol",
+    "TerminalCapabilities",
     "CellDimensions",
     "ImageCellSize",
     "ImageDimensions",
     "ImageProtocol",
     "ImageRenderOptions",
-    "RenderedImage",
-    "TerminalCapabilities",
+    "getCellDimensions",
+    "setCellDimensions",
+    "detectCapabilities",
+    "getCapabilities",
+    "resetCapabilitiesCache",
+    "setCapabilities",
+    "isImageLine",
     "allocateImageId",
-    "allocate_image_id",
+    "encodeKitty",
+    "deleteKittyImage",
+    "deleteAllKittyImages",
+    "encodeITerm2",
     "calculateImageCellSize",
     "calculateImageRows",
-    "calculate_image_cell_size",
-    "calculate_image_rows",
-    "deleteAllKittyImages",
-    "deleteKittyImage",
-    "delete_all_kitty_images",
-    "delete_kitty_image",
-    "detectCapabilities",
-    "detect_capabilities",
-    "encodeITerm2",
-    "encodeKitty",
-    "encode_iterm2",
-    "encode_kitty",
-    "getCapabilities",
-    "getCellDimensions",
-    "getGifDimensions",
-    "getImageDimensions",
-    "getJpegDimensions",
     "getPngDimensions",
+    "getJpegDimensions",
+    "getGifDimensions",
     "getWebpDimensions",
-    "get_capabilities",
-    "get_cell_dimensions",
-    "get_gif_dimensions",
-    "get_image_dimensions",
-    "get_jpeg_dimensions",
-    "get_png_dimensions",
-    "get_webp_dimensions",
+    "getImageDimensions",
+    "renderImage",
     "hyperlink",
     "imageFallback",
-    "image_fallback",
-    "isImageLine",
-    "is_image_line",
-    "renderImage",
-    "render_image",
-    "resetCapabilitiesCache",
-    "reset_capabilities_cache",
-    "setCapabilities",
-    "setCellDimensions",
-    "set_capabilities",
-    "set_cell_dimensions",
+    "TerminalCapabilities",
 ]

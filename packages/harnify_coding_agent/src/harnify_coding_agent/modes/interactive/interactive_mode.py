@@ -3384,8 +3384,43 @@ class InteractiveMode:
         except Exception:
             return
 
+    async def checkShutdownRequested(self) -> None:
+        if self._shutdownFuture is None or not self._shutdownFuture.done():
+            return
+        await self.shutdown()
+
     async def handleEvent(self, event: dict[str, Any] | Any) -> None:
         event_type = _value(event, "type")
+        if event_type == "agent_start":
+            self._toolComponentsById.clear()
+            get_progress = _callable_attr(self.settingsManager, "getShowTerminalProgress")
+            terminal = getattr(self.ui, "terminal", None)
+            set_progress = _callable_attr(terminal, "setProgress")
+            if get_progress is not None and bool(get_progress()) and set_progress is not None:
+                set_progress(True)
+
+            if self.retryEscapeHandler is not None:
+                self.defaultEditor.onEscape = self.retryEscapeHandler
+                self.retryEscapeHandler = None
+            if self.retryCountdown is not None:
+                dispose = _callable_attr(self.retryCountdown, "dispose")
+                if dispose is not None:
+                    dispose()
+                self.retryCountdown = None
+            if self.retryLoader is not None:
+                stop = _callable_attr(self.retryLoader, "stop")
+                if stop is not None:
+                    stop()
+                self.retryLoader = None
+            self.stopWorkingLoader()
+            if self.workingVisible:
+                self.loadingAnimation = self.createWorkingLoader()
+                add_child = _callable_attr(self.statusContainer, "addChild")
+                if add_child is not None:
+                    add_child(self.loadingAnimation)
+            self.footer.invalidate()
+            self._request_render()
+            return
         if event_type == "queue_update":
             self.updatePendingMessagesDisplay()
             self.footer.invalidate()
@@ -3422,15 +3457,167 @@ class InteractiveMode:
             self._request_render()
             return
         if event_type == "message_start":
+            message = _value(event, "message")
+            role = _message_role(message)
+            if role == "custom":
+                self.addMessageToChat(message)
+                self.footer.invalidate()
+                self._request_render()
+                return
+            if role == "user":
+                self.addMessageToChat(message)
+                self.updatePendingMessagesDisplay()
+                self.footer.invalidate()
+                self._request_render()
+                return
+            if role == "assistant":
+                self.streamingComponent = AssistantMessageComponent(
+                    None,
+                    self.hideThinkingBlock,
+                    self.getMarkdownThemeWithSettings(),
+                    self.hiddenThinkingLabel,
+                )
+                self.streamingMessage = message
+                self.chatContainer.addChild(self.streamingComponent)
+                self.streamingComponent.updateContent(message)
             if self.workingVisible and self.loadingAnimation is None:
                 self.setWorkingVisible(True)
             self.footer.invalidate()
             self._request_render()
             return
+        if event_type == "message_update":
+            message = _value(event, "message")
+            if self.streamingComponent is not None and _message_role(message) == "assistant":
+                self.streamingMessage = message
+                self.streamingComponent.updateContent(message)
+
+                for content in list(_value(message, "content", []) or []):
+                    if _value(content, "type") != "toolCall":
+                        continue
+                    tool_call_id = str(_value(content, "id", ""))
+                    component = self._toolComponentsById.get(tool_call_id)
+                    if component is None:
+                        component = ToolExecutionComponent(
+                            str(_value(content, "name", "")),
+                            tool_call_id,
+                            _value(content, "arguments", {}),
+                            {
+                                "showImages": _safe_call_bool(self.settingsManager, "getShowImages", True),
+                                "imageWidthCells": _safe_call_int(self.settingsManager, "getImageWidthCells", 56),
+                            },
+                            _tool_definition(self.session, str(_value(content, "name", ""))),
+                            self.ui,
+                            self.sessionManager.getCwd(),
+                        )
+                        component.setExpanded(self.toolOutputExpanded)
+                        self.chatContainer.addChild(component)
+                        self._toolComponentsById[tool_call_id] = component
+                    else:
+                        component.updateArgs(_value(content, "arguments", {}))
+                self.footer.invalidate()
+                self._request_render()
+            return
         if event_type == "message_end":
+            message = _value(event, "message")
+            if _message_role(message) == "user":
+                return
             if self.loadingAnimation is not None:
                 self.stopWorkingLoader()
+            if self.streamingComponent is not None and _message_role(message) == "assistant":
+                self.streamingMessage = message
+                error_message: str | None = None
+                if _value(message, "stopReason") == "aborted":
+                    retry_attempt = int(getattr(self.session, "retryAttempt", 0) or 0)
+                    error_message = (
+                        f"Aborted after {retry_attempt} retry attempt{'s' if retry_attempt > 1 else ''}"
+                        if retry_attempt > 0
+                        else "Operation aborted"
+                    )
+                    if isinstance(message, dict):
+                        message["errorMessage"] = error_message
+                    else:
+                        setattr(message, "errorMessage", error_message)
+                self.streamingComponent.updateContent(message)
+
+                if _value(message, "stopReason") in {"aborted", "error"}:
+                    final_error = error_message or str(_value(message, "errorMessage", "") or "Error")
+                    for component in list(self._toolComponentsById.values()):
+                        component.updateResult(
+                            {"content": [{"type": "text", "text": final_error}], "isError": True}
+                        )
+                    self._toolComponentsById.clear()
+                else:
+                    for component in list(self._toolComponentsById.values()):
+                        component.setArgsComplete()
+                self.streamingComponent = None
+                self.streamingMessage = None
+                self.footer.invalidate()
+                self._request_render()
+                return
             self.renderCurrentSessionState()
+            return
+        if event_type == "tool_execution_start":
+            tool_call_id = str(_value(event, "toolCallId", ""))
+            component = self._toolComponentsById.get(tool_call_id)
+            if component is None:
+                tool_name = str(_value(event, "toolName", ""))
+                component = ToolExecutionComponent(
+                    tool_name,
+                    tool_call_id,
+                    _value(event, "args", {}),
+                    {
+                        "showImages": _safe_call_bool(self.settingsManager, "getShowImages", True),
+                        "imageWidthCells": _safe_call_int(self.settingsManager, "getImageWidthCells", 56),
+                    },
+                    _tool_definition(self.session, tool_name),
+                    self.ui,
+                    self.sessionManager.getCwd(),
+                )
+                component.setExpanded(self.toolOutputExpanded)
+                self.chatContainer.addChild(component)
+                self._toolComponentsById[tool_call_id] = component
+            component.markExecutionStarted()
+            self.footer.invalidate()
+            self._request_render()
+            return
+        if event_type == "tool_execution_update":
+            component = self._toolComponentsById.get(str(_value(event, "toolCallId", "")))
+            if component is not None:
+                partial = dict(_value(event, "partialResult", {}) or {})
+                partial["isError"] = False
+                component.updateResult(partial, True)
+                self.footer.invalidate()
+                self._request_render()
+            return
+        if event_type == "tool_execution_end":
+            tool_call_id = str(_value(event, "toolCallId", ""))
+            component = self._toolComponentsById.get(tool_call_id)
+            if component is not None:
+                result = dict(_value(event, "result", {}) or {})
+                result["isError"] = bool(_value(event, "isError", False))
+                component.updateResult(result)
+                self._toolComponentsById.pop(tool_call_id, None)
+                self.footer.invalidate()
+                self._request_render()
+            return
+        if event_type == "agent_end":
+            get_progress = _callable_attr(self.settingsManager, "getShowTerminalProgress")
+            terminal = getattr(self.ui, "terminal", None)
+            set_progress = _callable_attr(terminal, "setProgress")
+            if get_progress is not None and bool(get_progress()) and set_progress is not None:
+                set_progress(False)
+            if self.loadingAnimation is not None:
+                self.stopWorkingLoader()
+            if self.streamingComponent is not None:
+                remove_child = _callable_attr(self.chatContainer, "removeChild")
+                if remove_child is not None:
+                    remove_child(self.streamingComponent)
+                self.streamingComponent = None
+                self.streamingMessage = None
+            self._toolComponentsById.clear()
+            await self.checkShutdownRequested()
+            self.footer.invalidate()
+            self._request_render()
             return
         if event_type == "session_info_changed":
             self.updateTerminalTitle()
@@ -3439,6 +3626,66 @@ class InteractiveMode:
             return
         if event_type == "thinking_level_changed":
             self.updateEditorBorderColor()
+            self.footer.invalidate()
+            self._request_render()
+            return
+        if event_type == "auto_retry_start":
+            self.retryEscapeHandler = getattr(self.defaultEditor, "onEscape", None)
+            self.defaultEditor.onEscape = lambda: _callable_attr(self.session, "abortRetry") and self.session.abortRetry()
+            clear_status = _callable_attr(self.statusContainer, "clear")
+            if clear_status is not None:
+                clear_status()
+            if self.retryCountdown is not None:
+                dispose = _callable_attr(self.retryCountdown, "dispose")
+                if dispose is not None:
+                    dispose()
+
+            def retry_message(seconds: int) -> str:
+                return (
+                    f"Retrying ({int(_value(event, 'attempt', 0))}/{int(_value(event, 'maxAttempts', 0))}) in {seconds}s... "
+                    f"({key_text('app.interrupt')} to cancel)"
+                )
+
+            self.retryLoader = Loader(
+                self.ui,
+                lambda spinner: interactive_theme.theme.fg("warning", spinner),
+                lambda text: interactive_theme.theme.fg("muted", text),
+                retry_message(int((_value(event, "delayMs", 0) + 999) // 1000)),
+            )
+            self.retryCountdown = CountdownTimer(
+                int(_value(event, "delayMs", 0)),
+                self.ui,
+                lambda seconds: self.retryLoader.setMessage(retry_message(seconds)) if self.retryLoader is not None else None,
+                lambda: setattr(self, "retryCountdown", None),
+            )
+            add_child = _callable_attr(self.statusContainer, "addChild")
+            if add_child is not None:
+                add_child(self.retryLoader)
+            self.footer.invalidate()
+            self._request_render()
+            return
+        if event_type == "auto_retry_end":
+            if self.retryEscapeHandler is not None:
+                self.defaultEditor.onEscape = self.retryEscapeHandler
+                self.retryEscapeHandler = None
+            if self.retryCountdown is not None:
+                dispose = _callable_attr(self.retryCountdown, "dispose")
+                if dispose is not None:
+                    dispose()
+                self.retryCountdown = None
+            if self.retryLoader is not None:
+                stop = _callable_attr(self.retryLoader, "stop")
+                if stop is not None:
+                    stop()
+                self.retryLoader = None
+                clear_status = _callable_attr(self.statusContainer, "clear")
+                if clear_status is not None:
+                    clear_status()
+            if not bool(_value(event, "success", False)):
+                self.showError(
+                    f"Retry failed after {int(_value(event, 'attempt', 0))} attempts: "
+                    f"{_value(event, 'finalError', None) or 'Unknown error'}"
+                )
             self.footer.invalidate()
             self._request_render()
             return

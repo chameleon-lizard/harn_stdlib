@@ -73,6 +73,9 @@ session_selector_search_module = importlib.import_module(
 show_images_selector_module = importlib.import_module(
     "harnify_coding_agent.modes.interactive.components.show_images_selector"
 )
+theme_selector_module = importlib.import_module(
+    "harnify_coding_agent.modes.interactive.components.theme_selector"
+)
 
 
 def _strip_ansi(text: str) -> str:
@@ -187,6 +190,10 @@ def test_thinking_selector_cycles_and_confirms_selection() -> None:
     component.handleInput("\x1b[B")
     component.handleInput("\r")
     assert selected == ["high"]
+
+
+def test_theme_selector_module_exports_match_ts_surface() -> None:
+    assert theme_selector_module.__all__ == ["ThemeSelectorComponent"]
 
 
 def test_countdown_timer_ticks_and_expires() -> None:

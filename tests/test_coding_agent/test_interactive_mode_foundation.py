@@ -3105,6 +3105,8 @@ def test_handle_debug_command_writes_log_and_renders_status(
 async def test_cycle_model_matches_ts_status_messages() -> None:
     statuses: list[str] = []
     warnings: list[str] = []
+    daxnuts: list[str] = []
+    scheduled: list[Any] = []
     mode = InteractiveMode(
         session=SimpleNamespace(
             cycleModel=lambda direction: asyncio.sleep(
@@ -3119,12 +3121,21 @@ async def test_cycle_model_matches_ts_status_messages() -> None:
     )
     mode.showStatus = statuses.append  # type: ignore[method-assign]
     mode.updateEditorBorderColor = lambda: warnings.append("border")  # type: ignore[method-assign]
-    mode.maybeWarnAboutAnthropicSubscriptionAuth = lambda _model: asyncio.sleep(0)  # type: ignore[method-assign]
+    mode._schedule_task = lambda awaitable: scheduled.append(awaitable)  # type: ignore[method-assign]
+    mode.checkDaxnutsEasterEgg = lambda model: daxnuts.append(model.id)  # type: ignore[method-assign]
+
+    async def maybe_warn(_model: Any) -> None:
+        return None
+
+    mode.maybeWarnAboutAnthropicSubscriptionAuth = maybe_warn  # type: ignore[method-assign]
 
     await mode._cycle_model("forward")
 
     assert statuses == ["Switched to Claude Sonnet (thinking: high)"]
     assert warnings == ["border"]
+    assert daxnuts == []
+    assert len(scheduled) == 1
+    scheduled[0].close()
 
 
 @pytest.mark.asyncio

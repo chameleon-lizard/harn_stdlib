@@ -4501,31 +4501,6 @@ class InteractiveMode:
             }
         )
 
-    def showThemeSelector(self) -> None:
-        original_theme = interactive_theme.theme.name or _safe_call_str(
-            self.settingsManager, "getTheme", interactive_theme.get_default_theme()
-        )
-
-        def _preview(theme_name: str) -> None:
-            interactive_theme.set_theme(theme_name, True)
-            self.updateEditorBorderColor()
-            self._request_render()
-
-        def _cancel() -> None:
-            interactive_theme.set_theme(original_theme, True)
-            self.updateEditorBorderColor()
-            done()
-            self._request_render()
-
-        def _select(theme_name: str) -> None:
-            self._schedule_task(self._handle_theme_select(theme_name, done))
-
-        def done() -> None:
-            self._clear_selector()
-
-        selector = ThemeSelectorComponent(original_theme, _select, _cancel, _preview)
-        self._activeSelectorHandle = self.ui.showOverlay(selector, {})
-
     def showSessionSelector(self) -> None:
         def _build_session_selector(done: Callable[[], None]) -> dict[str, Any]:
             selector = SessionSelectorComponent(

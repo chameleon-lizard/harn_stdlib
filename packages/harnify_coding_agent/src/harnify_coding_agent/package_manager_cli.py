@@ -380,6 +380,7 @@ async def handle_package_command(args: list[str]) -> bool | None:
     agent_dir = get_agent_dir()
     settings_manager = SettingsManager.create(cwd, agent_dir)
     _report_settings_errors(settings_manager, "package command")
+    self_update_python_command = settings_manager.getNpmCommand()
     package_manager = DefaultPackageManager(
         {
             "cwd": cwd,
@@ -442,14 +443,37 @@ async def handle_package_command(args: list[str]) -> bool | None:
 
         if parsed.command == "update":
             target = parsed.updateTarget or UpdateTarget(type="all")
-            update_self = target.type in {"all", "self"}
-            update_extensions = target.type in {"all", "extensions"}
-
-            if update_self:
-                print(get_update_instruction(PACKAGE_NAME))
-            if update_extensions:
+            if _update_target_includes_extensions(target):
                 extension_target = target.source if target.type == "extensions" else None
                 await package_manager.update(extension_target)
+                if extension_target:
+                    print(f"Updated {extension_target}")
+                else:
+                    print("Updated packages")
+            if _update_target_includes_self(target):
+                self_update_plan = await _get_self_update_plan(parsed.force)
+                if not self_update_plan.shouldRun:
+                    return True
+                self_update_command = get_self_update_command(
+                    PACKAGE_NAME,
+                    self_update_python_command,
+                    self_update_plan.packageName,
+                )
+                if self_update_command is None:
+                    _print_self_update_unavailable(self_update_python_command, self_update_plan.packageName)
+                    _set_command_exit_code(1)
+                    return True
+                if self_update_plan.note:
+                    _print_self_update_note(self_update_plan.note)
+                try:
+                    _prepare_windows_self_update()
+                    await _run_self_update(self_update_command)
+                except Exception as error:  # noqa: BLE001
+                    print(f"Error: {error}", file=sys.stderr)
+                    _print_self_update_fallback(self_update_command)
+                    _set_command_exit_code(1)
+                    return True
+                print(f"Updated {APP_NAME}")
             return True
     except Exception as error:  # noqa: BLE001
         print(f"Error: {error}", file=sys.stderr)

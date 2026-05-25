@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 import harnify_coding_agent.core.package_manager as package_manager_module
-from harnify_coding_agent.config import CONFIG_DIR_NAME
+from harnify_coding_agent.config import CONFIG_DIR_NAME, get_themes_dir
 from harnify_coding_agent.core.package_manager import DefaultPackageManager
 from harnify_coding_agent.core.resource_loader import DefaultResourceLoader
 from harnify_coding_agent.core.settings_manager import SettingsManager
@@ -17,6 +17,12 @@ from harnify_coding_agent.core.settings_manager import SettingsManager
 def _write_extension(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("async def default(api):\n    return None\n", encoding="utf-8")
+
+
+def _write_valid_theme(path: Path, *, name: str) -> None:
+    payload = json.loads((Path(get_themes_dir()) / "dark.json").read_text(encoding="utf-8"))
+    payload["name"] = name
+    path.write_text(json.dumps(payload), encoding="utf-8")
 
 
 def _write_package(package_root: Path, *, skill_name: str, prompt_name: str, theme_name: str) -> None:
@@ -32,10 +38,7 @@ def _write_package(package_root: Path, *, skill_name: str, prompt_name: str, the
         f"---\ndescription: {prompt_name}\n---\n{prompt_name}",
         encoding="utf-8",
     )
-    (package_root / "themes" / f"{theme_name}.json").write_text(
-        json.dumps({"name": theme_name, "accent": "blue"}),
-        encoding="utf-8",
-    )
+    _write_valid_theme(package_root / "themes" / f"{theme_name}.json", name=theme_name)
     (package_root / "package.json").write_text(
         json.dumps(
             {

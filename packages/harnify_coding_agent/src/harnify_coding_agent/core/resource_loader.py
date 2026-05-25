@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import os
+import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol, TypedDict
 
+from harnify_coding_agent.config import CONFIG_DIR_NAME
 from harnify_coding_agent.core.diagnostics import ResourceCollision, ResourceDiagnostic
 from harnify_coding_agent.core.event_bus import createEventBus
 from harnify_coding_agent.core.extensions.loader import (
@@ -22,19 +24,12 @@ from harnify_coding_agent.core.extensions.types import (
     LoadExtensionsResult,
 )
 from harnify_coding_agent.core.package_manager import DefaultPackageManager, ResolvedResource
-from harnify_coding_agent.core.prompt_templates import CONFIG_DIR_NAME, PromptTemplate, load_prompt_templates
+from harnify_coding_agent.core.prompt_templates import PromptTemplate, load_prompt_templates
 from harnify_coding_agent.core.settings_manager import SettingsManager
 from harnify_coding_agent.core.skills import LoadSkillsResult, Skill, load_skills
 from harnify_coding_agent.core.source_info import PathMetadata, SourceInfo, create_source_info
-from harnify_coding_agent.utils.paths import canonicalize_path, resolve_path
-
-
-@dataclass(slots=True)
-class ThemeResource:
-    name: str
-    data: dict[str, Any]
-    sourcePath: str
-    sourceInfo: SourceInfo | None = None
+from harnify_coding_agent.modes.interactive.theme.theme import Theme, load_theme_from_path
+from harnify_coding_agent.utils.paths import canonicalize_path, is_local_path, resolve_path
 
 
 class ResourcePathEntry(TypedDict, total=False):
@@ -74,7 +69,7 @@ class DefaultResourceLoaderOptions(TypedDict, total=False):
     appendSystemPromptOverride: Any
 
 
-class ResourceLoaderLike(Protocol):
+class ResourceLoader(Protocol):
     def getExtensions(self) -> LoadExtensionsResult: ...
 
     def getSkills(self) -> dict[str, object]: ...

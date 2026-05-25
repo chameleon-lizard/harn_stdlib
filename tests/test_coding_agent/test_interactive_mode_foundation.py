@@ -8,6 +8,8 @@ import signal
 import sys
 import threading
 import time
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -3709,11 +3711,23 @@ def test_handle_debug_command_writes_log_and_renders_status(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    @dataclass(slots=True)
+    class SlotMessage:
+        role: str
+        content: str
+
+    class _FixedDateTime:
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:
+            assert tz is UTC
+            return datetime(2026, 5, 25, 12, 34, 56, 123456, tzinfo=UTC)
+
     debug_log_path = tmp_path / "debug.log"
     monkeypatch.setattr(
         "harnify_coding_agent.modes.interactive.interactive_mode.get_debug_log_path",
         lambda: str(debug_log_path),
     )
+    monkeypatch.setattr(interactive_mode_module, "datetime", _FixedDateTime)
 
     ui = FakeUi()
     ui.render = lambda width: [f"width={width}", "hello"]  # type: ignore[method-assign]
@@ -3726,15 +3740,22 @@ def test_handle_debug_command_writes_log_and_renders_status(
     mode = InteractiveMode(
         ui=ui,
         chatContainer=Container(),
-        session=SimpleNamespace(messages=[{"role": "user", "content": "hi"}]),
+        session=SimpleNamespace(
+            messages=[
+                {"role": "user", "content": "hi"},
+                SlotMessage(role="assistant", content="slots"),
+            ]
+        ),
     )
 
     mode.handleDebugCommand()
 
     content = debug_log_path.read_text(encoding="utf-8")
+    assert "Debug output at 2026-05-25T12:34:56.123Z" in content
     assert "Terminal: 80x24" in content
     assert '[0] (w=8) "width=80"' in content
     assert '{"role": "user", "content": "hi"}' in content
+    assert '{"role": "assistant", "content": "slots"}' in content
 
     rendered = "\n".join(
         line

@@ -231,7 +231,7 @@ class TUI(Container):
         self.previousWidth = 0
         self.previousHeight = 0
         self.focusedComponent: Component | None = None
-        self.inputListeners: list[Any] = []
+        self.inputListeners: dict[Any, None] = {}
         self.onDebug: Any | None = None
         self.renderRequested = False
         self.renderTimer: Any | None = None
@@ -342,12 +342,11 @@ class TUI(Container):
         self.requestRender()
 
     def addInputListener(self, listener: Any) -> Any:
-        self.inputListeners.append(listener)
+        self.inputListeners[listener] = None
         return lambda: self.removeInputListener(listener)
 
     def removeInputListener(self, listener: Any) -> None:
-        if listener in self.inputListeners:
-            self.inputListeners.remove(listener)
+        self.inputListeners.pop(listener, None)
 
     def queryCellSize(self) -> None:
         if not getCapabilities().images:

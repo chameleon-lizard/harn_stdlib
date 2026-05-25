@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from urllib.parse import urlparse
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1110,8 +1111,37 @@ class DefaultPackageManager:
         git_parsed = parse_git_url(trimmed)
         if git_parsed is not None:
             return git_parsed
+        local_git_parsed = self._parse_local_file_git_source(trimmed)
+        if local_git_parsed is not None:
+            return local_git_parsed
 
         return _LocalSource(type="local", path=source)
+
+    def _parse_local_file_git_source(self, source: str) -> GitSource | None:
+        if not source.startswith("git:file://"):
+            return None
+
+        url = source[4:].strip()
+        try:
+            parsed = urlparse(url)
+        except ValueError:
+            return None
+        if parsed.scheme != "file":
+            return None
+
+        raw_path = f"{parsed.netloc}{parsed.path}" if parsed.netloc else parsed.path
+        normalized_path = raw_path.lstrip("/").removesuffix(".git")
+        if not normalized_path:
+            return None
+
+        return GitSource(
+            type="git",
+            repo=url.rstrip("/"),
+            host="local",
+            path=normalized_path,
+            ref=None,
+            pinned=False,
+        )
 
     def _parse_npm_spec(self, spec: str) -> tuple[str, str | None]:
         match = re.match(r"^(@?[^@]+(?:/[^@]+)?)(?:@(.+))?$", spec)

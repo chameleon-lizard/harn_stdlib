@@ -2680,7 +2680,7 @@ class InteractiveMode:
             if clear is not None:
                 clear()
             result = await self.runtimeHost.importFromJsonl(input_path)
-            if result.get("cancelled"):
+            if _value(result, "cancelled", False):
                 self.showStatus("Import cancelled")
                 return
             self.renderCurrentSessionState()
@@ -2691,7 +2691,7 @@ class InteractiveMode:
                 self.showStatus("Import cancelled")
                 return
             result = await self.runtimeHost.importFromJsonl(input_path, selected_cwd)
-            if result.get("cancelled"):
+            if _value(result, "cancelled", False):
                 self.showStatus("Import cancelled")
                 return
             self.renderCurrentSessionState()
@@ -3121,7 +3121,7 @@ class InteractiveMode:
     async def handleNewSession(self) -> dict[str, bool]:
         try:
             result = await self.runtimeHost.newSession()
-            if result.get("cancelled"):
+            if _value(result, "cancelled", False):
                 return result
             self.renderCurrentSessionState()
             self.showStatus("Started new session")
@@ -3141,7 +3141,7 @@ class InteractiveMode:
             clear()
         try:
             result = await self.runtimeHost.newSession()
-            if result.get("cancelled"):
+            if _value(result, "cancelled", False):
                 return
             self.renderCurrentSessionState()
             self.chatContainer.addChild(Spacer(1))

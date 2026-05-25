@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, TypedDict
 
-from harnify_coding_agent.config import CONFIG_DIR_NAME
+from harnify_coding_agent.config import CONFIG_DIR_NAME as _CONFIG_DIR_NAME
 from harnify_coding_agent.core.source_info import SourceInfo, create_synthetic_source_info
 from harnify_coding_agent.utils.frontmatter import parse_frontmatter
 from harnify_coding_agent.utils.paths import resolve_path
@@ -81,7 +81,7 @@ def load_prompt_templates(options: LoadPromptTemplatesOptions) -> list[PromptTem
 
     templates: list[PromptTemplate] = []
     global_prompts_dir = os.path.join(resolved_agent_dir, "prompts")
-    project_prompts_dir = os.path.join(resolved_cwd, CONFIG_DIR_NAME, "prompts")
+    project_prompts_dir = os.path.join(resolved_cwd, _CONFIG_DIR_NAME, "prompts")
 
     def is_under_path(target: str, root: str) -> bool:
         normalized_root = os.path.abspath(root)

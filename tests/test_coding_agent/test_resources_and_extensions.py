@@ -107,6 +107,7 @@ def test_prompt_templates_load_defaults_and_expand(tmp_path: Path) -> None:
         "parseCommandArgs",
         "substituteArgs",
     ]
+    assert not hasattr(prompt_templates_module, "CONFIG_DIR_NAME")
     assert parse_command_args('alpha "beta gamma" delta') == ["alpha", "beta gamma", "delta"]
     assert substitute_args("one=$1 rest=${@:2} all=$@", ["a", "b", "c"]) == "one=a rest=b c all=a b c"
     assert expand_prompt_template("/global world", templates) == "Hello world from world"

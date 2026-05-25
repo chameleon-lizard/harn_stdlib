@@ -2857,6 +2857,31 @@ async def test_handle_submitted_text_streaming_uses_steer_and_updates_pending() 
 
 
 @pytest.mark.asyncio
+async def test_handle_submitted_text_bash_command_clears_tracked_bash_mode_after_execution() -> None:
+    editor = FakeEditor()
+    border_updates: list[str] = []
+    calls: list[tuple[str, bool]] = []
+    mode = InteractiveMode(
+        editor=editor,
+        defaultEditor=editor,
+        session=SimpleNamespace(isBashRunning=False, state=SimpleNamespace(messages=[])),
+    )
+    mode.isBashMode = True
+
+    async def handle_bash(command: str, exclude: bool = False) -> None:
+        calls.append((command, exclude))
+
+    mode.handleBashCommand = handle_bash  # type: ignore[method-assign]
+    mode.updateEditorBorderColor = lambda: border_updates.append("border")  # type: ignore[method-assign]
+
+    await mode.handleSubmittedText("! pwd")
+
+    assert calls == [("pwd", False)]
+    assert mode.isBashMode is False
+    assert border_updates == ["border"]
+
+
+@pytest.mark.asyncio
 async def test_flush_compaction_queue_routes_messages_by_mode() -> None:
     calls: list[tuple[str, Any]] = []
 

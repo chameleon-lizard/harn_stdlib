@@ -981,6 +981,32 @@ async def test_show_extension_input_uses_editor_container_lifecycle(monkeypatch:
     assert ui.focused is editor
 
 
+def test_show_selector_uses_editor_container_and_restores_editor_on_done() -> None:
+    ui = FakeUi()
+    editor = FakeEditor()
+    container = Container()
+    container.addChild(editor)
+    mode = InteractiveMode(ui=ui, defaultEditor=editor, editor=editor, editorContainer=container)
+    focus_target = object()
+    selector = Text("selector", 0, 0)
+    done_ref: dict[str, Any] = {}
+
+    def build(done: Any) -> dict[str, Any]:
+        done_ref["done"] = done
+        return {"component": selector, "focus": focus_target}
+
+    mode.showSelector(build)
+
+    assert mode.editorContainer.children == [selector]
+    assert ui.focused is focus_target
+    assert ui.render_calls == [None]
+
+    done_ref["done"]()
+
+    assert mode.editorContainer.children == [editor]
+    assert ui.focused is editor
+
+
 @pytest.mark.asyncio
 async def test_show_extension_editor_uses_editor_container_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: list[Any] = []

@@ -8,13 +8,13 @@ import time as _time
 from typing import TypedDict
 
 
-class TimingEntry(TypedDict):
+class _TimingEntry(TypedDict):
     label: str
     ms: int
 
 
 _ENABLED = os.environ.get("PI_TIMING") == "1"
-_timings: list[TimingEntry] = []
+_timings: list[_TimingEntry] = []
 _last_time_ms = int(_time.time() * 1000)
 
 
@@ -51,10 +51,7 @@ printTimings = print_timings
 resetTimings = reset_timings
 
 __all__ = [
-    "TimingEntry",
-    "printTimings",
-    "print_timings",
     "resetTimings",
-    "reset_timings",
     "time",
+    "printTimings",
 ]

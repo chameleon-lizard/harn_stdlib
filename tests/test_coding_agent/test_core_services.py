@@ -121,6 +121,12 @@ def test_install_telemetry_surface_and_env_precedence(monkeypatch: pytest.Monkey
     assert telemetry_module.isInstallTelemetryEnabled(_Settings(True), None) is True
 
 
+def test_timings_surface_matches_ts() -> None:
+    from harnify_coding_agent.core import timings as timings_module
+
+    assert timings_module.__all__ == ["resetTimings", "time", "printTimings"]
+
+
 @pytest.mark.asyncio
 async def test_event_bus_supports_sync_async_and_unsubscribe() -> None:
     bus = createEventBus()

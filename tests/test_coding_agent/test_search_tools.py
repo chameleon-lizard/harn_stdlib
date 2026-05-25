@@ -12,10 +12,12 @@ from harnify_coding_agent.core.tools import (
     create_grep_tool,
     create_grep_tool_definition,
     create_ls_tool,
+    create_ls_tool_definition,
     get_text_output,
 )
 from harnify_coding_agent.core.tools import find as find_module
 from harnify_coding_agent.core.tools import grep as grep_module
+from harnify_coding_agent.core.tools import ls as ls_module
 
 
 def _text(result: object) -> str:
@@ -122,6 +124,26 @@ def test_grep_module_exports_match_ts_surface() -> None:
         "GrepToolOptions",
         "createGrepTool",
         "createGrepToolDefinition",
+    ]
+
+
+def test_ls_tool_definition_surface_matches_ts(tmp_path: Path) -> None:
+    definition = create_ls_tool_definition(str(tmp_path))
+
+    assert definition.promptSnippet == "List directory contents"
+    assert definition.renderCall is not None
+    assert definition.renderResult is not None
+    assert definition.description.endswith("500 entries or 50KB (whichever is hit first).")
+
+
+def test_ls_module_exports_match_ts_surface() -> None:
+    assert ls_module.__all__ == [
+        "LsOperations",
+        "LsToolDetails",
+        "LsToolInput",
+        "LsToolOptions",
+        "createLsTool",
+        "createLsToolDefinition",
     ]
 
 

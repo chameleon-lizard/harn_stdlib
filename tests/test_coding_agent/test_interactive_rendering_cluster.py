@@ -22,6 +22,7 @@ from harnify_coding_agent.modes.interactive.components import (
 import harnify_coding_agent.modes.interactive.components.assistant_message as assistant_message_module
 import harnify_coding_agent.modes.interactive.components.bash_execution as bash_execution_module
 import harnify_coding_agent.modes.interactive.components.tool_execution as tool_execution_module
+import harnify_coding_agent.modes.interactive.components.user_message as user_message_module
 from harnify_tui import Text, setKeybindings, visibleWidth
 
 OSC133_ZONE_START = "\x1b]133;A\x07"
@@ -125,6 +126,10 @@ def test_tool_execution_module_exports_match_ts_surface() -> None:
         "ToolExecutionComponent",
         "ToolExecutionOptions",
     ]
+
+
+def test_user_message_module_exports_match_ts_surface() -> None:
+    assert user_message_module.__all__ == ["UserMessageComponent"]
 
 
 def test_truncate_to_visual_lines_counts_wrapped_lines() -> None:

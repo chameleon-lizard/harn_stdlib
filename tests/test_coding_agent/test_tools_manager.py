@@ -11,7 +11,7 @@ from harnify_coding_agent.utils import tools_manager
 
 
 def test_tools_manager_module_exports_match_ts_surface() -> None:
-    assert tools_manager.__all__ == ["ensureTool", "getToolPath"]
+    assert tools_manager.__all__ == ["getToolPath", "ensureTool"]
 
 
 def test_get_tool_path_prefers_local_binary_then_system_alias(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

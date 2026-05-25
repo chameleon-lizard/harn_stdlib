@@ -5,9 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from harnify_tui import Container, SelectItem, SelectList, Spacer, Text, getKeybindings
+from harnify_tui import Container, Spacer, Text, getKeybindings
 
-from harnify_coding_agent.modes.interactive.theme.theme import get_select_list_theme, theme
+from harnify_coding_agent.modes.interactive.theme.theme import theme
 
 from .countdown_timer import CountdownTimer
 from .dynamic_border import DynamicBorder
@@ -15,8 +15,6 @@ from .keybinding_hints import key_hint, raw_key_hint
 
 
 class ExtensionSelectorComponent(Container):
-    wantsKeyRelease = False
-
     def __init__(
         self,
         title: str,
@@ -26,7 +24,8 @@ class ExtensionSelectorComponent(Container):
         opts: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
-        self._focused = False
+        self.options = options
+        self.selectedIndex = 0
         self.onSelectCallback = onSelect
         self.onCancelCallback = onCancel
         self.onToggleToolsExpanded = (opts or {}).get("onToggleToolsExpanded")
@@ -52,11 +51,8 @@ class ExtensionSelectorComponent(Container):
                 self.onCancelCallback,
             )
 
-        items = [SelectItem(value=option, label=option) for option in options]
-        self.selectList = SelectList(items, len(items) or 1, get_select_list_theme())
-        self.selectList.onSelect = lambda item: self.onSelectCallback(item.value)
-        self.selectList.onCancel = self.onCancelCallback
-        self.addChild(self.selectList)
+        self.listContainer = Container()
+        self.addChild(self.listContainer)
 
         self.addChild(Spacer(1))
         self.addChild(
@@ -73,13 +69,18 @@ class ExtensionSelectorComponent(Container):
         self.addChild(Spacer(1))
         self.addChild(DynamicBorder())
 
-    @property
-    def focused(self) -> bool:
-        return self._focused
+        self.updateList()
 
-    @focused.setter
-    def focused(self, value: bool) -> None:
-        self._focused = value
+    def updateList(self) -> None:
+        self.listContainer.clear()
+        for index, option in enumerate(self.options):
+            is_selected = index == self.selectedIndex
+            text = (
+                theme.fg("accent", "→ ") + theme.fg("accent", option)
+                if is_selected
+                else f"  {theme.fg('text', option)}"
+            )
+            self.listContainer.addChild(Text(text, 1, 0))
 
     def handleInput(self, data: str) -> None:
         kb = getKeybindings()
@@ -87,15 +88,18 @@ class ExtensionSelectorComponent(Container):
             callback = self.onToggleToolsExpanded
             if callable(callback):
                 callback()
-            return
-        if data == "k":
-            self.selectList.setSelectedIndex(max(0, self.selectList.selectedIndex - 1))
-            return
-        if data == "j":
-            max_index = max(0, len(self.selectList.filteredItems) - 1)
-            self.selectList.setSelectedIndex(min(max_index, self.selectList.selectedIndex + 1))
-            return
-        self.selectList.handleInput(data)
+        elif kb.matches(data, "tui.select.up") or data == "k":
+            self.selectedIndex = max(0, self.selectedIndex - 1)
+            self.updateList()
+        elif kb.matches(data, "tui.select.down") or data == "j":
+            self.selectedIndex = min(len(self.options) - 1, self.selectedIndex + 1)
+            self.updateList()
+        elif kb.matches(data, "tui.select.confirm") or data == "\n":
+            selected = self.options[self.selectedIndex] if 0 <= self.selectedIndex < len(self.options) else None
+            if selected:
+                self.onSelectCallback(selected)
+        elif kb.matches(data, "tui.select.cancel"):
+            self.onCancelCallback()
 
     def dispose(self) -> None:
         if self.countdown is not None:

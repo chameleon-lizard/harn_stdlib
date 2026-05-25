@@ -12,12 +12,12 @@ type KeyEventType = str
 _kitty_protocol_active = False
 
 
-def set_kitty_protocol_active(active: bool) -> None:
+def setKittyProtocolActive(active: bool) -> None:
     global _kitty_protocol_active
     _kitty_protocol_active = active
 
 
-def is_kitty_protocol_active() -> bool:
+def isKittyProtocolActive() -> bool:
     return _kitty_protocol_active
 
 
@@ -25,7 +25,6 @@ class _KeyHelper:
     escape = "escape"
     esc = "esc"
     enter = "enter"
-    return_ = "return"
     tab = "tab"
     space = "space"
     backspace = "backspace"
@@ -158,6 +157,7 @@ class _KeyHelper:
 
 
 Key = _KeyHelper()
+setattr(Key, "return", "return")
 
 SYMBOL_KEYS = {
     "`",

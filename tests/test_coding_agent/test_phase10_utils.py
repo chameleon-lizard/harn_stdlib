@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from harnify_agent.agent import AbortController
+import harnify_coding_agent.utils.changelog as changelog_module
 from harnify_coding_agent.utils.changelog import ChangelogEntry, compare_versions, get_new_entries, parse_changelog
 from harnify_coding_agent.utils.child_process import spawn_process, spawn_process_sync, wait_for_child_process
 from harnify_coding_agent.utils.frontmatter import parse_frontmatter, strip_frontmatter
@@ -38,6 +39,16 @@ def test_parse_changelog_and_get_new_entries(tmp_path: Path) -> None:
     assert compare_versions(entries[0], entries[1]) > 0
     assert get_new_entries(entries, "1.1.9") == [entries[0]]
     assert parse_changelog(str(tmp_path / "missing.md")) == []
+
+
+def test_changelog_module_exports_match_ts_surface() -> None:
+    assert changelog_module.__all__ == [
+        "ChangelogEntry",
+        "compareVersions",
+        "getChangelogPath",
+        "getNewEntries",
+        "parseChangelog",
+    ]
 
 
 def test_parse_frontmatter_matches_upstream_contract() -> None:

@@ -11,18 +11,43 @@ from harnify_ai.models import clamp_thinking_level
 from harnify_ai.stream import stream_simple
 from harnify_ai.types import Model, SimpleStreamOptions, TextContent, validate_message
 
+from harnify_coding_agent.core.agent_session_runtime import (
+    AgentSessionRuntime,
+    AgentSessionRuntimeDiagnostic,
+    AgentSessionServices,
+    CreateAgentSessionFromServicesOptions,
+    CreateAgentSessionRuntimeFactory,
+    CreateAgentSessionRuntimeResult,
+    CreateAgentSessionServicesOptions,
+    SessionImportFileNotFoundError,
+    createAgentSessionFromServices,
+    createAgentSessionRuntime,
+    createAgentSessionServices,
+)
 from harnify_coding_agent.config import get_agent_dir
 from harnify_coding_agent.core.agent_session import AgentSession
 from harnify_coding_agent.core.auth_guidance import format_no_models_available_message
 from harnify_coding_agent.core.auth_storage import AuthStorage
 from harnify_coding_agent.core.defaults import DEFAULT_THINKING_LEVEL
-from harnify_coding_agent.core.extensions.types import ExtensionFactory, LoadExtensionsResult, ToolDefinition
+from harnify_coding_agent.core.extensions import (
+    ExtensionAPI,
+    ExtensionCommandContext,
+    ExtensionContext,
+    ExtensionFactory,
+    LoadExtensionsResult,
+    SessionStartEvent,
+    SlashCommandInfo,
+    SlashCommandSource,
+    ToolDefinition,
+)
 from harnify_coding_agent.core.messages import convertToLlm
 from harnify_coding_agent.core.model_registry import ModelRegistry
 from harnify_coding_agent.core.model_resolver import findInitialModel
-from harnify_coding_agent.core.resource_loader import DefaultResourceLoader, ResourceLoaderLike
+from harnify_coding_agent.core.prompt_templates import PromptTemplate
+from harnify_coding_agent.core.resource_loader import DefaultResourceLoader, ResourceLoader
 from harnify_coding_agent.core.session_manager import SessionManager, get_default_session_dir
 from harnify_coding_agent.core.settings_manager import SettingsManager
+from harnify_coding_agent.core.skills import Skill
 from harnify_coding_agent.core.telemetry import is_install_telemetry_enabled
 from harnify_coding_agent.core.timings import time
 from harnify_coding_agent.core.tools import (
@@ -42,6 +67,11 @@ from harnify_coding_agent.core.tools import (
 from harnify_coding_agent.utils.paths import resolve_path
 
 
+class ScopedModel(TypedDict, total=False):
+    model: Model[Any]
+    thinkingLevel: ThinkingLevel
+
+
 class CreateAgentSessionOptions(TypedDict, total=False):
     cwd: str
     agentDir: str
@@ -49,27 +79,30 @@ class CreateAgentSessionOptions(TypedDict, total=False):
     modelRegistry: ModelRegistry
     model: Model[Any] | None
     thinkingLevel: ThinkingLevel
-    scopedModels: list[dict[str, Any]]
+    scopedModels: list[ScopedModel]
     noTools: Literal["all", "builtin"]
     tools: list[str]
-    customTools: list[ToolDefinition[Any, Any] | Any]
-    resourceLoader: ResourceLoaderLike
+    customTools: list[ToolDefinition[Any, Any]]
+    resourceLoader: ResourceLoader
     sessionManager: SessionManager
     settingsManager: SettingsManager
-    sessionStartEvent: dict[str, Any]
+    sessionStartEvent: SessionStartEvent
 
 
-class CreateAgentSessionResult(TypedDict, total=False):
+class _CreateAgentSessionResultRequired(TypedDict):
     session: AgentSession
     extensionsResult: LoadExtensionsResult
+
+
+class CreateAgentSessionResult(_CreateAgentSessionResultRequired, total=False):
     modelFallbackMessage: str
 
 
-def get_default_agent_dir() -> str:
+def _get_default_agent_dir() -> str:
     return get_agent_dir()
 
 
-def get_attribution_headers(
+def _get_attribution_headers(
     model: Model[Any],
     settings_manager: SettingsManager,
 ) -> dict[str, str] | None:
@@ -105,7 +138,7 @@ async def create_agent_session(options: CreateAgentSessionOptions | None = None)
     agent_dir = (
         resolve_path(resolved_options["agentDir"])
         if resolved_options.get("agentDir")
-        else get_default_agent_dir()
+        else _get_default_agent_dir()
     )
     resource_loader = resolved_options.get("resourceLoader")
 
@@ -217,10 +250,10 @@ async def create_agent_session(options: CreateAgentSessionOptions | None = None)
     async def stream_fn(model_value: Model[Any], context: Any, stream_options: Any = None) -> Any:
         auth = await model_registry.getApiKeyAndHeaders(model_value)
         if not auth.get("ok"):
-            raise RuntimeError(auth["error"])
+            raise Exception(auth["error"])
 
         provider_retry_settings = settings_manager.getProviderRetrySettings()
-        attribution_headers = get_attribution_headers(model_value, settings_manager)
+        attribution_headers = _get_attribution_headers(model_value, settings_manager)
         resolved_stream_options = dict(stream_options or {})
         headers = _merge_headers(attribution_headers, auth.get("headers"), resolved_stream_options.get("headers"))
         final_options = dict(resolved_stream_options)
@@ -377,18 +410,33 @@ createLsTool = create_ls_tool
 createReadOnlyTools = create_read_only_tools
 createReadTool = create_read_tool
 createWriteTool = create_write_tool
-getAttributionHeaders = get_attribution_headers
-getDefaultAgentDir = get_default_agent_dir
 withFileMutationQueue = with_file_mutation_queue
 
 __all__ = [
+    "AgentSessionRuntime",
+    "AgentSessionRuntimeDiagnostic",
+    "AgentSessionServices",
     "CreateAgentSessionOptions",
+    "CreateAgentSessionFromServicesOptions",
+    "CreateAgentSessionRuntimeFactory",
+    "CreateAgentSessionRuntimeResult",
     "CreateAgentSessionResult",
+    "CreateAgentSessionServicesOptions",
+    "ExtensionAPI",
+    "ExtensionCommandContext",
     "ExtensionFactory",
+    "ExtensionContext",
+    "PromptTemplate",
+    "SessionImportFileNotFoundError",
+    "Skill",
+    "SlashCommandInfo",
+    "SlashCommandSource",
     "Tool",
     "ToolDefinition",
-    "ToolName",
     "createAgentSession",
+    "createAgentSessionFromServices",
+    "createAgentSessionRuntime",
+    "createAgentSessionServices",
     "createBashTool",
     "createCodingTools",
     "createEditTool",
@@ -398,20 +446,5 @@ __all__ = [
     "createReadOnlyTools",
     "createReadTool",
     "createWriteTool",
-    "create_agent_session",
-    "create_bash_tool",
-    "create_coding_tools",
-    "create_edit_tool",
-    "create_find_tool",
-    "create_grep_tool",
-    "create_ls_tool",
-    "create_read_only_tools",
-    "create_read_tool",
-    "create_write_tool",
-    "getAttributionHeaders",
-    "getDefaultAgentDir",
-    "get_attribution_headers",
-    "get_default_agent_dir",
     "withFileMutationQueue",
-    "with_file_mutation_queue",
 ]

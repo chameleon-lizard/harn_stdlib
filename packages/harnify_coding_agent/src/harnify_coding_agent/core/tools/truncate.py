@@ -30,7 +30,7 @@ class TruncationOptions:
     maxBytes: int | None = None
 
 
-def split_lines_for_counting(content: str) -> list[str]:
+def _split_lines_for_counting(content: str) -> list[str]:
     if not content:
         return []
     lines = content.split("\n")
@@ -53,7 +53,7 @@ def truncate_head(content: str, options: TruncationOptions | None = None) -> Tru
     max_bytes = resolved.maxBytes if resolved.maxBytes is not None else DEFAULT_MAX_BYTES
 
     total_bytes = len(content.encode("utf-8"))
-    lines = split_lines_for_counting(content)
+    lines = _split_lines_for_counting(content)
     total_lines = len(lines)
 
     if total_lines <= max_lines and total_bytes <= max_bytes:
@@ -124,7 +124,7 @@ def truncate_tail(content: str, options: TruncationOptions | None = None) -> Tru
     max_bytes = resolved.maxBytes if resolved.maxBytes is not None else DEFAULT_MAX_BYTES
 
     total_bytes = len(content.encode("utf-8"))
-    lines = split_lines_for_counting(content)
+    lines = _split_lines_for_counting(content)
     total_lines = len(lines)
 
     if total_lines <= max_lines and total_bytes <= max_bytes:
@@ -154,7 +154,7 @@ def truncate_tail(content: str, options: TruncationOptions | None = None) -> Tru
         if output_bytes + line_bytes > max_bytes:
             truncated_by = "bytes"
             if not output_lines:
-                truncated_line = truncate_string_to_bytes_from_end(line, max_bytes)
+                truncated_line = _truncate_string_to_bytes_from_end(line, max_bytes)
                 output_lines.insert(0, truncated_line)
                 output_bytes = len(truncated_line.encode("utf-8"))
                 last_line_partial = True
@@ -181,7 +181,7 @@ def truncate_tail(content: str, options: TruncationOptions | None = None) -> Tru
     )
 
 
-def truncate_string_to_bytes_from_end(value: str, max_bytes: int) -> str:
+def _truncate_string_to_bytes_from_end(value: str, max_bytes: int) -> str:
     encoded = value.encode("utf-8")
     if len(encoded) <= max_bytes:
         return value
@@ -189,7 +189,7 @@ def truncate_string_to_bytes_from_end(value: str, max_bytes: int) -> str:
     start = len(encoded) - max_bytes
     while start < len(encoded) and (encoded[start] & 0xC0) == 0x80:
         start += 1
-    return encoded[start:].decode("utf-8", errors="ignore")
+    return encoded[start:].decode("utf-8")
 
 
 def truncate_line(line: str, max_chars: int = GREP_MAX_LINE_LENGTH) -> dict[str, str | bool]:
@@ -210,11 +210,7 @@ __all__ = [
     "TruncationOptions",
     "TruncationResult",
     "formatSize",
-    "format_size",
     "truncateHead",
     "truncateLine",
     "truncateTail",
-    "truncate_head",
-    "truncate_line",
-    "truncate_tail",
 ]

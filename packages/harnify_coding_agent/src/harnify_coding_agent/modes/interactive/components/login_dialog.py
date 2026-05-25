@@ -10,7 +10,8 @@ from collections.abc import Callable
 from typing import Any
 
 from harnify_ai.utils.oauth import OAuthDeviceCodeInfo, getOAuthProviders
-from harnify_tui import AbortController, Container, Input, Spacer, Text
+from harnify_tui import Container, Input, Spacer, Text, getKeybindings
+from harnify_tui.components import AbortController
 
 from harnify_coding_agent.modes.interactive.theme.theme import theme
 
@@ -40,8 +41,10 @@ class LoginDialogComponent(Container):
         self._inputFuture: asyncio.Future[str] | None = None
 
         providerInfo = next((provider for provider in getOAuthProviders() if provider.id == providerId), None)
-        providerName = providerNameOverride or getattr(providerInfo, "name", None) or providerId
-        title = titleOverride or f"Login to {providerName}"
+        providerName = providerNameOverride if providerNameOverride is not None else getattr(providerInfo, "name", None)
+        if providerName is None:
+            providerName = providerId
+        title = titleOverride if titleOverride is not None else f"Login to {providerName}"
 
         self.addChild(DynamicBorder())
         self.addChild(Text(theme.fg("accent", theme.bold(title)), 1, 0))
@@ -91,7 +94,7 @@ class LoginDialogComponent(Container):
 
     def cancel(self) -> None:
         self.abortController.abort()
-        self._reject_input(RuntimeError("Login cancelled"))
+        self._reject_input(Exception("Login cancelled"))
         self.onComplete(False, "Login cancelled")
 
     def showAuth(self, url: str, instructions: str | None = None, options: dict[str, Any] | None = None) -> None:
@@ -176,6 +179,10 @@ class LoginDialogComponent(Container):
         self._request_render()
 
     def handleInput(self, data: str) -> None:
+        kb = getKeybindings()
+        if kb.matches(data, "tui.select.cancel"):
+            self.cancel()
+            return
         if self.abortController.signal.aborted:
             return
         self.input.handleInput(data)

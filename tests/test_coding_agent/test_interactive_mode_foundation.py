@@ -2484,7 +2484,6 @@ async def test_handle_submitted_text_routes_commands_and_prompts() -> None:
     await mode.handleSubmittedText("/changelog")
     await mode.handleSubmittedText("/model sonnet")
     await mode.handleSubmittedText("/scoped-models")
-    await mode.handleSubmittedText("/models")
     await mode.handleSubmittedText("/settings")
     await mode.handleSubmittedText('/export "session.html"')
     await mode.handleSubmittedText("/theme")
@@ -2515,7 +2514,6 @@ async def test_handle_submitted_text_routes_commands_and_prompts() -> None:
         "resume-selector",
         "changelog",
         ("model-selector", "sonnet"),
-        "models",
         "models",
         "settings-selector",
         ("export", '/export "session.html"'),

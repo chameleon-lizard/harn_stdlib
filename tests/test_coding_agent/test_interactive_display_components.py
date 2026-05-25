@@ -37,6 +37,7 @@ custom_message_module = importlib.import_module(
     "harnify_coding_agent.modes.interactive.components.custom_message"
 )
 diff_module = importlib.import_module("harnify_coding_agent.modes.interactive.components.diff")
+footer_module = importlib.import_module("harnify_coding_agent.modes.interactive.components.footer")
 
 
 def _strip_ansi(text: str) -> str:
@@ -76,6 +77,10 @@ def test_custom_message_module_exports_match_ts_surface() -> None:
 
 def test_diff_module_exports_match_ts_surface() -> None:
     assert diff_module.__all__ == ["RenderDiffOptions", "renderDiff"]
+
+
+def test_footer_module_exports_match_ts_surface() -> None:
+    assert footer_module.__all__ == ["FooterComponent"]
 
 
 def test_custom_message_uses_custom_renderer_and_falls_back() -> None:
@@ -221,7 +226,7 @@ def _create_session(
 def test_footer_component_respects_width_for_wide_names() -> None:
     width = 93
     session = _create_session(session_name="한글" * 30)
-    footer = FooterComponent(session, _FooterData(1), interactive_theme_module.theme)
+    footer = FooterComponent(session, _FooterData(1))
     lines = footer.render(width)
     for line in lines:
         assert visibleWidth(line) <= width
@@ -243,7 +248,7 @@ def test_footer_component_respects_width_for_wide_model_provider_names() -> None
             "cost": {"total": 1.234},
         },
     )
-    footer = FooterComponent(session, _FooterData(2), interactive_theme_module.theme)
+    footer = FooterComponent(session, _FooterData(2))
     lines = footer.render(width)
     for line in lines:
         assert visibleWidth(line) <= width

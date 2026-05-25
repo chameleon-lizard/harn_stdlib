@@ -824,6 +824,58 @@ async def test_clone_command_and_compaction_end_rebuild_chat() -> None:
 
 
 @pytest.mark.asyncio
+async def test_handle_event_compaction_start_sets_escape_handler_loader_and_progress() -> None:
+    progress: list[bool] = []
+    status_children: list[Any] = []
+    aborts: list[bool] = []
+    editor = FakeEditor()
+    original_escape = lambda: None
+    editor.onEscape = original_escape
+
+    mode = InteractiveMode(
+        ui=FakeUi(),
+        defaultEditor=editor,
+        editor=editor,
+        session=SimpleNamespace(abortCompaction=lambda: aborts.append(True)),
+        statusContainer=SimpleNamespace(
+            clear=lambda: status_children.append("cleared"),
+            addChild=lambda child: status_children.append(child),
+        ),
+        settingsManager=SimpleNamespace(getShowTerminalProgress=lambda: True),
+    )
+    mode.ui.terminal = SimpleNamespace(
+        setProgress=lambda value: progress.append(value),
+        setTitle=lambda _value: None,
+    )
+
+    await mode.handleEvent({"type": "compaction_start", "reason": "manual"})
+
+    assert progress == [True]
+    assert mode.autoCompactionEscapeHandler is original_escape
+    assert mode.defaultEditor.onEscape is not original_escape
+    mode.defaultEditor.onEscape()
+    assert aborts == [True]
+    assert status_children[0] == "cleared"
+    assert mode.autoCompactionLoader is status_children[1]
+    assert mode.ui.render_calls == [None]
+
+
+@pytest.mark.asyncio
+async def test_handle_event_session_info_changed_updates_terminal_title() -> None:
+    updates: list[str] = []
+    renders: list[str] = []
+    mode = InteractiveMode()
+    mode.updateTerminalTitle = lambda: updates.append("title")  # type: ignore[method-assign]
+    mode.footer = SimpleNamespace(invalidate=lambda: renders.append("footer"))
+    mode._request_render = lambda force=None: renders.append("render")  # type: ignore[method-assign]
+
+    await mode.handleEvent({"type": "session_info_changed"})
+
+    assert updates == ["title"]
+    assert renders == ["footer", "render"]
+
+
+@pytest.mark.asyncio
 async def test_run_seeds_initial_messages_and_starts_ui(monkeypatch: pytest.MonkeyPatch) -> None:
     ui = FakeUi()
     prompts: list[tuple[str, dict[str, Any] | None]] = []

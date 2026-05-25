@@ -3196,3 +3196,39 @@ async def test_show_models_selector_updates_session_scope_and_persists(monkeypat
     assert scoped_updates == [[{"model": all_models[1], "thinkingLevel": "high"}]]
     assert persisted == [["anthropic/claude-sonnet-4-5"]]
     assert statuses == ["Model selection saved to settings"]
+
+
+@pytest.mark.asyncio
+async def test_show_models_selector_uses_full_registry_list_when_session_is_scoped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    all_models = [_model("openai", "gpt-4o-mini"), _model("anthropic", "claude-sonnet-4-5")]
+
+    class FakeScopedModelsSelectorComponent:
+        def __init__(self, config: Any, callbacks: Any) -> None:
+            captured["config"] = config
+            captured["callbacks"] = callbacks
+
+    monkeypatch.setattr(
+        "harnify_coding_agent.modes.interactive.interactive_mode.ScopedModelsSelectorComponent",
+        FakeScopedModelsSelectorComponent,
+    )
+
+    mode = InteractiveMode(
+        ui=FakeUi(),
+        session=SimpleNamespace(
+            scopedModels=[SimpleNamespace(model=all_models[0], thinkingLevel="high")],
+            modelRegistry=SimpleNamespace(refresh=lambda: None, getAvailable=lambda: list(all_models)),
+            setScopedModels=lambda _scoped: None,
+        ),
+        settingsManager=SimpleNamespace(
+            getEnabledModels=lambda: (_ for _ in ()).throw(AssertionError("settings fallback should not be used"))
+        ),
+    )
+
+    await mode.showModelsSelector()
+
+    config = captured["config"]
+    assert [model.id for model in config.allModels] == ["gpt-4o-mini", "claude-sonnet-4-5"]
+    assert config.enabledModelIds == ["openai/gpt-4o-mini"]

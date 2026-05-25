@@ -514,3 +514,39 @@ async def test_package_manager_run_command_capture_trims_stdout(tmp_path: Path) 
     )
 
     assert output == "hello"
+
+
+@pytest.mark.asyncio
+async def test_package_manager_treats_file_url_as_local_source(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    agent_dir = tmp_path / "agent"
+    local_source = tmp_path / "file-url-extension"
+    workspace.mkdir()
+    agent_dir.mkdir()
+    local_source.mkdir()
+    (local_source / "index.py").write_text("async def default(api):\n    return None\n", encoding="utf-8")
+    manager = DefaultPackageManager(
+        {"cwd": str(workspace), "agentDir": str(agent_dir), "settingsManager": SettingsManager.inMemory()}
+    )
+
+    resolved = await manager.resolveExtensionSources([local_source.as_uri()])
+
+    assert [entry.path for entry in resolved.extensions] == [str(local_source)]
+
+
+@pytest.mark.asyncio
+async def test_package_manager_update_unknown_source_still_errors_when_offline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    agent_dir = tmp_path / "agent"
+    workspace.mkdir()
+    agent_dir.mkdir()
+    monkeypatch.setenv("PI_OFFLINE", "1")
+    manager = DefaultPackageManager(
+        {"cwd": str(workspace), "agentDir": str(agent_dir), "settingsManager": SettingsManager.inMemory()}
+    )
+
+    with pytest.raises(ValueError, match=r"No matching package found for npm:missing"):
+        await manager.update("npm:missing")

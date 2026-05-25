@@ -89,6 +89,10 @@ class ResourceLoader(Protocol):
     async def reload(self) -> None: ...
 
 
+def _warn(message: str) -> None:
+    print(message, file=sys.stderr)
+
+
 def resolve_prompt_input(input_value: str | None, description: str) -> str | None:
     if not input_value:
         return None

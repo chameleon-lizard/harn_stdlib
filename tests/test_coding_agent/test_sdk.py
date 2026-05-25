@@ -165,6 +165,29 @@ async def test_create_agent_session_derives_cwd_from_session_manager_when_omitte
 
 
 @pytest.mark.asyncio
+async def test_create_agent_session_treats_empty_cwd_as_explicit_value(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    current_cwd = tmp_path / "current-project"
+    session_cwd = tmp_path / "session-project"
+    current_cwd.mkdir(parents=True)
+    session_cwd.mkdir(parents=True)
+    monkeypatch.chdir(current_cwd)
+
+    result = await create_agent_session(
+        {
+            "cwd": "",
+            "agentDir": str(tmp_path / "agent"),
+            "model": _built_in_model(),
+            "sessionManager": SessionManager.inMemory(str(session_cwd)),
+        }
+    )
+    session = result["session"]
+    try:
+        assert f"Current working directory: {current_cwd}" in session.systemPrompt
+    finally:
+        session.dispose()
+
+
+@pytest.mark.asyncio
 async def test_create_agent_session_respects_no_tools_all_and_explicit_allowlist(tmp_path: Path) -> None:
     base_options = {
         "cwd": str(tmp_path / "project"),

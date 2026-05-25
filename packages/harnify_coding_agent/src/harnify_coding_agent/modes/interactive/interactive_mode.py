@@ -2315,7 +2315,7 @@ class InteractiveMode:
             if context_builder is not None
             else SimpleNamespace(messages=self.session.state.messages)
         )
-            messages = list(_value(context, "messages", getattr(self.session.state, "messages", [])) or [])
+        messages = list(_value(context, "messages", getattr(self.session.state, "messages", [])) or [])
         pending_tools: dict[str, ToolExecutionComponent] = {}
         self._toolComponentsById = pending_tools
 

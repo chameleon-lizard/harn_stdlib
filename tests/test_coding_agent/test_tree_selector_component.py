@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import re
 import time
 
@@ -10,6 +11,7 @@ from harnify_coding_agent.modes.interactive.theme.theme import init_theme
 from harnify_tui import setKeybindings
 
 _ANSI_RE = re.compile(r"\x1b(?:\[[0-9;]*m|\]8;;.*?\x07)", re.DOTALL)
+tree_selector_module = importlib.import_module("harnify_coding_agent.modes.interactive.components.tree_selector")
 
 
 def _strip_ansi(text: str) -> str:
@@ -207,6 +209,7 @@ def test_tree_selector_folds_and_supports_label_editing() -> None:
 
     component.handleInput("\x1b[27;2;76~")
     assert component.labelInput is not None
+    assert component.labelInput.input.cursor == 0
 
     component.labelInput.input.setValue("Checkpoint")
     component.labelInput.input.cursor = len(component.labelInput.input.getValue())
@@ -220,6 +223,30 @@ def test_tree_selector_folds_and_supports_label_editing() -> None:
     output = _strip_ansi("\n".join(component.render(140)))
     assert "[Checkpoint]" in output
     assert "[+label time]" in output
+
+
+def test_tree_list_formats_zero_offset_and_custom_tool_args_like_ts() -> None:
+    component = TreeSelectorComponent(_build_branch_tree(), None, 20, lambda _entry_id: None, lambda: None)
+    tree_list = component.getTreeList()
+
+    assert tree_list.formatToolCall("read", {"path": "/tmp/demo.txt", "offset": 0, "limit": 2}) == (
+        "[read: /tmp/demo.txt:0-1]"
+    )
+    assert tree_list.formatToolCall("custom-tool", {"alpha": 1, "beta": True}) == (
+        '[custom-tool: {"alpha": 1, "beta": true}]'
+    )
+
+
+def test_tree_list_update_node_label_uses_js_like_utc_timestamp() -> None:
+    component = TreeSelectorComponent(_build_branch_tree(), None, 20, lambda _entry_id: None, lambda: None)
+    component.getTreeList().updateNodeLabel("root", "Checkpoint")
+
+    root = next(node for node in component.getTreeList().flatNodes if node.node.entry["id"] == "root")
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z", root.node.labelTimestamp or "")
+
+
+def test_tree_selector_module_exports_match_ts_surface() -> None:
+    assert tree_selector_module.__all__ == ["FilterMode", "TreeSelectorComponent"]
 
 
 def test_tree_selector_auto_cancels_empty_tree() -> None:

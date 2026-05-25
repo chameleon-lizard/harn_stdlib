@@ -259,26 +259,14 @@ class DefaultResourceLoader:
 
         if skill_paths:
             self.lastSkillPaths = self._merge_paths(self.lastSkillPaths, [entry["path"] for entry in skill_paths])
-            self.additionalSkillPaths = self._merge_paths(
-                self.additionalSkillPaths,
-                [entry["path"] for entry in skill_paths],
-            )
             self._update_skills_from_paths(self.lastSkillPaths)
 
         if prompt_paths:
             self.lastPromptPaths = self._merge_paths(self.lastPromptPaths, [entry["path"] for entry in prompt_paths])
-            self.additionalPromptTemplatePaths = self._merge_paths(
-                self.additionalPromptTemplatePaths,
-                [entry["path"] for entry in prompt_paths],
-            )
             self._update_prompts_from_paths(self.lastPromptPaths)
 
         if theme_paths:
             self.lastThemePaths = self._merge_paths(self.lastThemePaths, [entry["path"] for entry in theme_paths])
-            self.additionalThemePaths = self._merge_paths(
-                self.additionalThemePaths,
-                [entry["path"] for entry in theme_paths],
-            )
             self._update_themes_from_paths(self.lastThemePaths)
 
     async def reload(self) -> None:

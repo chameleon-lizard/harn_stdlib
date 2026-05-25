@@ -3,19 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import os
 import re
-import shutil
-import subprocess
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol, TypeVar
+from typing import Any, Protocol
 
 from harnify_tui.fuzzy import fuzzy_filter
 
 PATH_DELIMITERS = {" ", "\t", '"', "'", "="}
-T = TypeVar("T")
+_MISSING = object()
 
 
 def to_display_path(value: str) -> str:
@@ -122,6 +121,71 @@ def _is_aborted(signal: Any) -> bool:
     return False
 
 
+def _has_prop(value: object, key: str) -> bool:
+    if isinstance(value, Mapping):
+        return key in value
+    return hasattr(value, key)
+
+
+def _get_prop(value: object, key: str, default: object = None) -> object:
+    if isinstance(value, Mapping):
+        return value.get(key, default)
+    return getattr(value, key, default)
+
+
+def _get_command_name(command: object) -> str:
+    name = _get_prop(command, "name", _MISSING)
+    if name is not _MISSING:
+        return str(name)
+    return str(_get_prop(command, "value", ""))
+
+
+async def _wait_for_abort(signal: Any) -> None:
+    if signal is None:
+        await asyncio.Future()
+        return
+    if _is_aborted(signal):
+        return
+
+    wait = getattr(signal, "wait", None)
+    if callable(wait) and inspect.iscoroutinefunction(wait):
+        await wait()
+        return
+
+    add_event_listener = getattr(signal, "addEventListener", None)
+    remove_event_listener = getattr(signal, "removeEventListener", None)
+    if callable(add_event_listener):
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[None] = loop.create_future()
+
+        def on_abort() -> None:
+            if not future.done():
+                future.set_result(None)
+
+        add_event_listener("abort", on_abort, {"once": True})
+        try:
+            await future
+        finally:
+            if callable(remove_event_listener):
+                remove_event_listener("abort", on_abort)
+        return
+
+    await asyncio.Future()
+
+
+async def _read_stream(stream: asyncio.StreamReader | None) -> str:
+    if stream is None:
+        return ""
+
+    chunks: list[str] = []
+    while True:
+        chunk = await stream.read(65536)
+        if not chunk:
+            break
+        chunks.append(chunk.decode("utf-8"))
+    return "".join(chunks)
+
+
 async def walk_directory_with_fd(
     base_dir: str,
     fd_path: str,
@@ -133,7 +197,6 @@ async def walk_directory_with_fd(
         return []
 
     args = [
-        fd_path,
         "--base-directory",
         base_dir,
         "--max-results",
@@ -156,14 +219,43 @@ async def walk_directory_with_fd(
     if query:
         args.append(build_fd_path_query(query))
 
-    def run_fd() -> subprocess.CompletedProcess[str]:
-        return subprocess.run(args, capture_output=True, text=True, check=False)
-
-    result = await asyncio.to_thread(run_fd)
-    if _is_aborted(signal) or result.returncode != 0 or not result.stdout:
+    try:
+        process = await asyncio.create_subprocess_exec(
+            fd_path,
+            *args,
+            stdin=asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except Exception:
         return []
 
-    lines = [line for line in result.stdout.strip().splitlines() if line]
+    stdout_task = asyncio.create_task(_read_stream(process.stdout))
+    stderr_task = asyncio.create_task(_read_stream(process.stderr))
+    wait_task = asyncio.create_task(process.wait())
+    abort_task = asyncio.create_task(_wait_for_abort(signal))
+
+    try:
+        done, _pending = await asyncio.wait({wait_task, abort_task}, return_when=asyncio.FIRST_COMPLETED)
+        if abort_task in done and not wait_task.done():
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
+        return_code = await wait_task
+        stdout = await stdout_task
+        await stderr_task
+    finally:
+        abort_task.cancel()
+        try:
+            await abort_task
+        except asyncio.CancelledError:
+            pass
+
+    if _is_aborted(signal) or return_code != 0 or not stdout:
+        return []
+
+    lines = [line for line in stdout.strip().splitlines() if line]
     entries: list[dict[str, object]] = []
     for line in lines:
         display_line = to_display_path(line)
@@ -228,7 +320,7 @@ class CombinedAutocompleteProvider:
     ) -> None:
         self.commands = commands or []
         self.basePath = basePath
-        self.fdPath = fdPath if fdPath is not None else shutil.which("fd")
+        self.fdPath = fdPath
 
     async def getSuggestions(
         self,
@@ -260,16 +352,11 @@ class CombinedAutocompleteProvider:
                 prefix = text_before_cursor[1:]
                 command_items: list[dict[str, str | None]] = []
                 for command in self.commands:
-                    if isinstance(command, SlashCommand):
-                        name = command.name
-                        hint = command.argumentHint
-                        description = command.description or ""
-                    else:
-                        name = command.value
-                        hint = None
-                        description = command.description or ""
+                    name = _get_command_name(command)
+                    hint = _get_prop(command, "argumentHint", None)
+                    description = str(_get_prop(command, "description", "") or "")
                     full_description = (
-                        f"{hint} — {description}" if hint and description else hint or description or None
+                        f"{hint} — {description}" if hint and description else str(hint) if hint else description or None
                     )
                     command_items.append({"name": name, "label": name, "description": full_description})
 
@@ -294,16 +381,17 @@ class CombinedAutocompleteProvider:
                 (
                     command
                     for command in self.commands
-                    if (command.name if isinstance(command, SlashCommand) else command.value) == command_name
+                    if _get_command_name(command) == command_name
                 ),
                 None,
             )
-            if not isinstance(command_match, SlashCommand):
+            if command_match is None:
                 return None
-            if command_match.getArgumentCompletions is None:
+            get_argument_completions = _get_prop(command_match, "getArgumentCompletions", None)
+            if not callable(get_argument_completions):
                 return None
-            completions = command_match.getArgumentCompletions(argument_text)
-            if asyncio.iscoroutine(completions):
+            completions = get_argument_completions(argument_text)
+            if inspect.isawaitable(completions):
                 completions = await completions
             if not isinstance(completions, list) or len(completions) == 0:
                 return None
@@ -601,16 +689,5 @@ __all__ = [
     "AutocompleteProvider",
     "AutocompleteSuggestions",
     "CombinedAutocompleteProvider",
-    "PathPrefix",
     "SlashCommand",
-    "build_completion_value",
-    "build_fd_path_query",
-    "escape_regex",
-    "extract_quoted_prefix",
-    "find_last_delimiter",
-    "find_unclosed_quote_start",
-    "is_token_start",
-    "parse_path_prefix",
-    "to_display_path",
-    "walk_directory_with_fd",
 ]

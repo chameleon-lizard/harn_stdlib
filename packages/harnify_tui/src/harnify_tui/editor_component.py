@@ -28,13 +28,4 @@ class EditorComponent(Component, Protocol):
     def handleInput(self, data: str) -> None: ...
 
 
-def get_expanded_text(component: EditorComponent) -> str:
-    getter = getattr(component, "getExpandedText", None)
-    if callable(getter):
-        return getter()
-    return component.getText()
-
-
-getExpandedText = get_expanded_text
-
-__all__ = ["EditorComponent", "getExpandedText", "get_expanded_text"]
+__all__ = ["EditorComponent"]

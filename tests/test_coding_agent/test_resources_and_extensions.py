@@ -104,7 +104,7 @@ def test_skills_load_with_collisions_and_prompt_formatting(tmp_path: Path) -> No
     cwd = tmp_path / "project"
     agent_dir = tmp_path / "agent"
     (agent_dir / "skills" / "global-skill").mkdir(parents=True)
-    (cwd / CONFIG_DIR_NAME / "skills" / "project-skill").mkdir(parents=True)
+    (cwd / ".harnify" / "skills" / "project-skill").mkdir(parents=True)
     extra_dir = tmp_path / "extra-skills"
     extra_dir.mkdir()
 
@@ -112,7 +112,7 @@ def test_skills_load_with_collisions_and_prompt_formatting(tmp_path: Path) -> No
         "---\ndescription: Global description\n---\n# global",
         encoding="utf-8",
     )
-    (cwd / CONFIG_DIR_NAME / "skills" / "project-skill" / "SKILL.md").write_text(
+    (cwd / ".harnify" / "skills" / "project-skill" / "SKILL.md").write_text(
         "---\nname: project-skill\ndescription: Project description\n---\n# project",
         encoding="utf-8",
     )

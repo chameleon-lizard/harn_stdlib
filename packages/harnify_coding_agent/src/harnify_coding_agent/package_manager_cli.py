@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-import subprocess
+import signal as signal_module
 import sys
 import traceback
 from dataclasses import dataclass
@@ -294,18 +294,56 @@ def _parse_package_command(args: list[str]) -> PackageCommandOptions | None:
 
 
 def _print_package_command_help(command: PackageCommand) -> None:
-    app_name = PACKAGE_NAME.replace("-coding-agent", "")
     if command == "install":
-        print(f"Usage: {app_name} install <source> [-l|--local]")
+        print(
+            f"Usage:\n"
+            f"  {APP_NAME} install <source> [-l]\n\n"
+            "Install a package and add it to settings.\n\n"
+            "Options:\n"
+            "  -l, --local    Install project-locally (.pi/settings.json)\n\n"
+            "Examples:\n"
+            f"  {APP_NAME} install npm:@foo/bar\n"
+            f"  {APP_NAME} install git:github.com/user/repo\n"
+            f"  {APP_NAME} install git:git@github.com:user/repo\n"
+            f"  {APP_NAME} install https://github.com/user/repo\n"
+            f"  {APP_NAME} install ssh://git@github.com/user/repo\n"
+            f"  {APP_NAME} install ./local/path\n"
+        )
         return
     if command == "remove":
-        print(f"Usage: {app_name} remove <source> [-l|--local]")
-        print(f"Alias: {app_name} uninstall <source> [-l|--local]")
+        print(
+            f"Usage:\n"
+            f"  {APP_NAME} remove <source> [-l]\n\n"
+            "Remove a package and its source from settings.\n"
+            f"Alias: {APP_NAME} uninstall <source> [-l]\n\n"
+            "Options:\n"
+            "  -l, --local    Remove from project settings (.pi/settings.json)\n\n"
+            "Examples:\n"
+            f"  {APP_NAME} remove npm:@foo/bar\n"
+            f"  {APP_NAME} uninstall npm:@foo/bar\n"
+        )
         return
     if command == "update":
-        print(f"Usage: {app_name} update [source|self|pi] [--self] [--extensions]")
+        print(
+            f"Usage:\n"
+            f"  {APP_NAME} update [source|self|pi] [--self] [--extensions] [--extension <source>] [--force]\n\n"
+            f"Update {APP_NAME} and installed packages.\n\n"
+            "Options:\n"
+            f"  --self                  Update {APP_NAME} only\n"
+            "  --extensions            Update installed packages only\n"
+            "  --extension <source>    Update one package only\n"
+            f"  --force                 Reinstall {APP_NAME} even if the current version is latest\n\n"
+            "Short forms:\n"
+            f"  {APP_NAME} update                Update {APP_NAME} and all extensions\n"
+            f"  {APP_NAME} update <source>       Update one package\n"
+            f"  {APP_NAME} update pi             Update {APP_NAME} only (self works as alias to pi)\n"
+        )
         return
-    print(f"Usage: {app_name} list")
+    print(
+        f"Usage:\n"
+        f"  {APP_NAME} list\n\n"
+        "List installed packages from user and project settings.\n"
+    )
 
 
 async def handle_config_command(args: list[str]) -> bool | None:

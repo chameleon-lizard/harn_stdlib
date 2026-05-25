@@ -2403,9 +2403,6 @@ async def test_handle_submitted_text_routes_commands_and_prompts() -> None:
     async def prompt(text: str, options: dict[str, Any] | None = None) -> None:
         calls.append(("prompt", text, options))
 
-    async def handle_theme(theme: str) -> None:
-        calls.append(("theme-command", theme))
-
     async def handle_import(text: str) -> None:
         calls.append(("import", text))
 

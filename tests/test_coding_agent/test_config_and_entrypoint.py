@@ -8,6 +8,7 @@ import harnify_coding_agent as root_package
 from harnify_coding_agent import cli as cli_package
 from harnify_coding_agent import config
 from harnify_coding_agent.core import auth_guidance
+import harnify_coding_agent.package_manager_cli as package_manager_cli_module
 
 
 def test_config_metadata_defaults_match_package_configuration() -> None:
@@ -76,6 +77,14 @@ def test_detect_install_method_handles_python_layouts() -> None:
 
 def test_detect_install_method_reports_source_checkout_for_repo_tree() -> None:
     assert config.detect_install_method() == "source"
+
+
+def test_package_manager_cli_module_exports_match_ts_surface() -> None:
+    assert package_manager_cli_module.__all__ == [
+        "PackageCommand",
+        "handleConfigCommand",
+        "handlePackageCommand",
+    ]
 
 
 def test_self_update_commands_match_python_install_methods(monkeypatch) -> None:

@@ -573,7 +573,7 @@ class RpcExtensionUISetStatusRequest(TypedDict):
     id: str
     method: Literal["setStatus"]
     statusKey: str
-    statusText: NotRequired[str]
+    statusText: str | None
 
 
 class RpcExtensionUISetWidgetRequest(TypedDict):
@@ -581,7 +581,7 @@ class RpcExtensionUISetWidgetRequest(TypedDict):
     id: str
     method: Literal["setWidget"]
     widgetKey: str
-    widgetLines: NotRequired[list[str]]
+    widgetLines: list[str] | None
     widgetPlacement: NotRequired[Literal["aboveEditor", "belowEditor"]]
 
 

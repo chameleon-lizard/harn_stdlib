@@ -119,15 +119,24 @@ def _resolve_lexer(code: str, options: HighlightOptions):
             return TextLexer()
     if options.languageSubset:
         best = None
-        best_score = float("-inf")
+        best_score: tuple[float, int, int] | None = None
         for name in options.languageSubset:
             try:
                 candidate = get_lexer_by_name(name)
             except ClassNotFound:
                 continue
             analyse = getattr(candidate, "analyse_text", None)
-            score = float(analyse(code)) if callable(analyse) else 0.0
-            if score > best_score:
+            analyse_score = float(analyse(code)) if callable(analyse) else 0.0
+            error_chars = 0
+            non_text_chars = 0
+            for token, value in lex(code, candidate):
+                size = len(value)
+                if token in Token.Error:
+                    error_chars += size
+                elif not (token is Token.Text or token in Token.Text):
+                    non_text_chars += size
+            score = (analyse_score, -error_chars, non_text_chars)
+            if best_score is None or score > best_score:
                 best = candidate
                 best_score = score
         if best is not None:

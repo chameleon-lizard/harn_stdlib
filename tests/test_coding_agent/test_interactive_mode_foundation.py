@@ -2736,6 +2736,9 @@ async def test_handle_model_command_prefers_exact_match_before_selector() -> Non
     statuses: list[str] = []
     selected: list[str] = []
     shown: list[str | None] = []
+    refreshes: list[str] = []
+    count_calls: list[str] = []
+    render_calls: list[str] = []
     model = _model("openai", "gpt-4o-mini")
 
     async def set_model(next_model: Model) -> None:
@@ -2744,7 +2747,10 @@ async def test_handle_model_command_prefers_exact_match_before_selector() -> Non
     mode = InteractiveMode(
         session=SimpleNamespace(
             scopedModels=[],
-            modelRegistry=SimpleNamespace(refresh=lambda: None, getAvailable=lambda: [model]),
+            modelRegistry=SimpleNamespace(
+                refresh=lambda: refreshes.append("refresh"),
+                getAvailable=lambda: [model],
+            ),
             setModel=set_model,
             state=SimpleNamespace(thinkingLevel="off"),
         ),
@@ -2753,9 +2759,10 @@ async def test_handle_model_command_prefers_exact_match_before_selector() -> Non
     )
     mode.showStatus = statuses.append  # type: ignore[method-assign]
     mode.showModelSelector = lambda search=None: shown.append(search)  # type: ignore[method-assign]
-    mode.updateAvailableProviderCount = lambda: None  # type: ignore[method-assign]
+    mode.updateAvailableProviderCount = lambda: count_calls.append("count")  # type: ignore[method-assign]
     mode.updateEditorBorderColor = lambda: None  # type: ignore[method-assign]
     mode.maybeWarnAboutAnthropicSubscriptionAuth = lambda _model=None: asyncio.sleep(0)  # type: ignore[method-assign]
+    mode._request_render = lambda *args, **kwargs: render_calls.append("render")  # type: ignore[method-assign]
 
     await mode.handleModelCommand("openai/gpt-4o-mini")
     await mode.handleModelCommand("missing")
@@ -2763,6 +2770,9 @@ async def test_handle_model_command_prefers_exact_match_before_selector() -> Non
     assert selected == ["gpt-4o-mini"]
     assert statuses == ["Model: gpt-4o-mini"]
     assert shown == ["missing"]
+    assert refreshes == ["refresh", "refresh"]
+    assert count_calls == []
+    assert render_calls == []
 
 
 @pytest.mark.asyncio
@@ -2784,6 +2794,48 @@ async def test_handle_model_command_tolerates_model_registry_get_available_error
     await mode.handleModelCommand("missing")
 
     assert shown == ["missing"]
+
+
+@pytest.mark.asyncio
+async def test_update_available_provider_count_uses_scoped_models_before_registry() -> None:
+    counts: list[int] = []
+    mode = InteractiveMode(
+        session=SimpleNamespace(
+            scopedModels=[
+                SimpleNamespace(model=_model("anthropic", "claude-scope"), thinkingLevel="high"),
+                SimpleNamespace(model=_model("anthropic", "claude-sonnet-4-5"), thinkingLevel="medium"),
+                SimpleNamespace(model=_model("openai", "gpt-4o-mini"), thinkingLevel="low"),
+            ],
+            modelRegistry=SimpleNamespace(
+                refresh=lambda: (_ for _ in ()).throw(AssertionError("registry refresh should not run")),
+                getAvailable=lambda: (_ for _ in ()).throw(AssertionError("registry lookup should not run")),
+            ),
+        ),
+        footerDataProvider=SimpleNamespace(setAvailableProviderCount=counts.append),
+    )
+
+    await mode.updateAvailableProviderCount()
+
+    assert counts == [2]
+
+
+@pytest.mark.asyncio
+async def test_update_available_provider_count_tolerates_registry_get_available_errors() -> None:
+    counts: list[int] = []
+    mode = InteractiveMode(
+        session=SimpleNamespace(
+            scopedModels=[],
+            modelRegistry=SimpleNamespace(
+                refresh=lambda: None,
+                getAvailable=lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+            ),
+        ),
+        footerDataProvider=SimpleNamespace(setAvailableProviderCount=counts.append),
+    )
+
+    await mode.updateAvailableProviderCount()
+
+    assert counts == [0]
 
 
 def test_setup_key_handlers_registers_session_fork_action() -> None:

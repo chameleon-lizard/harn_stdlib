@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from harnify_tui import keys as keys_module
 from harnify_tui.keys import (
     Key,
     decodeKittyPrintable,
@@ -149,3 +150,28 @@ def test_keys_prefer_codepoint_for_latin_and_symbol_layout_remaps() -> None:
     assert matchesKey("\x1b[47::91;5u", "ctrl+[") is False
     assert parseKey("\x1b[107::118;5u") == "ctrl+k"
     assert parseKey("\x1b[47::91;5u") == "ctrl+/"
+
+
+def test_keys_module_exports_match_ts_surface() -> None:
+    assert keys_module.__all__ == [
+        "Key",
+        "KeyEventType",
+        "KeyId",
+        "decodeKittyPrintable",
+        "decodePrintableKey",
+        "isKeyRelease",
+        "isKeyRepeat",
+        "isKittyProtocolActive",
+        "matchesKey",
+        "parseKey",
+        "setKittyProtocolActive",
+    ]
+    assert not hasattr(keys_module, "decode_kitty_printable")
+    assert not hasattr(keys_module, "decode_printable_key")
+    assert not hasattr(keys_module, "matches_key")
+    assert not hasattr(keys_module, "parse_key")
+
+
+def test_key_helper_exposes_return_without_python_only_alias() -> None:
+    assert getattr(Key, "return") == "return"
+    assert not hasattr(Key, "return_")

@@ -33,6 +33,7 @@ from harnify_coding_agent.core.tools import (
     with_file_mutation_queue,
     wrap_tool_definition,
 )
+from harnify_coding_agent.core.tools import file_mutation_queue as file_mutation_queue_module
 
 
 def test_truncate_head_honors_line_and_byte_limits() -> None:
@@ -151,6 +152,10 @@ async def test_file_mutation_queue_serializes_same_file() -> None:
     assert await task1 == "first"
     assert await task2 == "second"
     assert order == ["first-start", "first-end", "second-start", "second-end"]
+
+
+def test_file_mutation_queue_module_exports_match_ts_surface() -> None:
+    assert file_mutation_queue_module.__all__ == ["withFileMutationQueue"]
 
 
 @pytest.mark.asyncio

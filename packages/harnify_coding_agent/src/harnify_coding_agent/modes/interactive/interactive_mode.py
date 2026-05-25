@@ -4467,6 +4467,8 @@ class InteractiveMode:
     async def run(self) -> int:
         await self.init()
         self._shutdownFuture = asyncio.get_running_loop().create_future()
+        self.shutdownRequested = False
+        self.isShuttingDown = False
         self._schedule_task(self._check_for_new_version())
         self._schedule_task(self._check_for_package_updates())
         self._schedule_task(self._check_tmux_keyboard_setup())
@@ -4496,30 +4498,156 @@ class InteractiveMode:
         return await self._shutdownFuture
 
     async def shutdown(self) -> int:
-        self.requestShutdown()
+        if self.isShuttingDown:
+            if self._shutdownFuture is None:
+                return 0
+            return await asyncio.shield(self._shutdownFuture)
+
+        self.isShuttingDown = True
+        self.unregisterSignalHandlers()
+
+        drain_input = _callable_attr(getattr(self.ui, "terminal", None), "drainInput")
+        if drain_input is not None:
+            await _maybe_await(drain_input(1000))
+
+        self.stop()
+        dispose_runtime = _callable_attr(self.runtimeHost, "dispose")
+        if dispose_runtime is not None:
+            await _maybe_await(dispose_runtime())
+
         if self._shutdownFuture is None:
             return 0
+        if not self._shutdownFuture.done():
+            self._shutdownFuture.set_result(0)
         return await asyncio.shield(self._shutdownFuture)
 
     def requestShutdown(self) -> None:
-        if self._shutdownFuture is not None and self._shutdownFuture.done():
+        if self.shutdownRequested:
             return
+        self.shutdownRequested = True
+        if not bool(getattr(self.session, "isStreaming", False)):
+            self._schedule_task(self.shutdown())
+
+    def emergencyTerminalExit(self) -> None:
+        self.isShuttingDown = True
+        self.unregisterSignalHandlers()
+        kill_tracked_detached_children()
+        raise SystemExit(129)
+
+    def uncaughtCrash(self, error: Exception | BaseException) -> None:
+        if self.isShuttingDown:
+            raise SystemExit(1)
+        self.isShuttingDown = True
+        with contextlib.suppress(Exception):
+            self.unregisterSignalHandlers()
+        with contextlib.suppress(Exception):
+            kill_tracked_detached_children()
         stop = _callable_attr(self.ui, "stop")
         if stop is not None:
-            stop()
-        if self._shutdownFuture is not None and not self._shutdownFuture.done():
-            self._shutdownFuture.set_result(0)
+            with contextlib.suppress(Exception):
+                stop()
+        print("pi exiting due to uncaughtException:", file=sys.stderr)
+        print(error, file=sys.stderr)
+        raise SystemExit(1)
 
-    def dispose(self) -> None:
+    def registerSignalHandlers(self) -> None:
+        self.unregisterSignalHandlers()
+
+        signal_numbers: list[int] = [signal.SIGTERM]
+        if sys.platform != "win32" and hasattr(signal, "SIGHUP"):
+            signal_numbers.append(signal.SIGHUP)
+
+        def _install_signal(signum: int, handler: Callable[[int, Any], None]) -> None:
+            try:
+                previous = signal.getsignal(signum)
+                signal.signal(signum, handler)
+            except (AttributeError, ValueError):
+                return
+            self.signalCleanupHandlers.append(lambda: signal.signal(signum, previous))
+
+        for signum in signal_numbers:
+            def _handler(_signum: int, _frame: Any, *, signum: int = signum) -> None:
+                if hasattr(signal, "SIGHUP") and signum == signal.SIGHUP:
+                    self.emergencyTerminalExit()
+                kill_tracked_detached_children()
+                self._schedule_task(self.shutdown())
+
+            _install_signal(signum, _handler)
+
+        def _register_stream_handler(stream: Any, handler: Callable[[Any], None]) -> None:
+            on = _callable_attr(stream, "on")
+            off = _callable_attr(stream, "off")
+            if on is None or off is None:
+                return
+            on("error", handler)
+            self.signalCleanupHandlers.append(lambda: off("error", handler))
+
+        def _terminal_error_handler(error: Any) -> None:
+            if _is_dead_terminal_error(error):
+                self.emergencyTerminalExit()
+            raise error
+
+        _register_stream_handler(sys.stdout, _terminal_error_handler)
+        _register_stream_handler(sys.stderr, _terminal_error_handler)
+
+        previous_excepthook = sys.excepthook
+
+        def _excepthook(exc_type: type[BaseException], error: BaseException, _traceback: Any) -> None:
+            self.uncaughtCrash(error)
+
+        sys.excepthook = _excepthook
+        self.signalCleanupHandlers.append(lambda: setattr(sys, "excepthook", previous_excepthook))
+
+        previous_threading_excepthook = getattr(threading, "excepthook", None)
+        if previous_threading_excepthook is not None:
+            def _threading_excepthook(args: Any) -> None:
+                exc_value = getattr(args, "exc_value", None)
+                if isinstance(exc_value, BaseException):
+                    self.uncaughtCrash(exc_value)
+                previous_threading_excepthook(args)
+
+            threading.excepthook = _threading_excepthook
+            self.signalCleanupHandlers.append(
+                lambda: setattr(threading, "excepthook", previous_threading_excepthook)
+            )
+
+    def unregisterSignalHandlers(self) -> None:
+        for cleanup in list(self.signalCleanupHandlers):
+            cleanup()
+        self.signalCleanupHandlers = []
+
+    def stop(self) -> None:
+        self.unregisterSignalHandlers()
+        get_progress = _callable_attr(self.settingsManager, "getShowTerminalProgress")
+        set_progress = _callable_attr(getattr(self.ui, "terminal", None), "setProgress")
+        if get_progress is not None and bool(get_progress()) and set_progress is not None:
+            set_progress(False)
+        if self.loadingAnimation is not None:
+            stop = _callable_attr(self.loadingAnimation, "stop")
+            if stop is not None:
+                stop()
+            self.loadingAnimation = None
+        self.clearExtensionTerminalInputListeners()
+        dispose_footer = _callable_attr(self.footer, "dispose")
+        if dispose_footer is not None:
+            dispose_footer()
+        dispose_footer_data = _callable_attr(self.footerDataProvider, "dispose")
+        if dispose_footer_data is not None:
+            dispose_footer_data()
         if self._sessionUnsubscribe is not None:
             self._sessionUnsubscribe()
             self._sessionUnsubscribe = None
+        if self.isInitialized:
+            stop_ui = _callable_attr(self.ui, "stop")
+            if stop_ui is not None:
+                stop_ui()
+            self.isInitialized = False
+
+    def dispose(self) -> None:
         stop_theme_watcher = getattr(interactive_theme, "stop_theme_watcher", None)
         if callable(stop_theme_watcher):
             stop_theme_watcher()
-        dispose_footer = _callable_attr(self.footerDataProvider, "dispose")
-        if dispose_footer is not None:
-            dispose_footer()
+        self.stop()
         self._clear_selector()
 
     def _on_editor_change(self, text: str) -> None:

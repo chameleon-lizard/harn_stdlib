@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal, TypedDict
 
@@ -10,7 +9,7 @@ SourceScope = Literal["user", "project", "temporary"]
 SourceOrigin = Literal["package", "top-level"]
 
 
-class PathMetadata(TypedDict, total=False):
+class _SyntheticSourceInfoOptions(TypedDict, total=False):
     source: str
     scope: SourceScope
     origin: SourceOrigin
@@ -26,26 +25,26 @@ class SourceInfo:
     baseDir: str | None = None
 
 
-def create_source_info(path: str, metadata: PathMetadata | Mapping[str, object]) -> SourceInfo:
+def create_source_info(path: str, metadata: dict[str, object]) -> SourceInfo:
     return SourceInfo(
         path=path,
-        source=str(metadata["source"]),
-        scope=metadata.get("scope", "temporary"),  # type: ignore[arg-type]
-        origin=metadata.get("origin", "top-level"),  # type: ignore[arg-type]
-        baseDir=str(metadata["baseDir"]) if metadata.get("baseDir") is not None else None,
+        source=metadata["source"],  # type: ignore[arg-type]
+        scope=metadata["scope"],  # type: ignore[arg-type]
+        origin=metadata["origin"],  # type: ignore[arg-type]
+        baseDir=metadata.get("baseDir"),  # type: ignore[arg-type]
     )
 
 
 def create_synthetic_source_info(
     path: str,
-    options: PathMetadata | Mapping[str, object],
+    options: _SyntheticSourceInfoOptions,
 ) -> SourceInfo:
     return SourceInfo(
         path=path,
-        source=str(options["source"]),
+        source=options["source"],
         scope=options.get("scope", "temporary"),  # type: ignore[arg-type]
         origin=options.get("origin", "top-level"),  # type: ignore[arg-type]
-        baseDir=str(options["baseDir"]) if options.get("baseDir") is not None else None,
+        baseDir=options.get("baseDir"),
     )
 
 
@@ -53,12 +52,9 @@ createSourceInfo = create_source_info
 createSyntheticSourceInfo = create_synthetic_source_info
 
 __all__ = [
-    "PathMetadata",
-    "SourceInfo",
-    "SourceOrigin",
     "SourceScope",
+    "SourceOrigin",
+    "SourceInfo",
     "createSourceInfo",
     "createSyntheticSourceInfo",
-    "create_source_info",
-    "create_synthetic_source_info",
 ]

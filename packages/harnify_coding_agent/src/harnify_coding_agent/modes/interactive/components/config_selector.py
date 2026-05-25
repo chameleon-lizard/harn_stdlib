@@ -21,9 +21,8 @@ from harnify_tui import (
 )
 
 from harnify_coding_agent.config import CONFIG_DIR_NAME
-from harnify_coding_agent.core.package_manager import ResolvedPaths, ResolvedResource
+from harnify_coding_agent.core.package_manager import PathMetadata, ResolvedPaths, ResolvedResource
 from harnify_coding_agent.core.settings_manager import SettingsManager
-from harnify_coding_agent.core.source_info import PathMetadata
 from harnify_coding_agent.modes.interactive.theme.theme import theme
 
 from .dynamic_border import DynamicBorder

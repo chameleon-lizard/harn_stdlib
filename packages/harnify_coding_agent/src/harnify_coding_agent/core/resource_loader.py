@@ -24,11 +24,11 @@ from harnify_coding_agent.core.extensions.types import (
     ExtensionRuntime,
     LoadExtensionsResult,
 )
-from harnify_coding_agent.core.package_manager import DefaultPackageManager, ResolvedResource
+from harnify_coding_agent.core.package_manager import DefaultPackageManager, PathMetadata, ResolvedResource
 from harnify_coding_agent.core.prompt_templates import PromptTemplate, load_prompt_templates
 from harnify_coding_agent.core.settings_manager import SettingsManager
 from harnify_coding_agent.core.skills import LoadSkillsResult, Skill, load_skills
-from harnify_coding_agent.core.source_info import PathMetadata, SourceInfo, create_source_info
+from harnify_coding_agent.core.source_info import SourceInfo, create_source_info
 from harnify_coding_agent.modes.interactive.theme.theme import Theme, load_theme_from_path
 from harnify_coding_agent.utils.paths import canonicalize_path, is_local_path, resolve_path
 

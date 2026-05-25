@@ -16,7 +16,7 @@ import tempfile
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Protocol, TypeVar, TypedDict, cast
+from typing import Any, Literal, NotRequired, Protocol, TypeVar, TypedDict, cast
 
 from pathspec import GitIgnoreSpec
 from wcmatch import glob as wc_glob
@@ -24,7 +24,7 @@ from wcmatch import glob as wc_glob
 from harnify_coding_agent.config import CONFIG_DIR_NAME
 from harnify_coding_agent.core.output_guard import isStdoutTakenOver
 from harnify_coding_agent.core.settings_manager import PackageSource, SettingsManager
-from harnify_coding_agent.core.source_info import PathMetadata, SourceScope
+from harnify_coding_agent.core.source_info import SourceScope
 from harnify_coding_agent.utils.child_process import spawn_process_sync
 from harnify_coding_agent.utils.git import GitSource, parse_git_url
 from harnify_coding_agent.utils.paths import (
@@ -62,6 +62,13 @@ class PiManifest(TypedDict, total=False):
     skills: list[str]
     prompts: list[str]
     themes: list[str]
+
+
+class PathMetadata(TypedDict):
+    source: str
+    scope: SourceScope
+    origin: Literal["package", "top-level"]
+    baseDir: NotRequired[str]
 
 
 class PackageManagerOptions(TypedDict):

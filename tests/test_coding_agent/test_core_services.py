@@ -22,6 +22,7 @@ from harnify_coding_agent.core.output_guard import (
     takeOverStdout,
     writeRawStdout,
 )
+from harnify_coding_agent.core import source_info as source_info_module
 from harnify_coding_agent.core import slash_commands as slash_commands_module
 from harnify_coding_agent.core.tools.truncate import DEFAULT_MAX_BYTES
 
@@ -72,6 +73,34 @@ def test_slash_commands_surface_matches_ts() -> None:
     ]
     assert slash_commands_module.BUILTIN_SLASH_COMMANDS[2].description == "Enable/disable models for Ctrl+P cycling"
     assert "_LOCAL_ALIAS_SLASH_COMMANDS" in vars(slash_commands_module)
+
+
+def test_source_info_surface_and_copy_semantics_match_ts() -> None:
+    assert source_info_module.__all__ == [
+        "SourceScope",
+        "SourceOrigin",
+        "SourceInfo",
+        "createSourceInfo",
+        "createSyntheticSourceInfo",
+    ]
+
+    info = source_info_module.createSourceInfo(
+        "/tmp/demo",
+        {
+            "source": "pkg:test",
+            "scope": "project",
+            "origin": "package",
+            "baseDir": "/tmp",
+        },
+    )
+    assert info.source == "pkg:test"
+    assert info.scope == "project"
+    assert info.origin == "package"
+    assert info.baseDir == "/tmp"
+
+    synthetic = source_info_module.createSyntheticSourceInfo("/tmp/demo", {"source": "local"})
+    assert synthetic.scope == "temporary"
+    assert synthetic.origin == "top-level"
 
 
 @pytest.mark.asyncio

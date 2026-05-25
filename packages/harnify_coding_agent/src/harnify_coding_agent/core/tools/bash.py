@@ -200,13 +200,15 @@ class _LocalBashOperations:
                     timed_out = True
                 if process.pid is not None:
                     kill_process_tree(process.pid)
-                await wait_task
+                exit_code = await wait_task
+            else:
+                exit_code = await wait_task
 
             if _is_aborted(signal):
                 raise RuntimeError("aborted")
             if timed_out:
                 raise RuntimeError(f"timeout:{timeout}")
-            return {"exitCode": process.returncode}
+            return {"exitCode": None if exit_code is not None and exit_code < 0 else exit_code}
         finally:
             cleanup_abort()
             if abort_task is not None and not abort_task.done():

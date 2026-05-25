@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 
-from harnify_tui.fuzzy import fuzzy_filter
+from harnify_tui import fuzzyFilter
 
 from harnify_coding_agent.core.auth_guidance import format_no_models_available_message
 
@@ -36,7 +36,7 @@ async def list_models(
         return
 
     filtered_models = (
-        fuzzy_filter(models, search_pattern, lambda model: f"{model.provider} {model.id}") if search_pattern else models
+        fuzzyFilter(models, search_pattern, lambda model: f"{model.provider} {model.id}") if search_pattern else models
     )
     if not filtered_models:
         print(f'No models matching "{search_pattern}"')

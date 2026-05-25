@@ -166,8 +166,6 @@ def flatten_session_tree(roots: list[SessionTreeNode]) -> list[FlatSessionNode]:
 
 
 class SessionSelectorHeader(Component):
-    wantsKeyRelease = False
-
     def __init__(
         self,
         scope: SessionScope,
@@ -198,8 +196,7 @@ class SessionSelectorHeader(Component):
 
     def setLoading(self, loading: bool) -> None:
         self.loading = loading
-        if not loading:
-            self.loadProgress = None
+        self.loadProgress = None
 
     def setProgress(self, loaded: int, total: int) -> None:
         self.loadProgress = (loaded, total)
@@ -314,8 +311,6 @@ class SessionSelectorHeader(Component):
 
 
 class SessionList(Component, Focusable):
-    wantsKeyRelease = False
-
     def __init__(
         self,
         sessions: list[SessionInfo],
@@ -389,7 +384,6 @@ class SessionList(Component, Focusable):
         self.filterSessions(self.searchInput.getValue())
 
     def filterSessions(self, query: str) -> None:
-        previous_selection = self.getSelectedSessionPath()
         name_filtered = (
             self.allSessions
             if self.nameFilter == "all"
@@ -404,17 +398,7 @@ class SessionList(Component, Focusable):
                 FlatSessionNode(session=session, depth=0, isLast=True, ancestorContinues=[])
                 for session in filtered
             ]
-
-        if not self.filteredSessions:
-            self.selectedIndex = 0
-            return
-
-        if previous_selection is not None:
-            for index, node in enumerate(self.filteredSessions):
-                if node.session.path == previous_selection:
-                    self.selectedIndex = index
-                    return
-        self.selectedIndex = min(self.selectedIndex, len(self.filteredSessions) - 1)
+        self.selectedIndex = min(self.selectedIndex, max(0, len(self.filteredSessions) - 1))
 
     def setConfirmingDeletePath(self, path: str | None) -> None:
         self.confirmingDeletePath = path
@@ -475,8 +459,7 @@ class SessionList(Component, Focusable):
             is_current = self.isCurrentSessionPath(session.path)
 
             prefix = self.buildTreePrefix(node)
-            display_text = (session.name or session.firstMessage).replace("\n", " ").strip()
-            display_text = "".join(char if char >= " " else " " for char in display_text)
+            display_text = re.sub(r"[\x00-\x1f\x7f]", " ", session.name or session.firstMessage).strip()
 
             right_part = f"{session.messageCount} {format_session_date(session.modified)}"
             if self.showCwd and session.cwd:
@@ -502,7 +485,9 @@ class SessionList(Component, Focusable):
             left_part = cursor + theme.fg("dim", prefix) + styled_message
             spacing = max(1, width - visibleWidth(left_part) - visibleWidth(right_part))
             line = left_part + (" " * spacing) + theme.fg("dim" if not is_confirming_delete else "error", right_part)
-            lines.append(theme.bg("selectedBg", line) if is_selected else truncateToWidth(line, width))
+            if is_selected:
+                line = theme.bg("selectedBg", line)
+            lines.append(truncateToWidth(line, width))
 
         if start_index > 0 or end_index < len(self.filteredSessions):
             scroll_text = f"  ({self.selectedIndex + 1}/{len(self.filteredSessions)})"
@@ -524,9 +509,6 @@ class SessionList(Component, Focusable):
                 return
             return
 
-        if keyData == "\x03" or matchesKey(keyData, Key.ctrl("c")):
-            self.onExit()
-            return
         if kb.matches(keyData, "tui.input.tab"):
             if self.onToggleScope is not None:
                 self.onToggleScope()
@@ -551,6 +533,13 @@ class SessionList(Component, Focusable):
             selected = self.filteredSessions[self.selectedIndex] if self.filteredSessions else None
             if selected is not None and self.onRenameSession is not None:
                 self.onRenameSession(selected.session.path)
+            return
+        if kb.matches(keyData, "app.session.deleteNoninvasive"):
+            if self.searchInput.getValue():
+                self.searchInput.handleInput(keyData)
+                self.filterSessions(self.searchInput.getValue())
+                return
+            self.startDeleteConfirmationForSelectedSession()
             return
         if kb.matches(keyData, "tui.select.up"):
             self.selectedIndex = max(0, self.selectedIndex - 1)
@@ -598,8 +587,6 @@ async def delete_session_file(sessionPath: str) -> dict[str, str | bool]:
 
 
 class SessionSelectorComponent(Container, Focusable):
-    wantsKeyRelease = False
-
     def __init__(
         self,
         currentSessionsLoader: SessionsLoader,
@@ -704,6 +691,10 @@ class SessionSelectorComponent(Container, Focusable):
     def _rename_from_path(self, sessionPath: str) -> None:
         if not self.canRename:
             return
+        if self.scope == "current" and self.currentLoading:
+            return
+        if self.scope == "all" and self.allLoading:
+            return
         sessions = self.allSessions if self.scope == "all" else self.currentSessions
         session = next((entry for entry in (sessions or []) if entry.path == sessionPath), None)
         self.enterRenameMode(sessionPath, session.name if session is not None else None)
@@ -772,7 +763,9 @@ class SessionSelectorComponent(Container, Focusable):
         next_value = value.strip()
         target = self.renameTargetPath
         rename_session = self.renameSession
-        if not next_value or not target or not callable(rename_session):
+        if not next_value:
+            return
+        if not target or not callable(rename_session):
             self.exitRenameMode()
             return
         try:
@@ -800,6 +793,8 @@ class SessionSelectorComponent(Container, Focusable):
 
         def on_progress(loaded: int, total: int) -> None:
             if scope != self.scope:
+                return
+            if seq is not None and seq != self._all_load_seq:
                 return
             self.header.setProgress(loaded, total)
             self.requestRender()
@@ -866,7 +861,8 @@ class SessionSelectorComponent(Container, Focusable):
                 self.header.setLoading(False)
                 self.sessionList.setSessions(self.allSessions, True)
                 self.requestRender()
-            else:
+                return
+            if not self.allLoading:
                 _run_or_schedule(self.loadScope("all", "toggle"))
             return
 

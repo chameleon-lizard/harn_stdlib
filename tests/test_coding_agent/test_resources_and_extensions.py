@@ -392,7 +392,7 @@ async def test_resource_loader_exports_and_nullish_prompt_overrides_match_ts(tmp
         "loadProjectContextFiles",
     ]
     assert resource_loader_module.loadProjectContextFiles is load_project_context_files
-    assert loader.getSystemPrompt() == ""
+    assert loader.getSystemPrompt() is None
     assert loader.getAppendSystemPrompt() == []
 
 

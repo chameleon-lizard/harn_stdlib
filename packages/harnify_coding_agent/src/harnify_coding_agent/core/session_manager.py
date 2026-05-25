@@ -138,8 +138,11 @@ def migrate_v1_to_v2(entries: list[FileEntry]) -> None:
         previous_id = str(entry["id"])
 
         if entry.get("type") == "compaction" and isinstance(entry.get("firstKeptEntryIndex"), int):
-            target_entry = entries[entry["firstKeptEntryIndex"]]
-            if target_entry.get("type") != "session" and isinstance(target_entry.get("id"), str):
+            first_kept_entry_index = entry["firstKeptEntryIndex"]
+            target_entry = entries[first_kept_entry_index] if 0 <= first_kept_entry_index < len(entries) else None
+            if isinstance(target_entry, dict) and target_entry.get("type") != "session" and isinstance(
+                target_entry.get("id"), str
+            ):
                 entry["firstKeptEntryId"] = target_entry["id"]
             entry.pop("firstKeptEntryIndex", None)
 
@@ -296,7 +299,7 @@ def build_session_context(
 
 def get_default_session_dir(cwd: str, agent_dir: str | None = None) -> str:
     resolved_cwd = resolve_path(cwd)
-    resolved_agent_dir = resolve_path(agent_dir or get_agent_dir())
+    resolved_agent_dir = resolve_path(get_agent_dir() if agent_dir is None else agent_dir)
     normalized_cwd = _SAFE_PATH_LEADING_SEPARATORS.sub("", resolved_cwd)
     safe_path = f"--{_SAFE_PATH_SEPARATORS.sub('-', normalized_cwd)}--"
     session_dir = os.path.join(resolved_agent_dir, "sessions", safe_path)
@@ -310,11 +313,7 @@ def load_entries_from_file(file_path: str) -> list[FileEntry]:
     if not path.exists():
         return []
 
-    try:
-        content = path.read_text(encoding="utf-8")
-    except OSError:
-        return []
-
+    content = path.read_text(encoding="utf-8")
     entries = _parse_jsonl_entries(content)
     if not entries:
         return entries

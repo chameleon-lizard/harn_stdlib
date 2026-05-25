@@ -26,7 +26,7 @@ from harnify_coding_agent.modes.interactive.components.keybinding_hints import (
     KeyTextFormatOptions,
     formatKeyText,
     keyDisplayText,
-    key_text,
+    keyText,
     rawKeyHint,
 )
 from harnify_coding_agent.modes.interactive.components.session_selector_search import (
@@ -108,7 +108,7 @@ def test_keybinding_hints_format_text(monkeypatch) -> None:
     assert formatKeyText("alt+enter/ctrl+p", KeyTextFormatOptions(capitalize=True)) == "Option+Enter/Ctrl+P"
 
     monkeypatch.setattr("sys.platform", "linux")
-    assert key_text("app.message.followUp") == "alt+enter"
+    assert keyText("app.message.followUp") == "alt+enter"
     assert keyDisplayText("app.message.followUp") == "Alt+Enter"
     assert "follow-up" in _strip_ansi(rawKeyHint("alt+enter", "queue follow-up"))
 

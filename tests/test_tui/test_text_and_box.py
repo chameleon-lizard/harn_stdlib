@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import harnify_tui.components.box as box_module
 from harnify_tui.components.box import Box
 from harnify_tui.components.text import Text
 from harnify_tui.utils import visibleWidth
@@ -31,3 +32,7 @@ def test_box_applies_padding_and_background() -> None:
 
     assert len(lines) == 3
     assert all(line.startswith("[") and line.endswith("]") for line in lines)
+
+
+def test_box_module_exports_match_ts_surface() -> None:
+    assert box_module.__all__ == ["Box"]

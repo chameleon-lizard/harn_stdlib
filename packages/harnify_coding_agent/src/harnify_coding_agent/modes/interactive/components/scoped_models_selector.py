@@ -102,8 +102,6 @@ class ModelsCallbacks:
 
 
 class ScopedModelsSelectorComponent(Container):
-    wantsKeyRelease = False
-
     def __init__(self, config: ModelsConfig, callbacks: ModelsCallbacks) -> None:
         super().__init__()
         self._focused = False
@@ -324,15 +322,7 @@ class ScopedModelsSelectorComponent(Container):
 
 
 __all__ = [
-    "EnabledIds",
-    "ModelItem",
     "ModelsCallbacks",
     "ModelsConfig",
     "ScopedModelsSelectorComponent",
-    "clear_all",
-    "enable_all",
-    "get_sorted_ids",
-    "is_enabled",
-    "move",
-    "toggle",
 ]

@@ -62,13 +62,8 @@ rawKeyHint = raw_key_hint
 __all__ = [
     "KeyTextFormatOptions",
     "formatKeyText",
-    "format_key_text",
     "keyDisplayText",
     "keyHint",
     "keyText",
-    "key_display_text",
-    "key_hint",
-    "key_text",
     "rawKeyHint",
-    "raw_key_hint",
 ]

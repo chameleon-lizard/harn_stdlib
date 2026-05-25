@@ -3189,23 +3189,38 @@ async def test_command_context_navigate_tree_updates_chat_and_editor() -> None:
     async def navigate_tree(_target_id: str, _options: dict[str, Any] | None = None) -> dict[str, Any]:
         return {"cancelled": False, "editorText": "restored draft"}
 
+    clears: list[bool] = []
     mode = InteractiveMode(
         editor=editor,
         defaultEditor=editor,
         session=SimpleNamespace(navigateTree=navigate_tree),
+        chatContainer=SimpleNamespace(clear=lambda: clears.append(True)),
     )
     mode.renderInitialMessages = lambda: renders.append(True)  # type: ignore[method-assign]
     mode.showStatus = statuses.append  # type: ignore[method-assign]
-    mode.flushCompactionQueue = lambda options: flushes.append(options)  # type: ignore[method-assign]
+
+    async def flush_queue(options: dict[str, bool]) -> None:
+        flushes.append(options)
+
+    scheduled: list[Any] = []
+
+    def schedule(awaitable: Any) -> None:
+        scheduled.append(awaitable)
+        awaitable.close()
+
+    mode.flushCompactionQueue = flush_queue  # type: ignore[method-assign]
+    mode._schedule_task = schedule  # type: ignore[method-assign]
 
     actions = mode._build_command_context_actions()
     result = await actions["navigateTree"]("entry-1", {"summarize": False})
 
     assert result["cancelled"] is False
+    assert clears == [True]
     assert renders == [True]
     assert editor.text == "restored draft"
     assert statuses == ["Navigated to selected point"]
-    assert flushes == [{"willRetry": False}]
+    assert flushes == []
+    assert len(scheduled) == 1
 
 
 @pytest.mark.asyncio
@@ -3213,6 +3228,7 @@ async def test_handle_tree_select_prompts_for_summary_and_passes_custom_instruct
     calls: list[tuple[str, Any]] = []
     statuses: list[str] = []
     flushes: list[dict[str, bool]] = []
+    scheduled: list[Any] = []
     editor = FakeEditor()
 
     async def navigate_tree(_target_id: str, options: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -3226,7 +3242,10 @@ async def test_handle_tree_select_prompts_for_summary_and_passes_custom_instruct
             navigateTree=navigate_tree,
             abortBranchSummary=lambda: calls.append(("abort", None)),
         ),
-        chatContainer=SimpleNamespace(addChild=lambda child: calls.append(("chat", child))),
+        chatContainer=SimpleNamespace(
+            addChild=lambda child: calls.append(("chat", child)),
+            clear=lambda: calls.append(("clear-chat", None)),
+        ),
         statusContainer=SimpleNamespace(
             children=[],
             clear=lambda: calls.append(("clear-status", None)),
@@ -3239,20 +3258,31 @@ async def test_handle_tree_select_prompts_for_summary_and_passes_custom_instruct
         result="Summarize with custom prompt",
     )
     mode.showExtensionEditor = lambda title, prefill=None: asyncio.sleep(0, result="focus on files")  # type: ignore[method-assign]
-    mode.renderCurrentSessionState = lambda: calls.append(("render", None))  # type: ignore[method-assign]
+    mode.renderInitialMessages = lambda: calls.append(("render-initial", None))  # type: ignore[method-assign]
     mode.showStatus = statuses.append  # type: ignore[method-assign]
-    mode.flushCompactionQueue = lambda options: flushes.append(options)  # type: ignore[method-assign]
+
+    async def flush_queue(options: dict[str, bool]) -> None:
+        flushes.append(options)
+
+    def schedule(awaitable: Any) -> None:
+        scheduled.append(awaitable)
+        awaitable.close()
+
+    mode.flushCompactionQueue = flush_queue  # type: ignore[method-assign]
+    mode._schedule_task = schedule  # type: ignore[method-assign]
 
     await mode._handle_tree_select("entry-2", "entry-1", lambda: calls.append(("done", None)))
 
     assert ("done", None) in calls
     assert any(name == "chat" for name, _value in calls)
     assert any(name == "loader" for name, _value in calls)
-    assert ("render", None) in calls
+    assert ("clear-chat", None) in calls
+    assert ("render-initial", None) in calls
     assert calls[-1] == ("clear-status", None)
     assert editor.text == "restored draft"
     assert statuses == ["Navigated to selected point"]
-    assert flushes == [{"willRetry": False}]
+    assert flushes == []
+    assert len(scheduled) == 1
     assert calls.count(("navigate", {"summarize": True, "customInstructions": "focus on files"})) == 1
 
 

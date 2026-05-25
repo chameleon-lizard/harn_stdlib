@@ -34,8 +34,6 @@ class ScopedModelItem:
 
 
 class ModelSelectorComponent(Container):
-    wantsKeyRelease = False
-
     def __init__(
         self,
         tui: Any,
@@ -161,7 +159,7 @@ class ModelSelectorComponent(Container):
     def sortModels(self, models: list[ModelItem]) -> list[ModelItem]:
         return sorted(
             models,
-            key=lambda item: (0 if modelsAreEqual(self.currentModel, item.model) else 1, item.provider, item.id),
+            key=lambda item: (0 if modelsAreEqual(self.currentModel, item.model) else 1, item.provider),
         )
 
     def getScopeText(self) -> str:
@@ -281,4 +279,4 @@ class ModelSelectorComponent(Container):
         return self.searchInput
 
 
-__all__ = ["ModelItem", "ModelScope", "ModelSelectorComponent", "ScopedModelItem"]
+__all__ = ["ModelSelectorComponent"]

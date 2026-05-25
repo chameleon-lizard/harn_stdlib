@@ -543,6 +543,7 @@ class InteractiveMode:
                 fork=_noop_async,
                 switchSession=_noop_async,
                 newSession=_noop_async,
+                dispose=_noop_async,
                 setBeforeSessionInvalidate=lambda *_args, **_kwargs: None,
                 setRebindSession=lambda *_args, **_kwargs: None,
             ),
@@ -657,6 +658,7 @@ class InteractiveMode:
         )
         self.version = getattr(self, "version", VERSION)
         self.isInitialized = bool(getattr(self, "isInitialized", False))
+        self.lastSigintTime = float(getattr(self, "lastSigintTime", 0))
         self.onInputCallback = getattr(self, "onInputCallback", None)
         self.defaultWorkingMessage = getattr(self, "defaultWorkingMessage", "Working...")
         self.workingMessage = getattr(self, "workingMessage", None)
@@ -672,6 +674,11 @@ class InteractiveMode:
         self.retryEscapeHandler = getattr(self, "retryEscapeHandler", None)
         self.retryCountdown = getattr(self, "retryCountdown", None)
         self.retryLoader = getattr(self, "retryLoader", None)
+        self.shutdownRequested = bool(getattr(self, "shutdownRequested", False))
+        self.isShuttingDown = bool(getattr(self, "isShuttingDown", False))
+        self.signalCleanupHandlers: list[Callable[[], None]] = list(
+            getattr(self, "signalCleanupHandlers", [])
+        )
         self._shutdownFuture: asyncio.Future[int] | None = None
         self._backgroundTasks: set[asyncio.Task[Any]] = set()
         self._sessionUnsubscribe: Callable[[], None] | None = None

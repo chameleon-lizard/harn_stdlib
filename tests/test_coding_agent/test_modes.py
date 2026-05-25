@@ -14,6 +14,7 @@ from harnify_ai.types import Model
 from harnify_coding_agent.core.agent_session import SessionStats, SessionTokenStats
 from harnify_coding_agent.core.compaction import CompactionResult
 from harnify_coding_agent.main import main
+import harnify_coding_agent.modes as modes_package
 from harnify_coding_agent.modes.print_mode import run_print_mode
 from harnify_coding_agent.modes.rpc import JsonlLineBuffer, RpcClient, run_rpc_mode
 import harnify_coding_agent.modes.rpc.rpc_client as rpc_client_module
@@ -50,6 +51,26 @@ class _FakeExtensionRunner:
 
 def test_rpc_client_module_exports_match_ts_surface() -> None:
     assert rpc_client_module.__all__ == ["ModelInfo", "RpcClient", "RpcClientOptions", "RpcEventListener"]
+
+
+def test_modes_package_exports_match_ts_surface() -> None:
+    expected = [
+        "InteractiveMode",
+        "InteractiveModeOptions",
+        "PrintModeOptions",
+        "runPrintMode",
+        "ModelInfo",
+        "RpcClient",
+        "RpcClientOptions",
+        "RpcEventListener",
+        "runRpcMode",
+        "RpcCommand",
+        "RpcResponse",
+        "RpcSessionState",
+    ]
+    assert modes_package.__all__ == expected
+    for name in expected:
+        assert getattr(modes_package, name) is not None
 
 
 def _fake_model(provider: str, model_id: str) -> Model[Any]:

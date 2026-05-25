@@ -489,6 +489,23 @@ def test_set_extension_header_footer_and_reset_ui_restore_builtins() -> None:
     assert loader_messages == [f"Working... ({interactive_mode_module.key_text('app.interrupt')} to interrupt)"]
 
 
+def test_reset_extension_ui_hides_editor_mounted_extension_dialogs_before_overlay() -> None:
+    events: list[str] = []
+    ui = FakeUi()
+    mode = InteractiveMode(ui=ui, defaultEditor=FakeEditor(), editor=FakeEditor())
+    mode.extensionSelector = object()
+    mode.extensionInput = object()
+    mode.extensionEditor = object()
+    mode.hideExtensionSelector = lambda: events.append("selector")  # type: ignore[method-assign]
+    mode.hideExtensionInput = lambda: events.append("input")  # type: ignore[method-assign]
+    mode.hideExtensionEditor = lambda: events.append("editor")  # type: ignore[method-assign]
+    ui.hideOverlay = lambda: events.append("overlay")  # type: ignore[method-assign]
+
+    mode.resetExtensionUI()
+
+    assert events[:4] == ["selector", "input", "editor", "overlay"]
+
+
 @pytest.mark.asyncio
 async def test_handle_reload_command_matches_ts_banner_copy_and_reset_loader_message() -> None:
     ui = FakeUi()

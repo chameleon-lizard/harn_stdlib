@@ -6,8 +6,8 @@ from contextlib import contextmanager
 import harnify_tui.components.cancellable_loader as cancellable_loader_module
 import harnify_tui.components.image as image_module
 import harnify_tui.components.loader as loader_module
+import harnify_tui.components.settings_list as settings_list_module
 from harnify_tui import (
-    AbortSignal,
     CancellableLoader,
     Image,
     ImageDimensions,
@@ -17,7 +17,6 @@ from harnify_tui import (
     LoaderIndicatorOptions,
     SettingItem,
     SettingsList,
-    SettingsListOptions,
     SettingsListTheme,
     Spacer,
     getCellDimensions,
@@ -108,7 +107,7 @@ def test_cancellable_loader_aborts_on_escape() -> None:
 
     try:
         loader.handleInput("\x1b")
-        assert isinstance(loader.signal, AbortSignal)
+        assert isinstance(loader.signal, cancellable_loader_module.AbortSignal)
         assert loader.aborted is True
         assert loader.signal.aborted is True
         assert aborted is True
@@ -127,7 +126,7 @@ def test_settings_list_renders_empty_state_and_search_hint() -> None:
         TEST_SETTINGS_THEME,
         onChange=lambda _id, _value: None,
         onCancel=lambda: None,
-        options=SettingsListOptions(enableSearch=True),
+        options=settings_list_module.SettingsListOptions(enableSearch=True),
     )
 
     lines = settings.render(60)
@@ -168,7 +167,7 @@ def test_settings_list_filters_search_and_shows_selected_description() -> None:
         TEST_SETTINGS_THEME,
         onChange=lambda _id, _value: None,
         onCancel=lambda: None,
-        options=SettingsListOptions(enableSearch=True),
+        options=settings_list_module.SettingsListOptions(enableSearch=True),
     )
 
     settings.handleInput("b")

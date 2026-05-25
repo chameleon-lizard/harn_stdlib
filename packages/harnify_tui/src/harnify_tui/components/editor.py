@@ -50,6 +50,11 @@ class _AutocompleteAbortSignal:
             return
         self._listeners.append(callback)
 
+    def removeEventListener(self, event: str, callback: Callable[[], None]) -> None:
+        if event != "abort":
+            return
+        self._listeners = [listener for listener in self._listeners if listener is not callback]
+
     def dispatch(self) -> None:
         if self.aborted:
             return
@@ -235,7 +240,7 @@ class Editor:
         self.autocompleteMaxVisible = 5
         self.autocompleteAbort: _AutocompleteAbortController | None = None
         self.autocompleteDebounceTimer: asyncio.TimerHandle | None = None
-        self.autocompleteRequestTask: asyncio.Task[None] | None = None
+        self.autocompleteRequestTask: asyncio.Future[None] | None = None
         self.autocompleteStartToken = 0
         self.autocompleteRequestId = 0
         self.pastes: dict[int, str] = {}
@@ -1511,16 +1516,24 @@ class Editor:
         if loop is None:
             return
 
-        controller = _AutocompleteAbortController()
-        self.autocompleteAbort = controller
-        request_id = self.autocompleteRequestId + 1
-        self.autocompleteRequestId = request_id
-        snapshot_text = self.getText()
-        snapshot_line = self.state.cursorLine
-        snapshot_col = self.state.cursorCol
+        previous_task = self.autocompleteRequestTask
 
         async def run() -> None:
             try:
+                if previous_task is not None:
+                    await previous_task
+
+                if startToken != self.autocompleteStartToken or self.autocompleteProvider is None:
+                    return
+
+                controller = _AutocompleteAbortController()
+                self.autocompleteAbort = controller
+                request_id = self.autocompleteRequestId + 1
+                self.autocompleteRequestId = request_id
+                snapshot_text = self.getText()
+                snapshot_line = self.state.cursorLine
+                snapshot_col = self.state.cursorCol
+
                 await self.runAutocompleteRequest(
                     request_id=request_id,
                     controller=controller,
@@ -1568,17 +1581,6 @@ class Editor:
                 self.state.cursorCol,
                 {"signal": controller.signal, "force": force},
             )
-        except Exception:
-            if self.isAutocompleteRequestCurrent(
-                requestId=request_id,
-                controller=controller,
-                snapshotText=snapshotText,
-                snapshotLine=snapshotLine,
-                snapshotCol=snapshotCol,
-            ):
-                self.cancelAutocomplete()
-                self.tui.requestRender()
-            return
 
         if not self.isAutocompleteRequestCurrent(
             requestId=request_id,
@@ -1597,10 +1599,9 @@ class Editor:
             return
 
         if force and explicitTab and len(suggestions.items) == 1:
-            self.autocompletePrefix = suggestions.prefix
             self.pushUndoSnapshot()
             self.lastAction = None
-            self.applyAutocompleteSelection(suggestions.items[0])
+            self.applyAutocompleteSelection(suggestions.items[0], suggestions.prefix)
             if self.onChange is not None:
                 self.onChange(self.getText())
             self.tui.requestRender()
@@ -1626,7 +1627,7 @@ class Editor:
             and self.state.cursorCol == snapshotCol
         )
 
-    def applyAutocompleteSelection(self, item: AutocompleteItem | SelectItem) -> None:
+    def applyAutocompleteSelection(self, item: AutocompleteItem | SelectItem, prefix: str | None = None) -> None:
         if self.autocompleteProvider is None:
             return
         result = self.autocompleteProvider.applyCompletion(
@@ -1634,7 +1635,7 @@ class Editor:
             self.state.cursorLine,
             self.state.cursorCol,
             item,
-            self.autocompletePrefix,
+            self.autocompletePrefix if prefix is None else prefix,
         )
         self.state.lines = list(result["lines"])  # type: ignore[index]
         self.state.cursorLine = int(result["cursorLine"])  # type: ignore[index]
@@ -1680,20 +1681,9 @@ isPasteMarker = is_paste_marker
 wordWrapLine = word_wrap_line
 
 __all__ = [
-    "ATTACHMENT_AUTOCOMPLETE_DEBOUNCE_MS",
     "Editor",
     "EditorOptions",
-    "EditorState",
     "EditorTheme",
-    "LayoutLine",
-    "PASTE_MARKER_REGEX",
-    "PASTE_MARKER_SINGLE",
-    "SLASH_COMMAND_SELECT_LIST_LAYOUT",
     "TextChunk",
-    "isPasteMarker",
-    "is_paste_marker",
-    "segmentWithMarkers",
-    "segment_with_markers",
     "wordWrapLine",
-    "word_wrap_line",
 ]

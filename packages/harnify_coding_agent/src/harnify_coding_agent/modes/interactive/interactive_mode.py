@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import inspect
+import json
 import os
 import re
 import shutil
@@ -44,6 +45,7 @@ from harnify_tui import (
     hyperlink,
     matchesKey,
     setKeybindings,
+    visibleWidth,
 )
 
 from harnify_coding_agent.config import (
@@ -54,6 +56,7 @@ from harnify_coding_agent.config import (
     get_agent_dir,
     get_auth_path,
     get_changelog_path,
+    get_debug_log_path,
     get_share_viewer_url,
     get_update_instruction,
 )
@@ -70,6 +73,7 @@ from harnify_coding_agent.core.session_manager import SessionManager
 from harnify_coding_agent.core.slash_commands import BUILTIN_SLASH_COMMANDS, _LOCAL_ALIAS_SLASH_COMMANDS
 from harnify_coding_agent.core.telemetry import is_install_telemetry_enabled
 from harnify_coding_agent.modes.interactive.components.assistant_message import AssistantMessageComponent
+from harnify_coding_agent.modes.interactive.components.armin import ArminComponent
 from harnify_coding_agent.modes.interactive.components.bash_execution import BashExecutionComponent
 from harnify_coding_agent.modes.interactive.components.bordered_loader import BorderedLoader
 from harnify_coding_agent.modes.interactive.components.branch_summary_message import (
@@ -81,6 +85,7 @@ from harnify_coding_agent.modes.interactive.components.compaction_summary_messag
 from harnify_coding_agent.modes.interactive.components.custom_editor import CustomEditor
 from harnify_coding_agent.modes.interactive.components.custom_message import CustomMessageComponent
 from harnify_coding_agent.modes.interactive.components.dynamic_border import DynamicBorder
+from harnify_coding_agent.modes.interactive.components.earendil_announcement import EarendilAnnouncementComponent
 from harnify_coding_agent.modes.interactive.components.extension_editor import ExtensionEditorComponent
 from harnify_coding_agent.modes.interactive.components.extension_input import ExtensionInputComponent
 from harnify_coding_agent.modes.interactive.components.extension_selector import (

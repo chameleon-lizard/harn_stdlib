@@ -189,6 +189,12 @@ def test_theme_helpers_match_ts_detection_and_name_contracts(
     assert interactive_theme_module.getThemeByName("__missing_theme__") is None
 
 
+def test_theme_settings_list_cursor_matches_ts_on_windows(monkeypatch) -> None:
+    monkeypatch.setattr(interactive_theme_module.sys, "platform", "win32")
+    settings_theme = interactive_theme_module.getSettingsListTheme()
+    assert _strip_ansi(settings_theme.cursor) == "→ "
+
+
 def test_keybinding_hints_format_text(monkeypatch) -> None:
     monkeypatch.setattr("sys.platform", "darwin")
     assert formatKeyText("alt+enter/ctrl+p", KeyTextFormatOptions(capitalize=True)) == "Option+Enter/Ctrl+P"

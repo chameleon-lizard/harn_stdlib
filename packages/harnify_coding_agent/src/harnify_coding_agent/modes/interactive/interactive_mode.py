@@ -4800,6 +4800,21 @@ class InteractiveMode:
         if warning:
             self.showWarning(warning)
 
+    async def _runInputLoop(self) -> None:
+        while self._shutdownFuture is not None and not self._shutdownFuture.done():
+            try:
+                user_input = await self.getUserInput()
+            except asyncio.CancelledError:
+                return
+
+            if self._shutdownFuture is not None and self._shutdownFuture.done():
+                return
+
+            try:
+                await self.session.prompt(user_input)
+            except Exception as error:  # noqa: BLE001
+                self.showError(str(error) if error is not None else "Unknown error occurred")
+
     async def run(self) -> int:
         await self.init()
         self._shutdownFuture = asyncio.get_running_loop().create_future()
@@ -4834,6 +4849,8 @@ class InteractiveMode:
         for message in list(self.options.initialMessages or []):
             await self.session.prompt(message)
             self.renderCurrentSessionState()
+
+        self._schedule_task(self._runInputLoop())
 
         return await self._shutdownFuture
 

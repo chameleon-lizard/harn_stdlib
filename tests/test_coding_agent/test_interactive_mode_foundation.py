@@ -2454,7 +2454,6 @@ async def test_handle_submitted_text_routes_commands_and_prompts() -> None:
     )
     mode.showSessionSelector = lambda: calls.append("resume-selector")  # type: ignore[method-assign]
     mode.showModelSelector = lambda search=None: calls.append(("model-selector", search))  # type: ignore[method-assign]
-    mode.showThemeSelector = lambda: calls.append("theme-selector")  # type: ignore[method-assign]
     mode.showSettingsSelector = lambda: calls.append("settings-selector")  # type: ignore[method-assign]
     mode.handleChangelogCommand = lambda: calls.append("changelog")  # type: ignore[method-assign]
     mode.handleHotkeysCommand = lambda: calls.append("hotkeys")  # type: ignore[method-assign]
@@ -2463,7 +2462,6 @@ async def test_handle_submitted_text_routes_commands_and_prompts() -> None:
     mode.showUserMessageSelector = lambda: calls.append("fork-selector")  # type: ignore[method-assign]
     mode.showTreeSelector = lambda initialSelectedId=None: calls.append(("tree-selector", initialSelectedId))  # type: ignore[method-assign]
     mode.showModelsSelector = handle_models  # type: ignore[method-assign]
-    mode.handleThemeCommand = handle_theme  # type: ignore[method-assign]
     mode.handleExportCommand = handle_export  # type: ignore[method-assign]
     mode.handleImportCommand = handle_import  # type: ignore[method-assign]
     mode.handleCloneCommand = handle_clone  # type: ignore[method-assign]

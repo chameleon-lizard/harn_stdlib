@@ -3309,7 +3309,9 @@ class InteractiveMode:
             self.defaultEditor.onAction("app.session.tree", self.showTreeSelector)
             self.defaultEditor.onAction("app.session.resume", lambda: self.showSessionSelector())
             self.defaultEditor.onAction("app.session.new", lambda: self._schedule_task(self.handleClearCommand()))
-        self.ui.onDebug = self.handleDebugCommand
+        debug_handler = _callable_attr(self, "handleDebugCommand")
+        if debug_handler is not None:
+            self.ui.onDebug = debug_handler
         self.defaultEditor.onCtrlD = self.handleCtrlD
         self.defaultEditor.onPasteImage = lambda: self._schedule_task(self.handleClipboardImagePaste())
         self.defaultEditor.onChange = lambda text: self._on_editor_change(text)

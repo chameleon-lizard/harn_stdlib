@@ -17,7 +17,7 @@ from harnify_coding_agent.modes.interactive.components import (
     BashExecutionComponent,
     ToolExecutionComponent,
     UserMessageComponent,
-    truncate_to_visual_lines,
+    truncateToVisualLines,
 )
 import harnify_coding_agent.modes.interactive.components.assistant_message as assistant_message_module
 import harnify_coding_agent.modes.interactive.components.bash_execution as bash_execution_module
@@ -120,7 +120,7 @@ def test_bash_execution_module_exports_match_ts_surface() -> None:
 
 
 def test_truncate_to_visual_lines_counts_wrapped_lines() -> None:
-    result = truncate_to_visual_lines("x" * 100, 2, 20, 0)
+    result = truncateToVisualLines("x" * 100, 2, 20, 0)
 
     assert len(result.visualLines) == 2
     assert result.skippedCount > 0

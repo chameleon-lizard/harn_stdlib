@@ -817,7 +817,11 @@ class SessionManager:
         resolved_path = resolve_path(path)
         entries = load_entries_from_file(resolved_path)
         header = next((entry for entry in entries if entry.get("type") == "session"), None)
-        cwd = cwdOverride or (str(header.get("cwd")) if isinstance(header, dict) and header.get("cwd") else os.getcwd())
+        cwd = (
+            cwdOverride
+            if cwdOverride is not None
+            else (str(header.get("cwd")) if isinstance(header, dict) and isinstance(header.get("cwd"), str) else os.getcwd())
+        )
         directory = normalize_path(sessionDir) if sessionDir else str(Path(resolved_path).parent)
         return cls(cwd, directory, resolved_path, True)
 
@@ -831,7 +835,7 @@ class SessionManager:
 
     @classmethod
     def inMemory(cls, cwd: str | None = None) -> SessionManager:
-        return cls(cwd or os.getcwd(), "", None, False)
+        return cls(os.getcwd() if cwd is None else cwd, "", None, False)
 
     @classmethod
     def forkFrom(cls, sourcePath: str, targetCwd: str, sessionDir: str | None = None) -> SessionManager:
@@ -839,11 +843,11 @@ class SessionManager:
         resolved_target_cwd = resolve_path(targetCwd)
         source_entries = load_entries_from_file(resolved_source_path)
         if not source_entries:
-            raise ValueError(f"Cannot fork: source session file is empty or invalid: {resolved_source_path}")
+            raise Exception(f"Cannot fork: source session file is empty or invalid: {resolved_source_path}")
 
         source_header = next((entry for entry in source_entries if entry.get("type") == "session"), None)
         if source_header is None:
-            raise ValueError(f"Cannot fork: source session has no header: {resolved_source_path}")
+            raise Exception(f"Cannot fork: source session has no header: {resolved_source_path}")
 
         directory = normalize_path(sessionDir) if sessionDir else get_default_session_dir(resolved_target_cwd)
         os.makedirs(directory, exist_ok=True)
@@ -878,10 +882,9 @@ class SessionManager:
     @classmethod
     async def listAll(cls, onProgress: SessionListProgress | None = None) -> list[SessionInfo]:
         sessions_dir = get_sessions_dir()
-        if not os.path.exists(sessions_dir):
-            return []
-
         try:
+            if not os.path.exists(sessions_dir):
+                return []
             directories = [
                 os.path.join(sessions_dir, entry)
                 for entry in os.listdir(sessions_dir)
@@ -890,25 +893,29 @@ class SessionManager:
         except OSError:
             return []
 
-        all_files: list[str] = []
+        total_files = 0
+        directory_files: list[list[str]] = []
         for directory in directories:
             try:
-                all_files.extend(
+                files = [
                     os.path.join(directory, name)
                     for name in os.listdir(directory)
                     if name.endswith(".jsonl")
-                )
+                ]
+                directory_files.append(files)
+                total_files += len(files)
             except OSError:
-                continue
+                directory_files.append([])
 
-        total = len(all_files)
         loaded = 0
         sessions: list[SessionInfo] = []
-        for file_path in all_files:
-            info = await _build_session_info(file_path)
-            loaded += 1
-            if onProgress is not None:
-                onProgress(loaded, total)
+        all_files = [file_path for files in directory_files for file_path in files]
+        results = await _build_session_infos_with_concurrency(
+            all_files,
+            lambda: _notify_session_progress(onProgress, total_files, loaded_ref := {"value": loaded}),
+        )
+        loaded = loaded_ref["value"]
+        for info in results:
             if info is not None:
                 sessions.append(info)
         sessions.sort(key=lambda session: session.modified, reverse=True)

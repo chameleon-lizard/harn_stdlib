@@ -997,6 +997,50 @@ async def test_main_startup_benchmark_stops_interactive_mode_and_theme_watcher(m
 
 
 @pytest.mark.asyncio
+async def test_main_startup_benchmark_awaits_stream_drain_when_pending(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("harnify_coding_agent.main.run_migrations", lambda _cwd: None)
+    monkeypatch.setattr("harnify_coding_agent.main.create_session_manager", _fake_create_session_manager)
+    monkeypatch.setattr("harnify_coding_agent.main.create_agent_session_runtime", _fake_create_runtime)
+    monkeypatch.setattr("harnify_coding_agent.main.configureHttpDispatcher", lambda _ms: None)
+    monkeypatch.setattr("sys.stdin", type("TTY", (), {"isatty": lambda self: True})())
+    monkeypatch.setenv("PI_STARTUP_BENCHMARK", "1")
+
+    class _DrainableStream:
+        def __init__(self) -> None:
+            self.writableLength = 1
+            self.events: list[str] = []
+
+        def once(self, event: str, callback: Any) -> None:
+            self.events.append(event)
+            self.writableLength = 0
+            callback()
+
+    stdout = _DrainableStream()
+    stderr = _DrainableStream()
+    monkeypatch.setattr("sys.stdout", stdout)
+    monkeypatch.setattr("sys.stderr", stderr)
+
+    class FakeInteractiveMode:
+        def __init__(self, runtimeHost: Any = None, options: dict[str, Any] | None = None, **_kwargs: Any) -> None:
+            pass
+
+        async def init(self) -> None:
+            return None
+
+        def stop(self) -> None:
+            return None
+
+    monkeypatch.setattr("harnify_coding_agent.main.InteractiveMode", FakeInteractiveMode)
+    monkeypatch.setattr("harnify_coding_agent.main.print_timings", lambda: None)
+    monkeypatch.setattr("harnify_coding_agent.main.stop_theme_watcher", lambda: None)
+
+    assert await main([]) == 0
+    assert stdout.events == ["drain"]
+    assert stderr.events == ["drain"]
+
+
+@pytest.mark.asyncio
 async def test_rpc_client_routes_responses_and_events() -> None:
     client = RpcClient()
     loop = asyncio.get_running_loop()

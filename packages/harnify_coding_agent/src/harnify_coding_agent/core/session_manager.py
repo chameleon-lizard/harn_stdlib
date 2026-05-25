@@ -415,13 +415,12 @@ class SessionManager:
             "timestamp": timestamp,
             "cwd": self.cwd,
         }
-        if options and options.parentSession:
+        if options is not None and options.parentSession is not None:
             header["parentSession"] = options.parentSession
 
         self.fileEntries = [header]
         self.byId.clear()
         self.labelsById.clear()
-        self.labelTimestampsById.clear()
         self.leafId = None
         self.flushed = False
 
@@ -508,7 +507,7 @@ class SessionManager:
             "id": generate_id(self.byId),
             "parentId": self.leafId,
             "timestamp": _iso_now(),
-            "message": _jsonable(message),
+            "message": message,
         }
         self._appendEntry(entry)
         return str(entry["id"])
@@ -541,8 +540,8 @@ class SessionManager:
         summary: str,
         firstKeptEntryId: str,
         tokensBefore: int,
-        details: Any | None = None,
-        fromHook: bool | None = None,
+        details: Any = _UNSET,
+        fromHook: bool | None | object = _UNSET,
     ) -> str:
         entry: SessionEntry = {
             "type": "compaction",
@@ -552,21 +551,24 @@ class SessionManager:
             "summary": summary,
             "firstKeptEntryId": firstKeptEntryId,
             "tokensBefore": tokensBefore,
-            "details": _jsonable(details),
-            "fromHook": fromHook,
         }
+        if details is not _UNSET:
+            entry["details"] = details
+        if fromHook is not _UNSET:
+            entry["fromHook"] = fromHook
         self._appendEntry(entry)
         return str(entry["id"])
 
-    def appendCustomEntry(self, customType: str, data: Any | None = None) -> str:
+    def appendCustomEntry(self, customType: str, data: Any = _UNSET) -> str:
         entry: SessionEntry = {
             "type": "custom",
             "customType": customType,
-            "data": _jsonable(data),
             "id": generate_id(self.byId),
             "parentId": self.leafId,
             "timestamp": _iso_now(),
         }
+        if data is not _UNSET:
+            entry["data"] = data
         self._appendEntry(entry)
         return str(entry["id"])
 
@@ -593,18 +595,19 @@ class SessionManager:
         customType: str,
         content: str | list[TextContent | ImageContent | dict[str, Any]],
         display: bool,
-        details: Any | None = None,
+        details: Any = _UNSET,
     ) -> str:
         entry: SessionEntry = {
             "type": "custom_message",
             "customType": customType,
-            "content": _jsonable(content),
+            "content": content,
             "display": display,
-            "details": _jsonable(details),
             "id": generate_id(self.byId),
             "parentId": self.leafId,
             "timestamp": _iso_now(),
         }
+        if details is not _UNSET:
+            entry["details"] = details
         self._appendEntry(entry)
         return str(entry["id"])
 
@@ -625,7 +628,7 @@ class SessionManager:
 
     def appendLabelChange(self, targetId: str, label: str | None) -> str:
         if targetId not in self.byId:
-            raise ValueError(f"Entry {targetId} not found")
+            raise Exception(f"Entry {targetId} not found")
         entry: SessionEntry = {
             "type": "label",
             "id": generate_id(self.byId),
@@ -648,7 +651,7 @@ class SessionManager:
         start_id = fromId if fromId is not None else self.leafId
         current = self.byId.get(start_id) if isinstance(start_id, str) else None
         while current is not None:
-            path.insert(0, dict(current))
+            path.insert(0, current)
             parent_id = current.get("parentId")
             current = self.byId.get(parent_id) if isinstance(parent_id, str) else None
         return path
@@ -658,10 +661,10 @@ class SessionManager:
 
     def getHeader(self) -> SessionHeader | None:
         header = next((entry for entry in self.fileEntries if entry.get("type") == "session"), None)
-        return dict(header) if isinstance(header, dict) else None
+        return header if isinstance(header, dict) else None
 
     def getEntries(self) -> list[SessionEntry]:
-        return [dict(entry) for entry in self.fileEntries if entry.get("type") != "session"]
+        return [entry for entry in self.fileEntries if entry.get("type") != "session"]
 
     def getTree(self) -> list[SessionTreeNode]:
         entries = self.getEntries()
@@ -703,7 +706,7 @@ class SessionManager:
 
     def branch(self, branchFromId: str) -> None:
         if branchFromId not in self.byId:
-            raise ValueError(f"Entry {branchFromId} not found")
+            raise Exception(f"Entry {branchFromId} not found")
         self.leafId = branchFromId
 
     def resetLeaf(self) -> None:
@@ -713,11 +716,11 @@ class SessionManager:
         self,
         branchFromId: str | None,
         summary: str,
-        details: Any | None = None,
-        fromHook: bool | None = None,
+        details: Any = _UNSET,
+        fromHook: bool | None | object = _UNSET,
     ) -> str:
         if branchFromId is not None and branchFromId not in self.byId:
-            raise ValueError(f"Entry {branchFromId} not found")
+            raise Exception(f"Entry {branchFromId} not found")
         self.leafId = branchFromId
         entry: SessionEntry = {
             "type": "branch_summary",
@@ -726,9 +729,11 @@ class SessionManager:
             "timestamp": _iso_now(),
             "fromId": branchFromId or "root",
             "summary": summary,
-            "details": _jsonable(details),
-            "fromHook": fromHook,
         }
+        if details is not _UNSET:
+            entry["details"] = details
+        if fromHook is not _UNSET:
+            entry["fromHook"] = fromHook
         self._appendEntry(entry)
         return str(entry["id"])
 
@@ -736,7 +741,7 @@ class SessionManager:
         previous_session_file = self.sessionFile
         path = self.getBranch(leafId)
         if not path:
-            raise ValueError(f"Entry {leafId} not found")
+            raise Exception(f"Entry {leafId} not found")
 
         path_without_labels = [entry for entry in path if entry.get("type") != "label"]
         new_session_id = create_session_id()
@@ -749,8 +754,9 @@ class SessionManager:
             "id": new_session_id,
             "timestamp": timestamp,
             "cwd": self.cwd,
-            "parentSession": previous_session_file if self.persist else None,
         }
+        if self.persist and previous_session_file is not None:
+            header["parentSession"] = previous_session_file
 
         path_entry_ids = {
             entry_id

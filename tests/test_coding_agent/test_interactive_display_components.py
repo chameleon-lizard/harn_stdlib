@@ -11,6 +11,7 @@ from harnify_agent.types import AgentState
 from harnify_ai.types import Model, ModelCost, TextContent
 from harnify_coding_agent.core.agent_session import ParsedSkillBlock
 from harnify_coding_agent.core.keybindings import KeybindingsManager
+from harnify_coding_agent.core.tools import create_read_tool_definition
 from harnify_coding_agent.modes.interactive.components import (
     BorderedLoader,
     BranchSummaryMessageComponent,
@@ -86,6 +87,24 @@ def test_skill_invocation_component_collapses_and_expands() -> None:
     component.setExpanded(True)
     expanded = _strip_ansi("\n".join(component.render(80)))
     assert "Do the thing" in expanded
+
+
+def test_read_tool_compact_skill_call_renders_skill_badge(tmp_path: Path) -> None:
+    skill_dir = tmp_path / "skills" / "attio"
+    skill_dir.mkdir(parents=True)
+    skill_path = skill_dir / "SKILL.md"
+    skill_path.write_text("## Steps\n\nDo the thing", encoding="utf-8")
+
+    definition = create_read_tool_definition(str(tmp_path))
+    component = definition.renderCall(
+        {"path": str(skill_path)},
+        interactive_theme_module.theme,
+        SimpleNamespace(lastComponent=None, expanded=False, cwd=str(tmp_path)),
+    )
+
+    rendered = _strip_ansi("\n".join(component.render(80)))
+    assert "[skill]" in rendered
+    assert "attio" in rendered
 
 
 def test_bordered_loader_exposes_abort_signal() -> None:

@@ -410,7 +410,7 @@ def _render_call(args: dict[str, Any] | None, context: Any) -> Text:
     if context.executionStarted and state.startedAt is None:
         state.startedAt = _now_ms()
         state.endedAt = None
-    text = context.lastComponent if isinstance(context.lastComponent, Text) else Text("", 0, 0)
+    text = context.lastComponent if callable(getattr(context.lastComponent, "setText", None)) else Text("", 0, 0)
     text.setText(_format_bash_call(args))
     return text
 

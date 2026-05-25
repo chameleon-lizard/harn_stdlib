@@ -37,6 +37,9 @@ countdown_timer_module = importlib.import_module(
     "harnify_coding_agent.modes.interactive.components.countdown_timer"
 )
 daxnuts_module = importlib.import_module("harnify_coding_agent.modes.interactive.components.daxnuts")
+dynamic_border_module = importlib.import_module(
+    "harnify_coding_agent.modes.interactive.components.dynamic_border"
+)
 
 
 def _strip_ansi(text: str) -> str:
@@ -88,6 +91,10 @@ def test_dynamic_border_renders_width_with_theme_color() -> None:
     rendered = border.render(5)
     assert len(rendered) == 1
     assert _strip_ansi(rendered[0]) == "─────"
+
+
+def test_dynamic_border_module_exports_match_ts_surface() -> None:
+    assert dynamic_border_module.__all__ == ["DynamicBorder"]
 
 
 def test_show_images_selector_preselects_and_confirms_current_value() -> None:

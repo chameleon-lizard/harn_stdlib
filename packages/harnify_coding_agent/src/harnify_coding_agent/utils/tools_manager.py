@@ -318,15 +318,21 @@ def _arch() -> str:
 commandExists = command_exists
 downloadFile = download_file
 downloadTool = download_tool
-ensureTool = ensure_tool
 extractTarGzArchive = extract_tar_gz_archive
 extractZipArchive = extract_zip_archive
 findBinaryRecursively = find_binary_recursively
 getLatestVersion = get_latest_version
-getToolPath = get_tool_path
 isOfflineModeEnabled = is_offline_mode_enabled
 
+
+def getToolPath(tool: ToolName) -> str | None:
+    return get_tool_path(tool)
+
+
+async def ensureTool(tool: ToolName, silent: bool = False) -> str | None:
+    return await ensure_tool(tool, silent)
+
 __all__ = [
-    "ensureTool",
     "getToolPath",
+    "ensureTool",
 ]

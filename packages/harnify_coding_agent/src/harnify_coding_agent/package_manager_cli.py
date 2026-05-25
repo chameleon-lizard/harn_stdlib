@@ -179,9 +179,6 @@ handlePackageCommand = handle_package_command
 
 __all__ = [
     "PackageCommand",
-    "PackageCommandOptions",
     "handleConfigCommand",
     "handlePackageCommand",
-    "handle_config_command",
-    "handle_package_command",
 ]

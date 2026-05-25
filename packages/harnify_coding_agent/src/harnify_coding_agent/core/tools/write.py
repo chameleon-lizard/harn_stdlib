@@ -24,7 +24,6 @@ from harnify_coding_agent.core.tools.render_utils import (
     str as str_value,
 )
 from harnify_coding_agent.core.tools.tool_definition_wrapper import wrap_tool_definition
-from harnify_coding_agent.modes.interactive.components.keybinding_hints import key_hint
 from harnify_coding_agent.modes.interactive.theme.theme import get_language_from_path, highlight_code
 from harnify_tui import Container, Text
 
@@ -226,6 +225,8 @@ def _format_write_call(
     theme_obj: Any,
     cache: WriteHighlightCache | None,
 ) -> str:
+    from harnify_coding_agent.modes.interactive.components.keybinding_hints import key_hint
+
     raw_path = str_value(_value(args, "file_path", _value(args, "path")))
     file_content = str_value(_value(args, "content"))
     path = shorten_path(raw_path) if raw_path is not None else None

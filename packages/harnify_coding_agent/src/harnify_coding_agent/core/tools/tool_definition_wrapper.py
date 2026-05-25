@@ -46,11 +46,6 @@ def create_tool_definition_from_agent_tool(tool: Any) -> ToolDefinition[Any, Any
         parameters=tool.parameters,
         prepareArguments=getattr(tool, "prepareArguments", None),
         executionMode=getattr(tool, "executionMode", None),
-        promptSnippet=getattr(tool, "promptSnippet", None),
-        promptGuidelines=list(getattr(tool, "promptGuidelines", []) or []),
-        renderCall=getattr(tool, "renderCall", None),
-        renderResult=getattr(tool, "renderResult", None),
-        renderShell=getattr(tool, "renderShell", None),
         execute=execute,
     )
 
@@ -61,9 +56,6 @@ createToolDefinitionFromAgentTool = create_tool_definition_from_agent_tool
 
 __all__ = [
     "createToolDefinitionFromAgentTool",
-    "create_tool_definition_from_agent_tool",
     "wrapToolDefinition",
     "wrapToolDefinitions",
-    "wrap_tool_definition",
-    "wrap_tool_definitions",
 ]

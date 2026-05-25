@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 from harnify_tui.fuzzy import fuzzy_filter
 
 from harnify_coding_agent.core.auth_guidance import format_no_models_available_message
@@ -26,7 +28,7 @@ async def list_models(
 ) -> None:
     load_error = getattr(model_registry, "getError", lambda: None)()
     if load_error:
-        print(f"{_YELLOW}Warning: errors loading models.json:\n{load_error}{_RESET}")
+        print(f"{_YELLOW}Warning: errors loading models.json:\n{load_error}{_RESET}", file=sys.stderr)
 
     models = list(model_registry.getAvailable())
     if not models:

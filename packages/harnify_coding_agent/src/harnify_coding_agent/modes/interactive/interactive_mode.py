@@ -4435,31 +4435,31 @@ class InteractiveMode:
         self._activeSelectorHandle = self.ui.showOverlay(selector, {})
 
     def showSessionSelector(self) -> None:
-        self.showSelector(
-            lambda done: {
-                "component": SessionSelectorComponent(
-                    lambda onProgress=None: SessionManager.list(
-                        self.sessionManager.getCwd(),
-                        self.sessionManager.getSessionDir(),
-                        onProgress,
-                    ),
-                    SessionManager.listAll,
-                    lambda sessionPath: self._schedule_task(self._handle_session_select(sessionPath, done)),
-                    lambda: (done(), self._request_render()),
-                    self.requestShutdown,
-                    lambda: self._request_render(),
-                    {
-                        "renameSession": lambda sessionFilePath, nextName: _rename_session_file(
-                            sessionFilePath,
-                            nextName,
-                        ),
-                        "showRenameHint": True,
-                        "keybindings": self.keybindings,
-                    },
-                    self.sessionManager.getSessionFile(),
+        def _build_session_selector(done: Callable[[], None]) -> dict[str, Any]:
+            selector = SessionSelectorComponent(
+                lambda onProgress=None: SessionManager.list(
+                    self.sessionManager.getCwd(),
+                    self.sessionManager.getSessionDir(),
+                    onProgress,
                 ),
-            }
-        )
+                SessionManager.listAll,
+                lambda sessionPath: self._schedule_task(self._handle_session_select(sessionPath, done)),
+                lambda: (done(), self._request_render()),
+                lambda: self._schedule_task(self.shutdown()),
+                lambda: self._request_render(),
+                {
+                    "renameSession": lambda sessionFilePath, nextName: _rename_session_file(
+                        sessionFilePath,
+                        nextName,
+                    ),
+                    "showRenameHint": True,
+                    "keybindings": self.keybindings,
+                },
+                self.sessionManager.getSessionFile(),
+            )
+            return {"component": selector, "focus": selector}
+
+        self.showSelector(_build_session_selector)
 
     def showTreeSelector(self, initialSelectedId: str | None = None) -> None:
         get_tree = _callable_attr(self.sessionManager, "getTree")
@@ -4474,31 +4474,30 @@ class InteractiveMode:
         terminal = getattr(self.ui, "terminal", None)
         terminal_height = int(_value(terminal, "rows", 24) or 24)
 
-        self.showSelector(
-            lambda done: {
-                "component": TreeSelectorComponent(
-                    tree,
-                    real_leaf_id,
-                    terminal_height,
-                    lambda entry_id: self._schedule_task(
-                        self._handle_tree_select(
-                            str(entry_id),
-                            str(real_leaf_id) if real_leaf_id is not None else None,
-                            done,
-                        )
-                    ),
-                    lambda: (done(), self._request_render()),
-                    lambda entry_id, label: (
-                        _callable_attr(self.sessionManager, "appendLabelChange")
-                        and self.sessionManager.appendLabelChange(str(entry_id), label),
-                        self._request_render(),
-                    ),
-                    initialSelectedId,
-                    initial_filter_mode,
+        def _build_tree_selector(done: Callable[[], None]) -> dict[str, Any]:
+            selector = TreeSelectorComponent(
+                tree,
+                real_leaf_id,
+                terminal_height,
+                lambda entry_id: self._schedule_task(
+                    self._handle_tree_select(
+                        str(entry_id),
+                        str(real_leaf_id) if real_leaf_id is not None else None,
+                        done,
+                    )
                 ),
-                "focus": True,
-            }
-        )
+                lambda: (done(), self._request_render()),
+                lambda entry_id, label: (
+                    _callable_attr(self.sessionManager, "appendLabelChange")
+                    and self.sessionManager.appendLabelChange(str(entry_id), label),
+                    self._request_render(),
+                ),
+                initialSelectedId,
+                initial_filter_mode,
+            )
+            return {"component": selector, "focus": selector}
+
+        self.showSelector(_build_tree_selector)
 
     def showSelector(self, builder: Callable[[Callable[[], None]], dict[str, Any]]) -> None:
         self._clear_selector()

@@ -3957,39 +3957,47 @@ class InteractiveMode:
             await _maybe_await(flush_queue({"willRetry": bool(_value(event, "willRetry", False))}))
         self._request_render()
 
-    async def rebindCurrentSession(
-        self,
-        session: Any | None = None,
-        showLoadedResourcesAndStartup: bool = True,
-    ) -> None:
-        if session is not None:
-            self.session = session
-        elif getattr(self.runtimeHost, "session", None) is not None:
-            self.session = self.runtimeHost.session
-
-        self.sessionManager = getattr(self.session, "sessionManager", self.sessionManager)
-        self.settingsManager = getattr(self.session, "settingsManager", self.settingsManager)
+    def applyRuntimeSettings(self) -> None:
+        configureHttpDispatcher(_safe_call_int(self.settingsManager, "getHttpIdleTimeoutMs", 300_000))
         self.footer.setSession(self.session)
-        if hasattr(self.footerDataProvider, "setCwd"):
-            self.footerDataProvider.setCwd(self.sessionManager.getCwd())
-        if hasattr(self.footer, "setAutoCompactEnabled"):
-            self.footer.setAutoCompactEnabled(bool(getattr(self.session, "autoCompactionEnabled", False)))
+        set_auto_compact_enabled = _callable_attr(self.footer, "setAutoCompactEnabled")
+        if set_auto_compact_enabled is not None:
+            set_auto_compact_enabled(bool(getattr(self.session, "autoCompactionEnabled", False)))
+        set_cwd = _callable_attr(self.footerDataProvider, "setCwd")
+        if set_cwd is not None:
+            set_cwd(self.sessionManager.getCwd())
+        self.hideThinkingBlock = _safe_call_bool(
+            self.settingsManager,
+            "getHideThinkingBlock",
+            self.hideThinkingBlock,
+        )
+        set_show_hardware_cursor = _callable_attr(self.ui, "setShowHardwareCursor")
+        if set_show_hardware_cursor is not None:
+            set_show_hardware_cursor(_safe_call_bool(self.settingsManager, "getShowHardwareCursor", False))
+        set_clear_on_shrink = _callable_attr(self.ui, "setClearOnShrink")
+        if set_clear_on_shrink is not None:
+            set_clear_on_shrink(_safe_call_bool(self.settingsManager, "getClearOnShrink", False))
+        editor_padding_x = _safe_call_int(self.settingsManager, "getEditorPaddingX", 0)
+        autocomplete_max_visible = _safe_call_int(self.settingsManager, "getAutocompleteMaxVisible", 5)
+        set_default_padding = _callable_attr(self.defaultEditor, "setPaddingX")
+        if set_default_padding is not None:
+            set_default_padding(editor_padding_x)
+        set_default_autocomplete = _callable_attr(self.defaultEditor, "setAutocompleteMaxVisible")
+        if set_default_autocomplete is not None:
+            set_default_autocomplete(autocomplete_max_visible)
+        if self.editor is not self.defaultEditor:
+            set_padding = _callable_attr(self.editor, "setPaddingX")
+            if set_padding is not None:
+                set_padding(editor_padding_x)
+            set_autocomplete = _callable_attr(self.editor, "setAutocompleteMaxVisible")
+            if set_autocomplete is not None:
+                set_autocomplete(autocomplete_max_visible)
 
-        self.hideThinkingBlock = _safe_call_bool(self.settingsManager, "getHideThinkingBlock", self.hideThinkingBlock)
-        get_themes = _callable_attr(self.session.resourceLoader, "getThemes")
-        themes_result = get_themes() if get_themes is not None else {}
-        themes = _value(themes_result, "themes", [])
-        interactive_theme.set_registered_themes(themes)
-        current_theme = _callable_attr(self.settingsManager, "getTheme")
-        interactive_theme.init_theme(current_theme() if current_theme is not None else None, True)
-        self.resetExtensionUI()
-        self.updateEditorBorderColor()
-        self.updateAvailableProviderCount()
-        self.setupAutocompleteProvider()
+    async def bindCurrentSessionExtensions(self) -> None:
         await self.session.bindExtensions(
             {
                 "uiContext": self.createExtensionUIContext(),
-                "abortHandler": lambda: self.session.agent.abort() if getattr(self.session, "agent", None) else None,
+                "abortHandler": lambda: self.restoreQueuedMessagesToEditor({"abort": True}),
                 "commandContextActions": self._build_command_context_actions(),
                 "shutdownHandler": self.requestShutdown,
                 "onError": lambda error: self.showExtensionError(
@@ -3999,12 +4007,35 @@ class InteractiveMode:
                 ),
             }
         )
+
+        resource_loader = getattr(self.session, "resourceLoader", None)
+        get_themes = _callable_attr(resource_loader, "getThemes")
+        themes_result = get_themes() if get_themes is not None else {}
+        interactive_theme.set_registered_themes(_value(themes_result, "themes", []))
+        self.setupAutocompleteProvider()
         self.setupExtensionShortcuts(self.session.extensionRunner)
+        self.showLoadedResources({"force": False, "showDiagnosticsWhenQuiet": True})
+        self.showStartupNoticesIfNeeded()
+
+    async def rebindCurrentSession(
+        self,
+        session: Any | None = None,
+    ) -> None:
+        if session is not None:
+            self.session = session
+        elif getattr(self.runtimeHost, "session", None) is not None:
+            self.session = self.runtimeHost.session
+
+        self.sessionManager = getattr(self.session, "sessionManager", self.sessionManager)
+        self.settingsManager = getattr(self.session, "settingsManager", self.settingsManager)
+        if self._sessionUnsubscribe is not None:
+            self._sessionUnsubscribe()
+            self._sessionUnsubscribe = None
+        self.applyRuntimeSettings()
+        await self.bindCurrentSessionExtensions()
         self.subscribeToSession()
-        if showLoadedResourcesAndStartup:
-            self.showLoadedResources({"force": False, "showDiagnosticsWhenQuiet": True})
-            self.showStartupNoticesIfNeeded()
-            self._request_render()
+        self.updateAvailableProviderCount()
+        self.updateEditorBorderColor()
         self.updateTerminalTitle()
 
     def subscribeToSession(self) -> None:

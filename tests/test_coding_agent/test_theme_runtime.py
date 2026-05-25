@@ -41,6 +41,21 @@ def test_theme_syntax_highlighting_and_language_detection(monkeypatch) -> None:
     assert "\x1b[" in highlighted_text
 
 
+def test_markdown_highlight_fallback_matches_ts_when_highlighter_throws(monkeypatch) -> None:
+    monkeypatch.setattr(interactive_theme_module, "supports_language", lambda _lang: True)
+    monkeypatch.setattr(
+        interactive_theme_module,
+        "highlight",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    markdown_lines = interactive_theme_module.get_markdown_theme().highlightCode("plain()", "typescript")
+    exported_lines = interactive_theme_module.highlight_code("plain()", "typescript")
+
+    assert all("\x1b[" in line for line in markdown_lines)
+    assert exported_lines == ["plain()"]
+
+
 def test_theme_watcher_reloads_custom_theme_file(monkeypatch, tmp_path: Path) -> None:
     custom_themes_dir = tmp_path / "themes"
     custom_themes_dir.mkdir()

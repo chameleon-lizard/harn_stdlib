@@ -306,6 +306,19 @@ async def test_handle_package_command_reports_invalid_option_for_command(monkeyp
 
 
 @pytest.mark.asyncio
+async def test_handle_package_command_help_uses_app_name_and_examples(monkeypatch: pytest.MonkeyPatch) -> None:
+    stdout = io.StringIO()
+    monkeypatch.setattr("sys.stdout", stdout)
+
+    handled = await handle_package_command(["install", "--help"])
+
+    assert handled is True
+    assert package_manager_cli_module._take_command_exit_code() == 0
+    assert f"  {APP_NAME} install <source> [-l]" in stdout.getvalue()
+    assert f"  {APP_NAME} install ./local/path" in stdout.getvalue()
+
+
+@pytest.mark.asyncio
 async def test_handle_package_command_supports_extension_update_target(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -6,9 +6,7 @@ from collections.abc import Callable
 
 from harnify_tui import TUI, Editor, EditorOptions, EditorTheme
 
-from harnify_coding_agent.core.keybindings import KeybindingsManager
-
-type AppKeybinding = str
+from harnify_coding_agent.core.keybindings import AppKeybinding, KeybindingsManager
 
 
 class CustomEditor(Editor):
@@ -67,4 +65,4 @@ class CustomEditor(Editor):
         super().handleInput(data)
 
 
-__all__ = ["AppKeybinding", "CustomEditor"]
+__all__ = ["CustomEditor"]

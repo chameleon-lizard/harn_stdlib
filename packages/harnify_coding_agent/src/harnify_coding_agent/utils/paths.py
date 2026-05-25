@@ -6,17 +6,30 @@ import os
 import re
 import subprocess
 from pathlib import Path
+from typing import TypedDict
 from urllib.parse import unquote, urlparse
 from urllib.request import url2pathname
 
 UNICODE_SPACES = re.compile(r"[\u00A0\u2000-\u200A\u202F\u205F\u3000]")
 
 
+class PathInputOptions(TypedDict, total=False):
+    trim: bool
+    expandTilde: bool
+    homeDir: str
+    stripAtPrefix: bool
+    normalizeUnicodeSpaces: bool
+
+
 def canonicalize_path(path: str) -> str:
     try:
-        return os.path.realpath(path)
+        return os.path.realpath(path, strict=True)
+    except TypeError:
+        if os.path.exists(path):
+            return os.path.realpath(path)
     except OSError:
         return path
+    return path
 
 
 def is_local_path(value: str) -> bool:
@@ -108,18 +121,12 @@ formatPathRelativeToCwdOrAbsolute = format_path_relative_to_cwd_or_absolute
 markPathIgnoredByCloudSync = mark_path_ignored_by_cloud_sync
 
 __all__ = [
+    "PathInputOptions",
     "canonicalizePath",
-    "canonicalize_path",
     "formatPathRelativeToCwdOrAbsolute",
-    "format_path_relative_to_cwd_or_absolute",
     "getCwdRelativePath",
-    "get_cwd_relative_path",
     "isLocalPath",
-    "is_local_path",
     "markPathIgnoredByCloudSync",
-    "mark_path_ignored_by_cloud_sync",
     "normalizePath",
-    "normalize_path",
     "resolvePath",
-    "resolve_path",
 ]

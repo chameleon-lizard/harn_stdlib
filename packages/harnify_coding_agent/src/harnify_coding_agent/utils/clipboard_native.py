@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 from io import BytesIO
 from typing import Any, Protocol
 
@@ -62,7 +63,7 @@ def _load_clipboard(
     image_grab_module: Any = None,
 ) -> ClipboardModule | None:
     resolved_env = env or os.environ
-    resolved_platform = platform_name or os.uname().sysname.lower()
+    resolved_platform = platform_name or sys.platform
 
     if resolved_env.get("TERMUX_VERSION") or not _has_display(resolved_env, resolved_platform):
         return None

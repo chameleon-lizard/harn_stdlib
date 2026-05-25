@@ -103,6 +103,24 @@ def test_source_info_surface_and_copy_semantics_match_ts() -> None:
     assert synthetic.origin == "top-level"
 
 
+def test_install_telemetry_surface_and_env_precedence(monkeypatch: pytest.MonkeyPatch) -> None:
+    from harnify_coding_agent.core import telemetry as telemetry_module
+
+    class _Settings:
+        def __init__(self, enabled: bool) -> None:
+            self.enabled = enabled
+
+        def getEnableInstallTelemetry(self) -> bool:
+            return self.enabled
+
+    assert telemetry_module.__all__ == ["isInstallTelemetryEnabled"]
+
+    monkeypatch.setenv("PI_TELEMETRY", "yes")
+    assert telemetry_module.isInstallTelemetryEnabled(_Settings(False)) is True
+    assert telemetry_module.isInstallTelemetryEnabled(_Settings(True), "0") is False
+    assert telemetry_module.isInstallTelemetryEnabled(_Settings(True), None) is True
+
+
 @pytest.mark.asyncio
 async def test_event_bus_supports_sync_async_and_unsubscribe() -> None:
     bus = createEventBus()

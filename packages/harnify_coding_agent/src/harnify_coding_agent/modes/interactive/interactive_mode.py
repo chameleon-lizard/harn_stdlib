@@ -2472,6 +2472,28 @@ class InteractiveMode:
             times = "1 time" if compaction_count == 1 else f"{compaction_count} times"
             self.showStatus(f"Session compacted {times}")
 
+    async def getUserInput(self) -> str:
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[str] = loop.create_future()
+        self._pendingUserInputFuture = future
+
+        def _resolve(text: str) -> None:
+            if self.onInputCallback is _resolve:
+                self.onInputCallback = None
+            if self._pendingUserInputFuture is future:
+                self._pendingUserInputFuture = None
+            if not future.done():
+                future.set_result(text)
+
+        self.onInputCallback = _resolve
+        try:
+            return await future
+        finally:
+            if self.onInputCallback is _resolve:
+                self.onInputCallback = None
+            if self._pendingUserInputFuture is future:
+                self._pendingUserInputFuture = None
+
     def rebuildChatFromMessages(self) -> None:
         clear = _callable_attr(self.chatContainer, "clear")
         if clear is not None:

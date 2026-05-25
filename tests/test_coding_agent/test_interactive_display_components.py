@@ -33,6 +33,9 @@ branch_summary_message_module = importlib.import_module(
 compaction_summary_message_module = importlib.import_module(
     "harnify_coding_agent.modes.interactive.components.compaction_summary_message"
 )
+custom_message_module = importlib.import_module(
+    "harnify_coding_agent.modes.interactive.components.custom_message"
+)
 
 
 def _strip_ansi(text: str) -> str:
@@ -66,6 +69,10 @@ def test_compaction_summary_message_module_exports_match_ts_surface() -> None:
     assert compaction_summary_message_module.__all__ == ["CompactionSummaryMessageComponent"]
 
 
+def test_custom_message_module_exports_match_ts_surface() -> None:
+    assert custom_message_module.__all__ == ["CustomMessageComponent"]
+
+
 def test_custom_message_uses_custom_renderer_and_falls_back() -> None:
     message = CustomMessage(
         customType="demo",
@@ -89,6 +96,15 @@ def test_custom_message_uses_custom_renderer_and_falls_back() -> None:
     fallback_rendered = _strip_ansi("\n".join(fallback.render(80)))
     assert "[demo]" in fallback_rendered
     assert "default body" in fallback_rendered
+
+    def legacy_renderer(_msg, _options):  # noqa: ANN001
+        return Text("legacy render", 0, 0)
+
+    legacy_component = CustomMessageComponent(message, legacy_renderer)
+    legacy_rendered = _strip_ansi("\n".join(legacy_component.render(80)))
+    assert "legacy render" not in legacy_rendered
+    assert "[demo]" in legacy_rendered
+    assert "default body" in legacy_rendered
 
 
 def test_skill_invocation_component_collapses_and_expands() -> None:

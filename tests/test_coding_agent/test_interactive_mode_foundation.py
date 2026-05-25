@@ -200,6 +200,27 @@ def test_show_status_coalesces_and_appends_when_interleaved() -> None:
     assert ui.render_calls == [None, None, None]
 
 
+def test_show_error_and_warning_match_ts_prefix_and_spacing() -> None:
+    ui = FakeUi()
+    mode = InteractiveMode(chatContainer=Container(), ui=ui)
+
+    mode.showError("broken")
+    mode.showWarning("careful")
+
+    rendered = [
+        _strip_ansi("\n".join(child.render(120)))
+        for child in mode.chatContainer.children
+        if isinstance(child, Text)
+    ]
+
+    assert rendered == ["Error: broken", "Warning: careful"]
+    assert len(mode.chatContainer.children) == 5
+    assert isinstance(mode.chatContainer.children[0], Spacer)
+    assert isinstance(mode.chatContainer.children[2], Spacer)
+    assert isinstance(mode.chatContainer.children[3], Spacer)
+    assert ui.render_calls == [None, None]
+
+
 def test_set_tools_expanded_updates_header_and_chat_children() -> None:
     header_calls: list[bool] = []
     child_calls: list[bool] = []

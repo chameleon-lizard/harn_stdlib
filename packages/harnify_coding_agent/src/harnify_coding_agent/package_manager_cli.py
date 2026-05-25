@@ -89,6 +89,14 @@ def _get_package_command_usage(command: PackageCommand) -> str:
             return f"{APP_NAME} list"
 
 
+def _update_target_includes_self(target: UpdateTarget) -> bool:
+    return target.type in {"all", "self"}
+
+
+def _update_target_includes_extensions(target: UpdateTarget) -> bool:
+    return target.type in {"all", "extensions"}
+
+
 def _report_settings_errors(settings_manager: SettingsManager, context: str) -> None:
     for settings_error in settings_manager.drainErrors():
         error = settings_error.error
@@ -101,6 +109,84 @@ def _report_settings_errors(settings_manager: SettingsManager, context: str) -> 
                 "".join(traceback.format_exception(type(error), error, error.__traceback__)).rstrip("\n"),
                 file=sys.stderr,
             )
+
+
+def _print_self_update_unavailable(
+    python_command: list[str] | None = None,
+    update_package_name: str = PACKAGE_NAME,
+) -> None:
+    print(f"error: {APP_NAME} cannot self-update this installation.", file=sys.stderr)
+    print(
+        get_self_update_unavailable_instruction(PACKAGE_NAME, python_command, update_package_name),
+        file=sys.stderr,
+    )
+    entrypoint = sys.argv[0] if sys.argv else None
+    if entrypoint:
+        print("", file=sys.stderr)
+        print(f"Location of {APP_NAME} executable: {entrypoint}", file=sys.stderr)
+
+
+def _print_self_update_fallback(command: SelfUpdateCommand) -> None:
+    print(f"If this keeps failing, run this command yourself: {command.display}", file=sys.stderr)
+
+
+def _print_self_update_note(note: str) -> None:
+    trimmed = note.strip()
+    if not trimmed:
+        return
+    print()
+    print("Update note")
+    print(trimmed)
+    print()
+
+
+async def _get_self_update_plan(force: bool) -> _SelfUpdatePlan:
+    if force:
+        return _SelfUpdatePlan(packageName=PACKAGE_NAME, shouldRun=True)
+
+    try:
+        latest_release = await get_latest_pi_release(VERSION)
+        package_name = latest_release.packageName if latest_release and latest_release.packageName else PACKAGE_NAME
+        if (
+            latest_release is None
+            or package_name != PACKAGE_NAME
+            or is_newer_package_version(latest_release.version, VERSION)
+        ):
+            return _SelfUpdatePlan(
+                packageName=package_name,
+                shouldRun=True,
+                note=latest_release.note if latest_release else None,
+            )
+    except Exception:  # noqa: BLE001
+        return _SelfUpdatePlan(packageName=PACKAGE_NAME, shouldRun=True)
+
+    print(f"{APP_NAME} is already up to date (v{VERSION})")
+    return _SelfUpdatePlan(packageName=PACKAGE_NAME, shouldRun=False)
+
+
+async def _run_self_update(command: SelfUpdateCommand) -> None:
+    print(f"Updating {APP_NAME} with {command.display}...")
+    for step in command.steps or (command,):
+        try:
+            child = spawn_process(
+                step.command,
+                step.args,
+                stdio=("ignore", "inherit", "inherit"),
+            )
+        except OSError as error:
+            raise RuntimeError(str(error)) from error
+        code = await asyncio.to_thread(child.wait)
+        if code == 0:
+            continue
+        raise RuntimeError(f"{step.display} exited with code {code if code is not None else 'unknown'}")
+
+
+def _prepare_windows_self_update() -> None:
+    if sys.platform != "win32":
+        return
+    package_dir = get_package_dir()
+    cleanup_windows_self_update_quarantine(package_dir)
+    quarantine_windows_native_dependencies(package_dir)
 
 
 def _parse_package_command(args: list[str]) -> PackageCommandOptions | None:

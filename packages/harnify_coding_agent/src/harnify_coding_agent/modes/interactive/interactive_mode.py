@@ -2440,6 +2440,61 @@ class InteractiveMode:
         self.chatContainer.addChild(Text("\n".join(lines).rstrip(), 1, 0))
         self._request_render()
 
+    def handleDebugCommand(self) -> None:
+        width = int(getattr(self.ui.terminal, "columns", 0) or 0)
+        height = int(getattr(self.ui.terminal, "rows", 0) or 0)
+        render = _callable_attr(self.ui, "render")
+        all_lines = list(render(width) if render is not None else [])
+        messages = list(getattr(self.session, "messages", []) or [])
+
+        def _json_default(value: Any) -> Any:
+            if hasattr(value, "__dict__"):
+                return value.__dict__
+            return str(value)
+
+        debug_data = "\n".join(
+            [
+                f"Debug output at {datetime.now(UTC).isoformat().replace('+00:00', 'Z')}",
+                f"Terminal: {width}x{height}",
+                f"Total lines: {len(all_lines)}",
+                "",
+                "=== All rendered lines with visible widths ===",
+                *[
+                    f"[{idx}] (w={visibleWidth(line)}) {json.dumps(line)}"
+                    for idx, line in enumerate(all_lines)
+                ],
+                "",
+                "=== Agent messages (JSONL) ===",
+                *[json.dumps(message, default=_json_default) for message in messages],
+                "",
+            ]
+        )
+
+        debug_log_path = Path(get_debug_log_path())
+        debug_log_path.parent.mkdir(parents=True, exist_ok=True)
+        debug_log_path.write_text(debug_data, encoding="utf-8")
+
+        self.chatContainer.addChild(Spacer(1))
+        self.chatContainer.addChild(
+            Text(
+                f"{interactive_theme.theme.fg('accent', '✓ Debug log written')}\n"
+                f"{interactive_theme.theme.fg('muted', str(debug_log_path))}",
+                1,
+                1,
+            )
+        )
+        self._request_render()
+
+    def handleArminSaysHi(self) -> None:
+        self.chatContainer.addChild(Spacer(1))
+        self.chatContainer.addChild(ArminComponent(self.ui))
+        self._request_render()
+
+    def handleDementedDelves(self) -> None:
+        self.chatContainer.addChild(Spacer(1))
+        self.chatContainer.addChild(EarendilAnnouncementComponent())
+        self._request_render()
+
     async def handleResumeSession(
         self,
         sessionPath: str,

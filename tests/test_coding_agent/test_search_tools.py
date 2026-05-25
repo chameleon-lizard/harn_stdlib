@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import os
+import textwrap
 from pathlib import Path
 
 import pytest
 from harnify_coding_agent.core.tools import (
     GREP_MAX_LINE_LENGTH,
     create_find_tool,
+    create_find_tool_definition,
     create_grep_tool,
     create_ls_tool,
     get_text_output,
 )
+from harnify_coding_agent.core.tools import find as find_module
 
 
 def _text(result: object) -> str:
@@ -18,6 +22,85 @@ def _text(result: object) -> str:
 
 def _lines(result: object) -> list[str]:
     return [line.strip() for line in _text(result).splitlines() if line.strip() and not line.startswith("[")]
+
+
+@pytest.fixture(autouse=True)
+def _patch_find_ensure_tool(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    fd_script = tmp_path / "fake-fd"
+    fd_script.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env python3
+            from __future__ import annotations
+
+            import os
+            import sys
+
+            from harnify_coding_agent.core.tools.find import _glob_files
+
+
+            def main(argv: list[str]) -> int:
+                limit = 1000
+                pattern = ""
+                search_path = "."
+                index = 0
+                while index < len(argv):
+                    arg = argv[index]
+                    if arg == "--max-results":
+                        limit = int(argv[index + 1])
+                        index += 2
+                        continue
+                    if arg == "--":
+                        pattern = argv[index + 1]
+                        search_path = argv[index + 2]
+                        break
+                    index += 1
+
+                try:
+                    results = _glob_files(pattern, search_path, limit=limit)
+                except Exception as error:
+                    print(str(error), file=sys.stderr)
+                    return 1
+
+                for relative_path in results:
+                    print(os.path.join(search_path, relative_path.replace("/", os.sep)))
+                return 0
+
+
+            if __name__ == "__main__":
+                raise SystemExit(main(sys.argv[1:]))
+            """
+        ),
+        encoding="utf-8",
+    )
+    fd_script.chmod(0o755)
+
+    async def fake_ensure_tool(tool: str, silent: bool = False, **_kwargs: object) -> str:
+        assert tool == "fd"
+        assert silent is True
+        return str(fd_script)
+
+    monkeypatch.setattr("harnify_coding_agent.core.tools.find.ensure_tool", fake_ensure_tool)
+
+
+def test_find_tool_definition_surface_matches_ts(tmp_path: Path) -> None:
+    definition = create_find_tool_definition(str(tmp_path))
+
+    assert definition.promptSnippet == "Find files by glob pattern (respects .gitignore)"
+    assert definition.renderCall is not None
+    assert definition.renderResult is not None
+    assert definition.description.endswith("1000 results or 50KB (whichever is hit first).")
+
+
+def test_find_module_exports_match_ts_surface() -> None:
+    assert find_module.__all__ == [
+        "FindOperations",
+        "FindToolDetails",
+        "FindToolInput",
+        "FindToolOptions",
+        "createFindTool",
+        "createFindToolDefinition",
+    ]
 
 
 @pytest.mark.asyncio

@@ -143,6 +143,7 @@ from harnify_coding_agent.utils.clipboard_image import (
     extension_for_image_mime_type,
     read_clipboard_image,
 )
+from harnify_coding_agent.utils.shell import kill_tracked_detached_children
 from harnify_coding_agent.utils.version_check import LatestPiRelease, check_for_new_pi_version
 
 interactive_theme = import_module("harnify_coding_agent.modes.interactive.theme.theme")
@@ -154,6 +155,7 @@ ANTHROPIC_SUBSCRIPTION_AUTH_WARNING = (
 
 _BUILT_IN_MODEL_PROVIDERS = frozenset(getProviders())
 _BEDROCK_PROVIDER_ID = "amazon-bedrock"
+_DEAD_TERMINAL_ERROR_CODES = frozenset({"EIO", "EPIPE", "ENOTCONN"})
 
 
 @dataclass(slots=True)
@@ -208,6 +210,10 @@ def _is_unknown_model(model: Any) -> bool:
         and _value(model, "id") == "unknown"
         and _value(model, "api") == "unknown"
     )
+
+
+def _is_dead_terminal_error(error: Any) -> bool:
+    return getattr(error, "code", None) in _DEAD_TERMINAL_ERROR_CODES
 
 
 async def _noop_async(*_args: Any, **_kwargs: Any) -> Any:

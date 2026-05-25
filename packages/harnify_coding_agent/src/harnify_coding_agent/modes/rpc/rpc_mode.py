@@ -617,7 +617,8 @@ async def run_rpc_mode(runtime_host: Any, *, input_stream: Any | None = None) ->
                 )
             return success(request_id, "get_commands", {"commands": commands})
 
-        return failure(None, command_type, f"Unknown command: {command_type}")
+        display_command_type = command_type if command_type is not None else "undefined"
+        return failure(None, command_type, f"Unknown command: {display_command_type}")
 
     async def handle_input_line(line: str) -> None:
         try:

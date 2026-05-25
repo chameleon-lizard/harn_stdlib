@@ -22,8 +22,5 @@ class UndoStack[S]:
     def length(self) -> int:
         return len(self._stack)
 
-    def __len__(self) -> int:
-        return len(self._stack)
-
 
 __all__ = ["UndoStack"]

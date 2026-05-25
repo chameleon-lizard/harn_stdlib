@@ -1611,7 +1611,7 @@ async def test_clone_command_accepts_object_shaped_runtime_result() -> None:
         return SimpleNamespace(cancelled=False)
 
     mode = InteractiveMode(
-        sessionManager=SimpleNamespace(getLeafId=lambda: "leaf-123"),
+        sessionManager=SimpleNamespace(getLeafId=lambda: "leaf-123", getCwd=lambda: os.getcwd()),
         runtimeHost=SimpleNamespace(fork=fork),
         editor=editor,
     )

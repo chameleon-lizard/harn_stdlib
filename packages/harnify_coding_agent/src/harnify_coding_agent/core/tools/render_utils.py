@@ -6,7 +6,7 @@ import builtins
 import os
 from typing import Any, Protocol, TypeVar
 
-from harnify_tui.terminal_image import get_capabilities, get_image_dimensions, image_fallback
+from harnify_tui.terminal_image import getCapabilities, getImageDimensions, imageFallback
 
 from harnify_coding_agent.utils.ansi import strip_ansi
 from harnify_coding_agent.utils.shell import sanitize_binary_output
@@ -60,7 +60,7 @@ def get_text_output(result: object | None, show_images: bool) -> str:
         for block in text_blocks
     )
 
-    caps = get_capabilities()
+    caps = getCapabilities()
     if image_blocks and ((not getattr(caps, "images", None)) or not show_images):
         image_indicators = "\n".join(render_image_indicator(block) for block in image_blocks)
         output = f"{output}\n{image_indicators}" if output else image_indicators
@@ -72,11 +72,11 @@ def render_image_indicator(block: object) -> str:
     mime_type = get_attr(block, "mimeType") or "image/unknown"
     data = get_attr(block, "data")
     dims = (
-        get_image_dimensions(data, mime_type)
+        getImageDimensions(data, mime_type)
         if isinstance(data, builtins.str) and isinstance(mime_type, builtins.str)
         else None
     )
-    return image_fallback(mime_type, dims)
+    return imageFallback(mime_type, dims)
 
 
 def get_attr(value: object, name: str) -> Any:

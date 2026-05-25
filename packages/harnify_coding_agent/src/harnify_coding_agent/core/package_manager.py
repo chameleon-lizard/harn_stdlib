@@ -2069,30 +2069,108 @@ class DefaultPackageManager:
             themes=materialize(accumulator.themes),
         )
 
+    async def _run_with_concurrency(
+        self,
+        tasks: list[Callable[[], Awaitable[_T]]],
+        limit: int,
+    ) -> list[_T]:
+        if not tasks:
+            return []
 
-PackageManager = DefaultPackageManager
-addSourceToSettings = DefaultPackageManager.addSourceToSettings
-checkForAvailableUpdates = DefaultPackageManager.checkForAvailableUpdates
-getInstalledPath = DefaultPackageManager.getInstalledPath
-installAndPersist = DefaultPackageManager.installAndPersist
-listConfiguredPackages = DefaultPackageManager.listConfiguredPackages
-removeAndPersist = DefaultPackageManager.removeAndPersist
-removeSourceFromSettings = DefaultPackageManager.removeSourceFromSettings
-resolveExtensionSources = DefaultPackageManager.resolveExtensionSources
-setProgressCallback = DefaultPackageManager.setProgressCallback
+        results: list[_T | None] = [None] * len(tasks)
+        next_index = 0
+        lock = asyncio.Lock()
+        worker_count = max(1, min(limit, len(tasks)))
+
+        async def worker() -> None:
+            nonlocal next_index
+            while True:
+                async with lock:
+                    index = next_index
+                    next_index += 1
+                if index >= len(tasks):
+                    return
+                results[index] = await tasks[index]()
+
+        await asyncio.gather(*(worker() for _ in range(worker_count)))
+        return [cast(_T, result) for result in results]
+
+    def _spawn_command(
+        self,
+        command: str,
+        args: list[str],
+        *,
+        cwd: str | None = None,
+    ) -> subprocess.Popen[bytes] | subprocess.Popen[str]:
+        env = dict(_get_env())
+        if isStdoutTakenOver():
+            return subprocess.Popen(
+                [command, *args],
+                cwd=cwd,
+                env=env,
+                stdin=subprocess.DEVNULL,
+                stdout=sys.stderr,
+                stderr=sys.stderr,
+            )
+        return subprocess.Popen([command, *args], cwd=cwd, env=env)
+
+    def _spawn_capture_command(
+        self,
+        command: str,
+        args: list[str],
+        *,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.Popen[str]:
+        merged_env = dict(_get_env())
+        if env:
+            merged_env.update(env)
+        return subprocess.Popen(
+            [command, *args],
+            cwd=cwd,
+            env=merged_env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+        )
+
+    async def _run_command(self, command: str, args: list[str], *, cwd: str | None = None) -> None:
+        child = self._spawn_command(command, args, cwd=cwd)
+        code = await asyncio.to_thread(child.wait)
+        if code == 0:
+            return
+        raise RuntimeError(f"{self._format_command_display(command, args)} failed with code {code}")
+
+    def _run_command_sync(self, command: str, args: list[str]) -> str:
+        result = spawn_process_sync(
+            command,
+            args,
+            env=dict(_get_env()),
+            encoding="utf-8",
+            stdio=("ignore", "pipe", "pipe"),
+        )
+        if result.error is not None or result.status != 0:
+            details = result.error.args[0] if result.error is not None and result.error.args else None
+            raise RuntimeError(
+                f"Failed to run {self._format_command_display(command, args)}: "
+                f"{details or result.stderr or result.stdout}"
+            )
+        return (result.stdout or result.stderr or "").strip()
+
+    def _format_command_display(self, command: str, args: list[str]) -> str:
+        return " ".join([command, *args])
 
 __all__ = [
-    "ConfiguredPackage",
-    "DefaultPackageManager",
-    "MissingSourceAction",
-    "PackageManager",
-    "PackageManagerOptions",
-    "PackageUpdate",
     "PathMetadata",
-    "ProgressCallback",
-    "ProgressEvent",
-    "ResolvedPaths",
     "ResolvedResource",
-    "SourceOrigin",
-    "ResourceType",
+    "ResolvedPaths",
+    "MissingSourceAction",
+    "ProgressEvent",
+    "ProgressCallback",
+    "PackageUpdate",
+    "ConfiguredPackage",
+    "PackageManager",
+    "DefaultPackageManager",
 ]

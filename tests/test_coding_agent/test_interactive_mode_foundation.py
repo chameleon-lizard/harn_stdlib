@@ -1653,6 +1653,72 @@ async def test_handle_submitted_text_routes_commands_and_prompts() -> None:
     assert editor.text == ""
 
 
+@pytest.mark.asyncio
+async def test_handle_login_provider_select_routes_bedrock_to_setup_dialog() -> None:
+    calls: list[tuple[str, str, str]] = []
+    done_calls: list[bool] = []
+    mode = InteractiveMode()
+    mode.showBedrockSetupDialog = lambda provider_id, provider_name: calls.append(  # type: ignore[method-assign]
+        ("bedrock", provider_id, provider_name)
+    )
+
+    async def fail_api_key_login(_provider_id: str, _provider_name: str) -> None:
+        raise AssertionError("showApiKeyLoginDialog should not be called for Bedrock")
+
+    async def fail_oauth_login(_provider_id: str, _provider_name: str) -> None:
+        raise AssertionError("showLoginDialog should not be called for Bedrock")
+
+    mode.showApiKeyLoginDialog = fail_api_key_login  # type: ignore[method-assign]
+    mode.showLoginDialog = fail_oauth_login  # type: ignore[method-assign]
+
+    await mode._handle_login_provider_select(
+        [SimpleNamespace(id="amazon-bedrock", name="Amazon Bedrock", authType="api_key")],
+        "amazon-bedrock",
+        lambda: done_calls.append(True),
+    )
+
+    assert done_calls == [True]
+    assert calls == [("bedrock", "amazon-bedrock", "Amazon Bedrock")]
+
+
+def test_show_bedrock_setup_dialog_renders_info_with_docs_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    class FakeDialog:
+        def __init__(
+            self,
+            tui: Any,
+            providerId: str,
+            onComplete: Any,
+            providerName: str,
+            titleOverride: str | None = None,
+        ) -> None:
+            captured["tui"] = tui
+            captured["providerId"] = providerId
+            captured["onComplete"] = onComplete
+            captured["providerName"] = providerName
+            captured["titleOverride"] = titleOverride
+
+        def showInfo(self, lines: list[str]) -> None:
+            captured["lines"] = lines
+
+    monkeypatch.setattr(interactive_mode_module, "LoginDialogComponent", FakeDialog)
+    monkeypatch.setattr(interactive_mode_module, "get_docs_path", lambda: "/tmp/docs")
+
+    ui = FakeUi()
+    editor = FakeEditor()
+    mode = InteractiveMode(ui=ui, editor=editor, defaultEditor=editor)
+
+    mode.showBedrockSetupDialog("amazon-bedrock", "Amazon Bedrock")
+
+    assert captured["providerId"] == "amazon-bedrock"
+    assert captured["providerName"] == "Amazon Bedrock"
+    assert captured["titleOverride"] == "Amazon Bedrock setup"
+    assert any("/tmp/docs/providers.md" in line for line in captured["lines"])
+    assert mode.editorContainer.children == [ui.focused]
+    assert ui.render_calls == [None]
+
+
 def test_update_pending_messages_display_renders_session_and_compaction_queues() -> None:
     mode = InteractiveMode(
         pendingMessagesContainer=Container(),

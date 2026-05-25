@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Literal, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from harnify_agent.agent import Agent
 from harnify_agent.types import AgentMessage, ThinkingLevel
@@ -11,19 +11,6 @@ from harnify_ai.models import clamp_thinking_level
 from harnify_ai.stream import stream_simple
 from harnify_ai.types import Model, SimpleStreamOptions, TextContent, validate_message
 
-from harnify_coding_agent.core.agent_session_runtime import (
-    AgentSessionRuntime,
-    AgentSessionRuntimeDiagnostic,
-    AgentSessionServices,
-    CreateAgentSessionFromServicesOptions,
-    CreateAgentSessionRuntimeFactory,
-    CreateAgentSessionRuntimeResult,
-    CreateAgentSessionServicesOptions,
-    SessionImportFileNotFoundError,
-    createAgentSessionFromServices,
-    createAgentSessionRuntime,
-    createAgentSessionServices,
-)
 from harnify_coding_agent.config import get_agent_dir
 from harnify_coding_agent.core.agent_session import AgentSession
 from harnify_coding_agent.core.auth_guidance import format_no_models_available_message
@@ -65,6 +52,36 @@ from harnify_coding_agent.core.tools import (
     with_file_mutation_queue,
 )
 from harnify_coding_agent.utils.paths import resolve_path
+
+if TYPE_CHECKING:
+    from harnify_coding_agent.core.agent_session_runtime import (
+        AgentSessionRuntime,
+        AgentSessionRuntimeDiagnostic,
+        AgentSessionServices,
+        CreateAgentSessionFromServicesOptions,
+        CreateAgentSessionRuntimeFactory,
+        CreateAgentSessionRuntimeResult,
+        CreateAgentSessionServicesOptions,
+        SessionImportFileNotFoundError,
+        createAgentSessionFromServices,
+        createAgentSessionRuntime,
+        createAgentSessionServices,
+    )
+
+
+_AGENT_SESSION_RUNTIME_EXPORTS = {
+    "AgentSessionRuntime",
+    "AgentSessionRuntimeDiagnostic",
+    "AgentSessionServices",
+    "CreateAgentSessionFromServicesOptions",
+    "CreateAgentSessionRuntimeFactory",
+    "CreateAgentSessionRuntimeResult",
+    "CreateAgentSessionServicesOptions",
+    "SessionImportFileNotFoundError",
+    "createAgentSessionFromServices",
+    "createAgentSessionRuntime",
+    "createAgentSessionServices",
+}
 
 
 class ScopedModel(TypedDict, total=False):
@@ -411,6 +428,14 @@ createReadOnlyTools = create_read_only_tools
 createReadTool = create_read_tool
 createWriteTool = create_write_tool
 withFileMutationQueue = with_file_mutation_queue
+
+
+def __getattr__(name: str) -> Any:
+    if name in _AGENT_SESSION_RUNTIME_EXPORTS:
+        from harnify_coding_agent.core import agent_session_runtime as runtime_module
+
+        return getattr(runtime_module, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     "AgentSessionRuntime",

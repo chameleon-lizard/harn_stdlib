@@ -5,6 +5,7 @@ import importlib
 import json
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 interactive_theme_module = importlib.import_module("harnify_coding_agent.modes.interactive.theme.theme")
 
@@ -74,6 +75,81 @@ def test_theme_watcher_reloads_custom_theme_file(monkeypatch, tmp_path: Path) ->
 
         assert interactive_theme_module.theme.getFgAnsi("accent") == "\x1b[38;2;51;68;85m"
         assert changes
+    finally:
+        interactive_theme_module.stop_theme_watcher()
+        interactive_theme_module.init_theme("dark")
+
+
+def test_load_theme_from_path_reports_missing_required_color_tokens(tmp_path: Path) -> None:
+    theme_path = tmp_path / "invalid.json"
+    theme_path.write_text(json.dumps({"name": "broken", "colors": {"accent": "#ffffff"}}), encoding="utf-8")
+
+    try:
+        interactive_theme_module.load_theme_from_path(str(theme_path))
+    except ValueError as error:
+        message = str(error)
+    else:
+        raise AssertionError("Expected load_theme_from_path to reject missing required colors")
+
+    assert 'Invalid theme "' in message
+    assert "Missing required color tokens:" in message
+    assert "Please add these colors to your theme's \"colors\" object." in message
+    assert "border" in message
+
+
+def test_registered_theme_load_json_reads_source_but_load_theme_returns_registered_instance(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    custom_themes_dir = tmp_path / "themes"
+    custom_themes_dir.mkdir()
+    payload = copy.deepcopy(interactive_theme_module.load_theme_json("dark"))
+    payload["name"] = "registered-theme"
+    payload["colors"]["accent"] = "#112233"
+    theme_path = tmp_path / "registered-theme.json"
+    theme_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(interactive_theme_module, "get_custom_themes_dir", lambda: str(custom_themes_dir))
+
+    registered_theme = interactive_theme_module.load_theme_from_path(str(theme_path))
+    interactive_theme_module.set_registered_themes([registered_theme])
+
+    payload["colors"]["accent"] = "#334455"
+    theme_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    exported = interactive_theme_module.load_theme_json("registered-theme")
+    loaded = interactive_theme_module.load_theme("registered-theme")
+
+    assert exported["colors"]["accent"] == "#334455"
+    assert loaded is registered_theme
+    assert loaded.getFgAnsi("accent") == "\x1b[38;2;17;34;51m"
+
+
+def test_theme_watcher_ignores_registered_theme_outside_custom_dir(monkeypatch, tmp_path: Path) -> None:
+    custom_themes_dir = tmp_path / "themes"
+    custom_themes_dir.mkdir()
+    payload = copy.deepcopy(interactive_theme_module.load_theme_json("dark"))
+    payload["name"] = "external-theme"
+    payload["colors"]["accent"] = "#112233"
+    theme_path = tmp_path / "external-theme.json"
+    theme_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    monkeypatch.setattr(
+        interactive_theme_module,
+        "getCapabilities",
+        lambda: type("Caps", (), {"trueColor": True})(),
+    )
+    monkeypatch.setattr(interactive_theme_module, "get_custom_themes_dir", lambda: str(custom_themes_dir))
+
+    registered_theme = interactive_theme_module.load_theme_from_path(str(theme_path))
+    interactive_theme_module.set_registered_themes([registered_theme])
+    interactive_theme_module.init_theme("external-theme", True)
+
+    try:
+        assert interactive_theme_module.theme.getFgAnsi("accent") == "\x1b[38;2;17;34;51m"
+        payload["colors"]["accent"] = "#334455"
+        theme_path.write_text(json.dumps(payload), encoding="utf-8")
+        time.sleep(0.3)
+        assert interactive_theme_module.theme.getFgAnsi("accent") == "\x1b[38;2;17;34;51m"
     finally:
         interactive_theme_module.stop_theme_watcher()
         interactive_theme_module.init_theme("dark")

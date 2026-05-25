@@ -4035,13 +4035,16 @@ class InteractiveMode:
             editor = parts[0]
             editor_args = parts[1:]
             sys.stdout.write(f"Launching external editor: {editor_cmd}\nPi will resume when the editor exits.\n")
-            status = await asyncio.to_thread(
-                subprocess.run,
-                [editor, *editor_args, str(tmp_file)],
-                check=False,
-            )
+            try:
+                status = await asyncio.to_thread(
+                    subprocess.run,
+                    [editor, *editor_args, str(tmp_file)],
+                    check=False,
+                )
+            except OSError:
+                status = None
 
-            if status.returncode == 0:
+            if status is not None and status.returncode == 0:
                 new_content = re.sub(r"\n$", "", tmp_file.read_text(encoding="utf-8"))
                 self._set_editor_text(new_content)
         finally:

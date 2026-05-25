@@ -5298,7 +5298,7 @@ class InteractiveMode:
                 )
             else:
                 self.session.setScopedModels([])
-            self.updateAvailableProviderCount()
+            await _maybe_await(self.updateAvailableProviderCount())
             self._request_render()
 
         def _build_models_selector(done: Callable[[], None]) -> dict[str, Any]:

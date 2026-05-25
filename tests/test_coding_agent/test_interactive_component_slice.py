@@ -79,6 +79,9 @@ theme_selector_module = importlib.import_module(
 thinking_selector_module = importlib.import_module(
     "harnify_coding_agent.modes.interactive.components.thinking_selector"
 )
+user_message_selector_module = importlib.import_module(
+    "harnify_coding_agent.modes.interactive.components.user_message_selector"
+)
 
 
 def _strip_ansi(text: str) -> str:
@@ -481,3 +484,21 @@ def test_user_message_selector_selects_and_auto_cancels_empty_messages() -> None
     UserMessageSelectorComponent([], lambda _entry: None, lambda: empty_cancelled.append(True))
     time.sleep(0.15)
     assert empty_cancelled == [True]
+
+
+def test_user_message_selector_module_exports_match_ts_surface() -> None:
+    assert user_message_selector_module.__all__ == [
+        "UserMessageItem",
+        "UserMessageSelectorComponent",
+    ]
+
+
+def test_user_message_selector_preserves_double_space_from_blank_lines() -> None:
+    component = UserMessageSelectorComponent(
+        [UserMessageItem(id="m1", text="alpha\n\nbeta")],
+        lambda _entry: None,
+        lambda: None,
+    )
+
+    rendered = _strip_ansi("\n".join(component.render(120)))
+    assert "alpha  beta" in rendered

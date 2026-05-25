@@ -2504,7 +2504,6 @@ async def test_handle_submitted_text_routes_commands_and_prompts() -> None:
         ("bash", "ls -la", False),
         ("bash", "pwd", True),
         ("input-callback", "hello"),
-        ("prompt", "hello", None),
     ]
     assert editor.history == ["! ls -la", "!! pwd", "hello"]
     assert editor.text == ""
@@ -2857,6 +2856,21 @@ async def test_handle_submitted_text_streaming_uses_steer_and_updates_pending() 
 
 
 @pytest.mark.asyncio
+async def test_get_user_input_resolves_once_from_normal_submit_path() -> None:
+    editor = FakeEditor()
+    mode = InteractiveMode(editor=editor, defaultEditor=editor)
+
+    input_task = asyncio.create_task(mode.getUserInput())
+    await asyncio.sleep(0)
+    await mode.handleSubmittedText("hello")
+
+    assert await input_task == "hello"
+    assert editor.history == ["hello"]
+    assert mode.onInputCallback is None
+    assert mode._pendingUserInputFuture is None
+
+
+@pytest.mark.asyncio
 async def test_handle_submitted_text_bash_command_clears_tracked_bash_mode_after_execution() -> None:
     editor = FakeEditor()
     border_updates: list[str] = []
@@ -2879,6 +2893,39 @@ async def test_handle_submitted_text_bash_command_clears_tracked_bash_mode_after
     assert calls == [("pwd", False)]
     assert mode.isBashMode is False
     assert border_updates == ["border"]
+
+
+@pytest.mark.asyncio
+async def test_run_uses_input_loop_for_normal_submit(monkeypatch: pytest.MonkeyPatch) -> None:
+    ui = FakeUi()
+    prompts: list[tuple[str, dict[str, Any] | None]] = []
+
+    async def prompt(text: str, options: dict[str, Any] | None = None) -> None:
+        prompts.append((text, options))
+
+    monkeypatch.setattr(interactive_mode_module, "ensureTool", _noop_async)
+
+    mode = InteractiveMode(ui=ui)
+    mode.session.prompt = prompt
+    mode.checkForPackageUpdates = lambda: asyncio.sleep(0, result=[])  # type: ignore[method-assign]
+    mode.checkTmuxKeyboardSetup = lambda: asyncio.sleep(0, result=None)  # type: ignore[method-assign]
+
+    run_task = asyncio.create_task(mode.run())
+    for _ in range(8):
+        if mode.onInputCallback is not None:
+            break
+        await asyncio.sleep(0)
+
+    await mode.handleSubmittedText("hello from loop")
+
+    for _ in range(8):
+        if prompts == [("hello from loop", None)]:
+            break
+        await asyncio.sleep(0)
+
+    mode.requestShutdown()
+    assert await run_task == 0
+    assert prompts == [("hello from loop", None)]
 
 
 @pytest.mark.asyncio

@@ -11,6 +11,7 @@ import harnify_coding_agent.utils.changelog as changelog_module
 import harnify_coding_agent.utils.child_process as child_process_module
 import harnify_coding_agent.utils.fs_watch as fs_watch_module
 import harnify_coding_agent.utils.frontmatter as frontmatter_module
+import harnify_coding_agent.utils.git as git_module
 from harnify_coding_agent.utils.changelog import ChangelogEntry, compare_versions, get_new_entries, parse_changelog
 from harnify_coding_agent.utils.child_process import spawn_process, spawn_process_sync, wait_for_child_process
 from harnify_coding_agent.utils.frontmatter import parse_frontmatter, strip_frontmatter
@@ -135,8 +136,13 @@ def test_parse_git_url_matches_upstream_contract() -> None:
     assert with_ref.pinned is True
 
     assert parse_git_url("git@github.com:user/repo") is None
+    assert parse_git_url("git:file:///tmp/repo") is None
     assert parse_git_url("github.com/user/repo") is None
     assert parse_git_url("user/repo") is None
+
+
+def test_git_module_exports_match_ts_surface() -> None:
+    assert git_module.__all__ == ["GitSource", "parseGitUrl"]
 
 
 def test_decode_html_entity_helpers() -> None:

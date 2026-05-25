@@ -168,3 +168,21 @@ def test_theme_watcher_ignores_registered_theme_outside_custom_dir(monkeypatch, 
     finally:
         interactive_theme_module.stop_theme_watcher()
         interactive_theme_module.init_theme("dark")
+
+
+def test_theme_lifecycle_only_stops_watcher_in_ts_matched_paths(monkeypatch) -> None:
+    calls: list[str] = []
+    fake_theme = SimpleNamespace(name="dark")
+
+    monkeypatch.setattr(interactive_theme_module, "stop_theme_watcher", lambda: calls.append("stop"))
+    monkeypatch.setattr(interactive_theme_module, "load_theme", lambda *_args, **_kwargs: fake_theme)
+    monkeypatch.setattr(interactive_theme_module, "set_global_theme", lambda _theme: calls.append("set"))
+    monkeypatch.setattr(interactive_theme_module, "_start_theme_watcher", lambda: calls.append("start"))
+    monkeypatch.setattr(interactive_theme_module, "_ON_THEME_CHANGE", lambda: calls.append("change"))
+    monkeypatch.setattr(interactive_theme_module, "get_default_theme", lambda: "dark")
+
+    interactive_theme_module.init_theme(None, False)
+    interactive_theme_module.set_theme("light", False)
+    interactive_theme_module.set_theme_instance(fake_theme)
+
+    assert calls == ["set", "set", "change", "set", "stop", "change"]

@@ -883,11 +883,11 @@ class TUI(Container):
             if not isImageLine(line) and visibleWidth(line) > width:
                 crash_log_path = Path.home() / ".pi" / "agent" / "pi-crash.log"
                 crash_log_path.parent.mkdir(parents=True, exist_ok=True)
-                    crash_data = [
-                        f"Crash at {_utc_iso_timestamp()}",
-                        f"Terminal width: {width}",
-                        f"Line {index} visible width: {visibleWidth(line)}",
-                        "",
+                crash_data = [
+                    f"Crash at {_utc_iso_timestamp()}",
+                    f"Terminal width: {width}",
+                    f"Line {index} visible width: {visibleWidth(line)}",
+                    "",
                     "=== All rendered lines ===",
                     *[f"[{idx}] (w={visibleWidth(value)}) {value}" for idx, value in enumerate(new_lines)],
                     "",

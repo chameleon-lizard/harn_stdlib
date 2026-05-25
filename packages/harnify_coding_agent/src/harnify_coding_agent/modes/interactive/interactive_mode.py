@@ -1438,7 +1438,10 @@ class InteractiveMode:
                 set_text(current_text)
             if hasattr(new_editor, "borderColor") and hasattr(self.defaultEditor, "borderColor"):
                 new_editor.borderColor = self.defaultEditor.borderColor
-            default_padding = getattr(self.defaultEditor, "paddingX", None)
+            get_default_padding = _callable_attr(self.defaultEditor, "getPaddingX")
+            default_padding = (
+                get_default_padding() if get_default_padding is not None else getattr(self.defaultEditor, "paddingX", None)
+            )
             set_padding = _callable_attr(new_editor, "setPaddingX")
             if set_padding is not None and default_padding is not None:
                 set_padding(int(default_padding))

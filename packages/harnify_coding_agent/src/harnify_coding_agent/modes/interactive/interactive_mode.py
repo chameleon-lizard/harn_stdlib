@@ -5695,13 +5695,6 @@ def _safe_call_str(obj: Any, name: str, default: str | None = None) -> str | Non
         return default
     return str(value) if value is not None else default
 
-
-def _is_bash_mode(editor: Any) -> bool:
-    get_text = _callable_attr(editor, "getText")
-    text = get_text() if get_text is not None else ""
-    return str(text).lstrip().startswith("!")
-
-
 def _extract_user_text(message: Any) -> str:
     content = _value(message, "content")
     if isinstance(content, str):

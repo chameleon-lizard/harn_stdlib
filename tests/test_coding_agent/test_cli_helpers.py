@@ -458,6 +458,25 @@ def test_main_module_exports_match_ts_surface() -> None:
     assert main_module.__all__ == ["MainOptions", "main"]
 
 
+def test_report_diagnostics_matches_ts_prefix_and_colors() -> None:
+    stream = io.StringIO()
+
+    main_module.report_diagnostics(
+        [
+            main_module.RuntimeDiagnostic(type="warning", message="warn"),
+            main_module.RuntimeDiagnostic(type="error", message="boom"),
+            main_module.RuntimeDiagnostic(type="info", message="note"),
+        ],
+        stream=stream,
+    )
+
+    assert stream.getvalue().splitlines() == [
+        "\x1b[33mWarning: warn\x1b[0m",
+        "\x1b[31mError: boom\x1b[0m",
+        "\x1b[2mnote\x1b[0m",
+    ]
+
+
 @pytest.mark.asyncio
 async def test_main_rejects_file_args_in_rpc_mode(capsys: pytest.CaptureFixture[str]) -> None:
     code = await main(["--mode", "rpc", "@prompt.md"])

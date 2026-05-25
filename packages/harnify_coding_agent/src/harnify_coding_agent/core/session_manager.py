@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -30,14 +31,26 @@ from harnify_coding_agent.utils.paths import normalize_path, resolve_path
 CURRENT_SESSION_VERSION = 3
 
 type SessionHeader = dict[str, Any]
+type SessionEntryBase = dict[str, Any]
+type SessionMessageEntry = dict[str, Any]
+type ThinkingLevelChangeEntry = dict[str, Any]
+type ModelChangeEntry = dict[str, Any]
+type CompactionEntry = dict[str, Any]
+type BranchSummaryEntry = dict[str, Any]
+type CustomEntry = dict[str, Any]
+type LabelEntry = dict[str, Any]
+type SessionInfoEntry = dict[str, Any]
+type CustomMessageEntry = dict[str, Any]
 type SessionEntry = dict[str, Any]
 type FileEntry = dict[str, Any]
 type SessionModelInfo = dict[str, str]
 type SessionListProgress = Callable[[int, int], None]
 
 _LEAF_UNSET = object()
+_UNSET = object()
 _SAFE_PATH_LEADING_SEPARATORS = re.compile(r"^[/\\]+")
 _SAFE_PATH_SEPARATORS = re.compile(r"[/\\:]")
+MAX_CONCURRENT_SESSION_INFO_LOADS = 10
 
 
 @dataclass(slots=True)

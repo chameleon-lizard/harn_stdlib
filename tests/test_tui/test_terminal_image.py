@@ -4,12 +4,19 @@ import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 
+from harnify_tui import terminal_image as terminal_image_module
 from harnify_tui.terminal_image import (
+    CellDimensions,
     ImageDimensions,
+    ImageRenderOptions,
+    TerminalCapabilities,
+    calculateImageCellSize,
     deleteAllKittyImages,
     deleteKittyImage,
     detectCapabilities,
     encodeKitty,
+    getCapabilities,
+    getCellDimensions,
     hyperlink,
     isImageLine,
     renderImage,
@@ -76,3 +83,79 @@ def test_render_image_honors_max_height_by_reducing_width() -> None:
 
 def test_hyperlink_wraps_text_in_osc8_sequences() -> None:
     assert hyperlink("click me", "https://example.com") == "\x1b]8;;https://example.com\x1b\\click me\x1b]8;;\x1b\\"
+
+
+def test_terminal_image_module_exports_match_ts_surface() -> None:
+    assert terminal_image_module.__all__ == [
+        "ImageProtocol",
+        "TerminalCapabilities",
+        "CellDimensions",
+        "ImageDimensions",
+        "ImageRenderOptions",
+        "getCellDimensions",
+        "setCellDimensions",
+        "detectCapabilities",
+        "getCapabilities",
+        "resetCapabilitiesCache",
+        "setCapabilities",
+        "isImageLine",
+        "allocateImageId",
+        "encodeKitty",
+        "deleteKittyImage",
+        "deleteAllKittyImages",
+        "encodeITerm2",
+        "ImageCellSize",
+        "calculateImageCellSize",
+        "calculateImageRows",
+        "getPngDimensions",
+        "getJpegDimensions",
+        "getGifDimensions",
+        "getWebpDimensions",
+        "getImageDimensions",
+        "renderImage",
+        "hyperlink",
+        "imageFallback",
+    ]
+    assert not hasattr(terminal_image_module, "get_cell_dimensions")
+    assert not hasattr(terminal_image_module, "render_image")
+    assert not hasattr(terminal_image_module, "image_fallback")
+    assert not hasattr(terminal_image_module, "RenderedImage")
+
+
+def test_terminal_image_uses_ts_reference_semantics_for_globals() -> None:
+    dims = CellDimensions(widthPx=11, heightPx=22)
+    caps = TerminalCapabilities(images="kitty", trueColor=True, hyperlinks=True)
+    previous_dims = getCellDimensions()
+    try:
+        setCellDimensions(dims)
+        setCapabilities(caps)
+        assert getCellDimensions() is dims
+        assert getCapabilities() is caps
+    finally:
+        setCellDimensions(previous_dims)
+        resetCapabilitiesCache()
+
+
+def test_calculate_image_cell_size_uses_fixed_default_dims_not_mutable_global() -> None:
+    previous_dims = getCellDimensions()
+    try:
+        setCellDimensions({"widthPx": 100, "heightPx": 100})
+        size = calculateImageCellSize(ImageDimensions(widthPx=90, heightPx=180), 9)
+        assert size.columns == 9
+        assert size.rows == 10
+    finally:
+        setCellDimensions(previous_dims)
+
+
+def test_render_image_preserves_zero_max_width_cells_like_ts_nullish_logic() -> None:
+    setCapabilities({"images": "kitty", "trueColor": True, "hyperlinks": True})
+    try:
+        result = renderImage(
+            "AAAA",
+            ImageDimensions(widthPx=100, heightPx=100),
+            ImageRenderOptions(maxWidthCells=0),
+        )
+        assert result is not None
+        assert ",c=1,r=1" in result.sequence
+    finally:
+        resetCapabilitiesCache()

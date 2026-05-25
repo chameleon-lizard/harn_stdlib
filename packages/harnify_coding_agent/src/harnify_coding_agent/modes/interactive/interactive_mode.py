@@ -3351,6 +3351,11 @@ class InteractiveMode:
 
     async def handleEvent(self, event: dict[str, Any] | Any) -> None:
         event_type = _value(event, "type")
+        if event_type == "queue_update":
+            self.updatePendingMessagesDisplay()
+            self.footer.invalidate()
+            self._request_render()
+            return
         if event_type == "message_start":
             if self.workingVisible and self.loadingAnimation is None:
                 self.setWorkingVisible(True)

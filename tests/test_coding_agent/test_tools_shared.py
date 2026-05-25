@@ -41,6 +41,7 @@ from harnify_coding_agent.core.tools import render_utils as render_utils_module
 from harnify_coding_agent.core.tools import tool_definition_wrapper as tool_definition_wrapper_module
 from harnify_coding_agent.core.tools import truncate as truncate_module
 from harnify_coding_agent.utils import ansi as ansi_module
+import harnify_coding_agent.utils.paths as paths_module
 
 
 def test_truncate_head_honors_line_and_byte_limits() -> None:
@@ -88,6 +89,21 @@ def test_expand_and_resolve_paths(tmp_path: Path) -> None:
 
     assert expand_path(f"@{nested.name}") == nested.name
     assert resolve_to_cwd("./nested", str(tmp_path)) == str(nested)
+
+
+def test_paths_module_exports_and_canonicalize_missing_path(tmp_path: Path) -> None:
+    assert paths_module.__all__ == [
+        "PathInputOptions",
+        "canonicalizePath",
+        "formatPathRelativeToCwdOrAbsolute",
+        "getCwdRelativePath",
+        "isLocalPath",
+        "markPathIgnoredByCloudSync",
+        "normalizePath",
+        "resolvePath",
+    ]
+    missing = str(tmp_path / "missing-file.txt")
+    assert paths_module.canonicalize_path(missing) == missing
 
 
 def test_resolve_read_path_handles_curly_quote_and_nfd_variants(tmp_path: Path) -> None:

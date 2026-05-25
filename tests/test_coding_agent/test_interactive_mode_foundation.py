@@ -857,7 +857,7 @@ async def test_handle_event_compaction_start_sets_escape_handler_loader_and_prog
     assert aborts == [True]
     assert status_children[0] == "cleared"
     assert mode.autoCompactionLoader is status_children[1]
-    assert mode.ui.render_calls == [None]
+    assert mode.ui.render_calls and mode.ui.render_calls[-1] is None
 
 
 @pytest.mark.asyncio

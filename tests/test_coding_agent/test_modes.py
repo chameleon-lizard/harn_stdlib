@@ -18,6 +18,7 @@ from harnify_coding_agent.main import main
 import harnify_coding_agent.modes as modes_package
 import harnify_coding_agent.modes.print_mode as print_mode_module
 import harnify_coding_agent.modes.rpc.jsonl as rpc_jsonl_module
+import harnify_coding_agent.modes.rpc.rpc_mode as rpc_mode_module
 from harnify_coding_agent.modes.print_mode import run_print_mode
 from harnify_coding_agent.modes.rpc import JsonlLineBuffer, RpcClient, run_rpc_mode
 import harnify_coding_agent.modes.rpc.rpc_client as rpc_client_module
@@ -127,6 +128,17 @@ def test_print_mode_module_exports_match_ts_surface() -> None:
 
 def test_rpc_jsonl_module_exports_match_ts_surface() -> None:
     assert rpc_jsonl_module.__all__ == ["attachJsonlLineReader", "serializeJsonLine"]
+
+
+def test_rpc_mode_module_exports_match_ts_surface() -> None:
+    assert rpc_mode_module.__all__ == [
+        "RpcCommand",
+        "RpcExtensionUIRequest",
+        "RpcExtensionUIResponse",
+        "RpcResponse",
+        "RpcSessionState",
+        "runRpcMode",
+    ]
 
 
 def _fake_model(provider: str, model_id: str) -> Model[Any]:
@@ -577,6 +589,135 @@ async def test_rpc_mode_handles_basic_commands(monkeypatch) -> None:
     assert payloads[7]["command"] == "abort_retry"
     assert runtime.session.autoRetryEnabled is False
     assert runtime.session._retry_aborted is True
+
+
+@pytest.mark.asyncio
+async def test_rpc_mode_rebind_actions_match_ts(monkeypatch) -> None:
+    runtime = _FakeRuntime()
+    monkeypatch.setattr("sys.stdout", io.StringIO())
+    monkeypatch.setattr("sys.stderr", io.StringIO())
+
+    exit_code = await run_rpc_mode(runtime, input_stream=io.StringIO(""))
+    assert exit_code == 0
+
+    bindings = runtime.session._extension_bindings
+    assert bindings is not None
+    actions = bindings["commandContextActions"]
+
+    fork_result = await actions["fork"]("entry-1", {"position": "after"})
+    assert fork_result == {"cancelled": False}
+
+    navigate_result = await actions["navigateTree"](
+        "entry-2",
+        {
+            "summarize": True,
+            "customInstructions": "custom",
+            "replaceInstructions": "replace",
+            "label": "branch",
+        },
+    )
+    assert navigate_result == {"cancelled": False}
+    assert runtime.session._navigate_calls == [
+        (
+            "entry-2",
+            {
+                "summarize": True,
+                "customInstructions": "custom",
+                "replaceInstructions": "replace",
+                "label": "branch",
+            },
+        )
+    ]
+
+    await actions["reload"]()
+    assert runtime.session._reload_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_rpc_mode_uses_ts_async_model_registry_path(monkeypatch) -> None:
+    runtime = _FakeRuntime()
+    runtime.session.modelRegistry = type(
+        "Registry",
+        (),
+        {
+            "getAvailable": lambda self: _registry_models(),
+        },
+    )()
+    stdout = io.StringIO()
+    monkeypatch.setattr("sys.stdout", stdout)
+    monkeypatch.setattr("sys.stderr", io.StringIO())
+
+    async def _registry_models() -> list[Model[Any]]:
+        return [_fake_model("anthropic", "claude"), _fake_model("openai", "gpt")]
+
+    input_stream = io.StringIO(
+        "\n".join(
+            [
+                json.dumps({"id": "1", "type": "set_model", "provider": "openai", "modelId": "gpt"}),
+                json.dumps({"id": "2", "type": "get_available_models"}),
+            ]
+        )
+        + "\n"
+    )
+
+    exit_code = await run_rpc_mode(runtime, input_stream=input_stream)
+    assert exit_code == 0
+    payloads = [json.loads(line) for line in stdout.getvalue().splitlines()]
+    assert payloads[0]["command"] == "set_model"
+    assert payloads[0]["data"]["id"] == "gpt"
+    assert payloads[1]["command"] == "get_available_models"
+    assert [model["id"] for model in payloads[1]["data"]["models"]] == ["claude", "gpt"]
+
+
+@pytest.mark.asyncio
+async def test_rpc_ui_context_theme_and_signal_abort_match_ts() -> None:
+    emitted: list[dict[str, Any]] = []
+    pending: dict[str, asyncio.Future[dict[str, Any]]] = {}
+    ctx = rpc_mode_module._RpcUIContext(emitted.append, pending)
+
+    class _Signal:
+        def __init__(self) -> None:
+            self.aborted = False
+            self._listener = None
+
+        def addEventListener(self, event: str, listener: Any, _opts: Any = None) -> None:
+            assert event == "abort"
+            self._listener = listener
+
+        def removeEventListener(self, event: str, listener: Any) -> None:
+            if event == "abort" and self._listener == listener:
+                self._listener = None
+
+        def trigger(self) -> None:
+            self.aborted = True
+            if self._listener is not None:
+                self._listener()
+
+    signal_obj = _Signal()
+    opts = type("Opts", (), {"timeout": None, "signal": signal_obj})()
+
+    task = asyncio.create_task(ctx.select("Pick", ["a"], opts))
+    await asyncio.sleep(0)
+    signal_obj.trigger()
+
+    assert await task is None
+    assert emitted[0]["method"] == "select"
+    assert pending == {}
+    assert ctx.theme is rpc_mode_module.theme
+
+
+@pytest.mark.asyncio
+async def test_rpc_mode_unknown_command_omits_id_like_ts(monkeypatch) -> None:
+    runtime = _FakeRuntime()
+    stdout = io.StringIO()
+    monkeypatch.setattr("sys.stdout", stdout)
+    monkeypatch.setattr("sys.stderr", io.StringIO())
+
+    exit_code = await run_rpc_mode(runtime, input_stream=io.StringIO('{"id":"x","type":"unknown"}\n'))
+    assert exit_code == 0
+    payload = json.loads(stdout.getvalue().splitlines()[0])
+    assert payload["command"] == "unknown"
+    assert payload["id"] is None
 
 
 @pytest.mark.asyncio

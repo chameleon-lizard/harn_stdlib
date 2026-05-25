@@ -2285,6 +2285,7 @@ async def test_complete_provider_authentication_selects_default_model_for_unknow
     mode.checkDaxnutsEasterEgg = lambda model: daxnuts.append(model.id)  # type: ignore[method-assign]
 
     await mode.completeProviderAuthentication("anthropic", "Anthropic", "oauth", unknown_model)
+    await asyncio.sleep(0)
 
     assert set_model_calls == ["claude-opus-4-7"]
     assert statuses == [

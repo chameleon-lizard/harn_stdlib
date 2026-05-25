@@ -63,6 +63,7 @@ from harnify_coding_agent.core.resource_loader import ResourceLoaderLike
 from harnify_coding_agent.core.session_manager import (
     CURRENT_SESSION_VERSION,
     SessionManager,
+    _dump_json,
     get_latest_compaction_entry,
 )
 from harnify_coding_agent.core.settings_manager import SettingsManager
@@ -1409,12 +1410,12 @@ class AgentSession:
         }
 
         branch_entries = self.sessionManager.getBranch()
-        lines = [json.dumps(header, ensure_ascii=False)]
+        lines = [_dump_json(header)]
         previous_id: str | None = None
         for entry in branch_entries:
             linear_entry = dict(entry)
             linear_entry["parentId"] = previous_id
-            lines.append(json.dumps(linear_entry, ensure_ascii=False))
+            lines.append(_dump_json(linear_entry))
             entry_id = entry.get("id")
             if isinstance(entry_id, str):
                 previous_id = entry_id

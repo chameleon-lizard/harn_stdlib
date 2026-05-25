@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 import time
 from typing import Any
 
@@ -161,6 +162,32 @@ def test_tui_input_listeners_follow_set_semantics() -> None:
     assert calls == ["x"]
 
 
+def test_tui_input_listener_iteration_matches_ts_live_set_behavior() -> None:
+    terminal = FakeTerminal()
+    tui = TUI(terminal)
+    calls: list[str] = []
+
+    def second(_data: str) -> None:
+        calls.append("second")
+        return None
+
+    def third(_data: str) -> None:
+        calls.append("third")
+        return None
+
+    def first(_data: str) -> None:
+        calls.append("first")
+        tui.removeInputListener(second)
+        tui.addInputListener(third)
+        return None
+
+    tui.addInputListener(first)
+    tui.addInputListener(second)
+    tui.handleInput("x")
+
+    assert calls == ["first", "third"]
+
+
 def test_tui_request_render_is_deferred_and_coalesced() -> None:
     terminal = FakeTerminal()
     tui = TUI(terminal)
@@ -179,6 +206,66 @@ def test_tui_request_render_is_deferred_and_coalesced() -> None:
     wait_for_tui_idle(tui)
     writes = "".join(terminal.writes)
     assert "two" in writes
+
+
+def test_tui_resolve_overlay_layout_matches_ts_nullish_and_invalid_fallbacks() -> None:
+    terminal = FakeTerminal(columns=100, rows=40)
+    tui = TUI(terminal)
+
+    zero_width = tui.resolveOverlayLayout({"width": 0}, 4, terminal.columns, terminal.rows)
+    invalid_position = tui.resolveOverlayLayout(
+        {"anchor": "bottom-right", "width": 10, "row": "bad", "col": "bad"},
+        4,
+        terminal.columns,
+        terminal.rows,
+    )
+
+    assert zero_width.width == 1
+    assert invalid_position.row == 18
+    assert invalid_position.col == 45
+
+
+def test_tui_debug_redraw_log_matches_ts_hook(monkeypatch: Any, tmp_path: Path) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("PI_DEBUG_REDRAW", "1")
+    log_dir = tmp_path / ".pi" / "agent"
+    log_dir.mkdir(parents=True)
+
+    terminal = FakeTerminal()
+    tui = TUI(terminal)
+    tui.addChild(DemoComponent(["one"]))
+
+    tui.start()
+    wait_for_tui_idle(tui)
+
+    log_text = (log_dir / "pi-debug.log").read_text(encoding="utf-8")
+    assert "fullRender: first render" in log_text
+
+
+def test_tui_debug_buffer_dump_matches_ts_hook(monkeypatch: Any) -> None:
+    monkeypatch.setenv("PI_TUI_DEBUG", "1")
+    debug_dir = Path("/tmp/tui")
+    before = set(debug_dir.glob("render-*.log")) if debug_dir.exists() else set()
+
+    terminal = FakeTerminal()
+    tui = TUI(terminal)
+    component = DemoComponent(["one"])
+    tui.addChild(component)
+
+    tui.start()
+    wait_for_tui_idle(tui)
+    component.lines = ["two"]
+    tui.requestRender()
+    wait_for_tui_idle(tui)
+
+    after = set(debug_dir.glob("render-*.log"))
+    created = after - before
+    assert created
+    for path in created:
+        text = path.read_text(encoding="utf-8")
+        assert "firstChanged:" in text
+        assert "=== buffer ===" in text
+        path.unlink()
 
 
 def test_tui_module_exports_match_ts_surface() -> None:

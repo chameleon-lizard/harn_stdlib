@@ -22,7 +22,6 @@ from harnify_ai.types import (
 from harnify_ai.utils.typebox_helpers import Static, TSchema
 from harnify_ai.utils.oauth.types import OAuthCredentials, OAuthLoginCallbacks
 from harnify_tui import (
-    AbortSignal,
     AutocompleteItem,
     AutocompleteProvider,
     Component,
@@ -30,6 +29,7 @@ from harnify_tui import (
     EditorTheme,
     KeyId,
     OverlayHandle,
+    OverlayOptions,
     TUI,
 )
 
@@ -63,6 +63,10 @@ TArgs = TypeVar("TArgs")
 TDetails = TypeVar("TDetails")
 TEvent = TypeVar("TEvent")
 TResult = TypeVar("TResult")
+
+
+class AbortSignal(Protocol):
+    aborted: bool
 
 type AppKeybinding = Literal[
     "app.interrupt",
@@ -192,7 +196,7 @@ class _SetThemeResult(TypedDict):
 
 class _CustomUIOptions(TypedDict, total=False):
     overlay: bool
-    overlayOptions: dict[str, Any] | Callable[[], dict[str, Any]]
+    overlayOptions: OverlayOptions | Callable[[], OverlayOptions]
     onHandle: Callable[[OverlayHandle], None]
 
 

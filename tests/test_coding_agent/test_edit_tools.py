@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from harnify_coding_agent.core.tools import (
@@ -14,6 +15,7 @@ from harnify_coding_agent.core.tools import (
 from harnify_coding_agent.core.tools import edit as edit_module
 from harnify_coding_agent.core.tools import edit_diff as edit_diff_module
 from harnify_coding_agent.core.tools.edit_diff import generate_diff_string, generate_unified_patch, strip_bom
+from harnify_tui import Box
 
 
 def _read(path: Path) -> str:
@@ -92,6 +94,51 @@ def test_edit_module_exports_match_ts_surface() -> None:
         "createEditTool",
         "createEditToolDefinition",
     ]
+
+
+def _fake_theme():
+    return SimpleNamespace(
+        fg=lambda _name, text: text,
+        bg=lambda _name, text: text,
+        bold=lambda text: text,
+    )
+
+
+def test_edit_render_call_reuses_plain_box_like_ts() -> None:
+    definition = create_edit_tool_definition(str(Path.cwd()))
+    last_component = Box(0, 0, lambda text: text)
+    context = SimpleNamespace(
+        state={},
+        lastComponent=last_component,
+        argsComplete=False,
+        cwd=str(Path.cwd()),
+        invalidate=lambda: None,
+    )
+
+    component = definition.renderCall({"path": "demo.txt"}, _fake_theme(), context)
+
+    assert component is last_component
+    assert context.state["callComponent"] is last_component
+    assert hasattr(component, "preview")
+    assert hasattr(component, "previewArgsKey")
+    assert hasattr(component, "previewPending")
+    assert hasattr(component, "settledError")
+
+
+def test_edit_render_result_reuses_non_container_last_component_like_ts() -> None:
+    definition = create_edit_tool_definition(str(Path.cwd()))
+    last_component = Box(0, 0, lambda text: text)
+    context = SimpleNamespace(
+        state={},
+        lastComponent=last_component,
+        args={"path": "demo.txt"},
+        isError=True,
+    )
+    result = SimpleNamespace(content=[SimpleNamespace(type="text", text="boom")], details=None)
+
+    rendered = definition.renderResult(result, {}, _fake_theme(), context)
+
+    assert rendered is last_component
 
 
 @pytest.mark.asyncio

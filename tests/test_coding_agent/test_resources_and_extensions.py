@@ -62,6 +62,7 @@ def test_prompt_templates_load_defaults_and_expand(tmp_path: Path) -> None:
     (cwd / CONFIG_DIR_NAME / "prompts").mkdir(parents=True)
     extra_dir = tmp_path / "extra-prompts"
     extra_dir.mkdir()
+    typed_template = tmp_path / "typed.md"
 
     (agent_dir / "prompts" / "global.md").write_text(
         "---\ndescription: Global template\nargument-hint: <name>\n---\nHello $1 from $ARGUMENTS",
@@ -69,22 +70,26 @@ def test_prompt_templates_load_defaults_and_expand(tmp_path: Path) -> None:
     )
     (cwd / CONFIG_DIR_NAME / "prompts" / "project.md").write_text("Project prompt body", encoding="utf-8")
     (extra_dir / "extra.md").write_text("---\n---\nExtra template", encoding="utf-8")
+    typed_template.write_text("---\ndescription: 7\nargument-hint: true\n---\nTyped body", encoding="utf-8")
 
     templates = load_prompt_templates(
         {
             "cwd": str(cwd),
             "agentDir": str(agent_dir),
-            "promptPaths": [str(extra_dir)],
+            "promptPaths": [str(extra_dir), str(typed_template)],
             "includeDefaults": True,
         }
     )
 
     names = [template.name for template in templates]
-    assert names == ["global", "project", "extra"]
+    assert names == ["global", "project", "extra", "typed"]
     assert templates[0].argumentHint == "<name>"
     assert templates[0].sourceInfo.scope == "user"
     assert templates[1].sourceInfo.scope == "project"
     assert templates[2].sourceInfo.scope == "temporary"
+    typed = next(template for template in templates if template.name == "typed")
+    assert typed.description == 7
+    assert typed.argumentHint is True
     from harnify_coding_agent.core import prompt_templates as prompt_templates_module
 
     assert prompt_templates_module.__all__ == [

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 from pathlib import Path
 
 import pytest
 from harnify_agent.types import AgentToolResult
-from harnify_coding_agent.config import CONFIG_DIR_NAME, ENV_AGENT_DIR
+from harnify_coding_agent.config import CONFIG_DIR_NAME, ENV_AGENT_DIR, get_themes_dir
 from harnify_coding_agent.core.extensions.loader import create_extension_runtime, discover_and_load_extensions
 from harnify_coding_agent.core.extensions.runner import ExtensionRunner
 from harnify_coding_agent.core.extensions.wrapper import wrap_registered_tools
@@ -20,6 +21,12 @@ from harnify_coding_agent.core.resource_loader import DefaultResourceLoader, loa
 from harnify_coding_agent.core.skills import Skill, format_skills_for_prompt, load_skills
 from harnify_coding_agent.core.source_info import create_synthetic_source_info
 from harnify_coding_agent.core.system_prompt import build_system_prompt
+
+
+def _write_valid_theme(path: Path, *, name: str) -> None:
+    payload = json.loads((Path(get_themes_dir()) / "dark.json").read_text(encoding="utf-8"))
+    payload["name"] = name
+    path.write_text(json.dumps(payload), encoding="utf-8")
 
 
 def test_core_messages_reexport_harness_behaviour() -> None:
@@ -372,7 +379,7 @@ async def test_resource_loader_supports_inline_extension_factories_dynamic_exten
 
     inline_theme_dir = tmp_path / "inline-themes"
     inline_theme_dir.mkdir()
-    (inline_theme_dir / "inline.json").write_text('{"name":"Inline Theme","accent":"red"}', encoding="utf-8")
+    _write_valid_theme(inline_theme_dir / "inline.json", name="Inline Theme")
 
     extra_skill_dir = cwd / CONFIG_DIR_NAME / "skills" / "extra-skill"
     extra_skill_dir.mkdir(parents=True)
@@ -393,8 +400,8 @@ async def test_resource_loader_supports_inline_extension_factories_dynamic_exten
     theme_dir_two = tmp_path / "theme-two"
     theme_dir_one.mkdir()
     theme_dir_two.mkdir()
-    (theme_dir_one / "shared.json").write_text('{"name":"Shared Theme","tone":"one"}', encoding="utf-8")
-    (theme_dir_two / "shared.json").write_text('{"name":"Shared Theme","tone":"two"}', encoding="utf-8")
+    _write_valid_theme(theme_dir_one / "shared.json", name="Shared Theme")
+    _write_valid_theme(theme_dir_two / "shared.json", name="Shared Theme")
 
     async def inline_factory(_api: object) -> None:
         return None

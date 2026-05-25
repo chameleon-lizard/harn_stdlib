@@ -24,7 +24,7 @@ def parse_changelog(changelog_path: str) -> list[ChangelogEntry]:
 
     try:
         lines = path.read_text(encoding="utf-8").split("\n")
-    except OSError as error:
+    except Exception as error:  # noqa: BLE001
         print(f"Warning: Could not parse changelog: {error}", file=sys.stderr)
         return []
 
@@ -102,11 +102,7 @@ parseChangelog = parse_changelog
 __all__ = [
     "ChangelogEntry",
     "compareVersions",
-    "compare_versions",
     "getChangelogPath",
     "getNewEntries",
-    "get_changelog_path",
-    "get_new_entries",
     "parseChangelog",
-    "parse_changelog",
 ]

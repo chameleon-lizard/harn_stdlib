@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -639,6 +640,7 @@ class InteractiveMode:
         self._activeSelectorHandle: Any | None = None
         self._toolComponentsById: dict[str, ToolExecutionComponent] = {}
         self._handleClearCount = 0
+        self.lastEscapeTime = float(getattr(self, "lastEscapeTime", 0))
         self.changelogMarkdown = getattr(self, "changelogMarkdown", None)
         self.startupNoticesShown = bool(getattr(self, "startupNoticesShown", False))
 

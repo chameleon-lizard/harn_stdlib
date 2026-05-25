@@ -30,9 +30,9 @@ from harnify_coding_agent.modes.interactive.components.keybinding_hints import (
     rawKeyHint,
 )
 from harnify_coding_agent.modes.interactive.components.session_selector_search import (
-    filter_and_sort_sessions,
-    has_session_name,
-    parse_search_query,
+    filterAndSortSessions,
+    hasSessionName,
+    parseSearchQuery,
 )
 from harnify_coding_agent.modes.interactive.components.show_images_selector import ShowImagesSelectorComponent
 from harnify_coding_agent.modes.interactive.components.theme_selector import ThemeSelectorComponent
@@ -66,6 +66,9 @@ extension_selector_module = importlib.import_module(
 )
 keybinding_hints_module = importlib.import_module(
     "harnify_coding_agent.modes.interactive.components.keybinding_hints"
+)
+session_selector_search_module = importlib.import_module(
+    "harnify_coding_agent.modes.interactive.components.session_selector_search"
 )
 
 
@@ -121,6 +124,20 @@ def test_keybinding_hints_module_exports_match_ts_surface() -> None:
         "keyHint",
         "keyText",
         "rawKeyHint",
+    ]
+
+
+def test_session_selector_search_module_exports_match_ts_surface() -> None:
+    assert session_selector_search_module.__all__ == [
+        "MatchResult",
+        "NameFilter",
+        "ParsedSearchQuery",
+        "SortMode",
+        "filterAndSortSessions",
+        "getSessionSearchText",
+        "hasSessionName",
+        "matchSession",
+        "parseSearchQuery",
     ]
 
 
@@ -410,15 +427,15 @@ def test_session_selector_search_parses_and_filters() -> None:
         ),
     ]
 
-    parsed = parse_search_query('parser "fix"')
+    parsed = parseSearchQuery('parser "fix"')
     assert [token.kind for token in parsed.tokens] == ["fuzzy", "phrase"]
-    assert has_session_name(sessions[0]) is True
-    assert has_session_name(sessions[1]) is False
+    assert hasSessionName(sessions[0]) is True
+    assert hasSessionName(sessions[1]) is False
 
-    named_only = filter_and_sort_sessions(sessions, "parser", "relevance", "named")
+    named_only = filterAndSortSessions(sessions, "parser", "relevance", "named")
     assert [session.id for session in named_only] == ["sess-a"]
 
-    regex_sorted = filter_and_sort_sessions(sessions, "re:theme", "recent", "all")
+    regex_sorted = filterAndSortSessions(sessions, "re:theme", "recent", "all")
     assert [session.id for session in regex_sorted] == ["sess-b"]
 
 

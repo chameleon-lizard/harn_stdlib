@@ -152,6 +152,42 @@ def test_skills_load_with_collisions_and_prompt_formatting(tmp_path: Path) -> No
     assert "<location>" in prompt
     assert result.skills[0].sourceInfo.scope == "user"
     assert result.skills[1].sourceInfo.scope == "project"
+    from harnify_coding_agent.core import skills as skills_module
+
+    assert skills_module.__all__ == [
+        "SkillFrontmatter",
+        "Skill",
+        "LoadSkillsResult",
+        "LoadSkillsFromDirOptions",
+        "loadSkillsFromDir",
+        "formatSkillsForPrompt",
+        "LoadSkillsOptions",
+        "loadSkills",
+    ]
+
+
+def test_skills_respect_explicit_empty_agent_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    current_dir = tmp_path / "current"
+    cwd = tmp_path / "project"
+    current_dir.mkdir()
+    cwd.mkdir()
+    monkeypatch.chdir(current_dir)
+
+    skill_dir = current_dir / "skills" / "local-skill"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("---\ndescription: Local description\n---\n# local", encoding="utf-8")
+
+    result = load_skills(
+        {
+            "cwd": str(cwd),
+            "agentDir": "",
+            "skillPaths": [],
+            "includeDefaults": True,
+        }
+    )
+
+    assert [skill.name for skill in result.skills] == ["local-skill"]
+    assert result.skills[0].sourceInfo.scope == "user"
 
 
 @pytest.mark.asyncio

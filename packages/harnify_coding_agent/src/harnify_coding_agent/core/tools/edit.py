@@ -218,7 +218,7 @@ def _create_abort_wait_task(signal: Any | None) -> tuple[asyncio.Task[None] | No
             if callable(remove_listener):
                 remove_listener("abort", _on_abort)
 
-        return asyncio.create_task(future), _cleanup
+        return asyncio.ensure_future(future), _cleanup
 
     async def _poll_abort() -> None:
         while not _is_aborted(signal):

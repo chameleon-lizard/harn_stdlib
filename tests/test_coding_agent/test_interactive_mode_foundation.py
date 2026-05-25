@@ -2929,6 +2929,7 @@ async def test_handle_tree_select_prompts_for_summary_and_passes_custom_instruct
             navigateTree=navigate_tree,
             abortBranchSummary=lambda: calls.append(("abort", None)),
         ),
+        chatContainer=SimpleNamespace(addChild=lambda child: calls.append(("chat", child))),
         statusContainer=SimpleNamespace(
             children=[],
             clear=lambda: calls.append(("clear-status", None)),
@@ -2948,6 +2949,7 @@ async def test_handle_tree_select_prompts_for_summary_and_passes_custom_instruct
     await mode._handle_tree_select("entry-2", "entry-1", lambda: calls.append(("done", None)))
 
     assert ("done", None) in calls
+    assert any(name == "chat" for name, _value in calls)
     assert any(name == "loader" for name, _value in calls)
     assert ("render", None) in calls
     assert calls[-1] == ("clear-status", None)

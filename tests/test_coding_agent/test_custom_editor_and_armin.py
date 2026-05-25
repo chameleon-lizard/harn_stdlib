@@ -132,3 +132,7 @@ def test_armin_component_advances_frame_and_requests_render(monkeypatch) -> None
     assert component.currentGrid[0][:3] == component.finalGrid[0][:3]
     assert component.gridVersion == initial_version + 1
     assert ui.render_calls == [None]
+
+
+def test_armin_module_exports_match_ts_surface() -> None:
+    assert armin_module.__all__ == ["ArminComponent"]

@@ -7,7 +7,7 @@ import random
 import threading
 from typing import Any, Literal
 
-from harnify_tui import TUI, visibleWidth
+from harnify_tui import TUI
 
 from harnify_coding_agent.modes.interactive.theme.theme import theme
 
@@ -231,27 +231,20 @@ class ArminComponent:
         del data
 
     def render(self, width: int) -> list[str]:
-        width = max(0, width)
         if width == self.cachedWidth and self.cachedVersion == self.gridVersion:
             return self.cachedLines
 
-        if width == 0:
-            self.cachedLines = [""] * (DISPLAY_HEIGHT + 1)
-            self.cachedWidth = width
-            self.cachedVersion = self.gridVersion
-            return self.cachedLines
-
         padding = 1
-        available_width = max(0, width - padding)
+        available_width = width - padding
         rendered: list[str] = []
 
         for row in self.currentGrid:
             clipped = "".join(row[:available_width])
-            pad_right = max(0, width - padding - visibleWidth(clipped))
+            pad_right = max(0, width - padding - len(clipped))
             rendered.append(f" {theme.fg('accent', clipped)}{' ' * pad_right}")
 
-        message = "ARMIN SAYS HI"[:available_width]
-        msg_pad_right = max(0, width - padding - visibleWidth(message))
+        message = "ARMIN SAYS HI"
+        msg_pad_right = max(0, width - padding - len(message))
         rendered.append(f" {theme.fg('accent', message)}{' ' * msg_pad_right}")
 
         self.cachedLines = rendered
@@ -489,16 +482,4 @@ buildFinalGrid = build_final_grid
 
 __all__ = [
     "ArminComponent",
-    "BITS",
-    "BYTES_PER_ROW",
-    "DISPLAY_HEIGHT",
-    "EFFECTS",
-    "HEIGHT",
-    "WIDTH",
-    "buildFinalGrid",
-    "build_final_grid",
-    "getChar",
-    "getPixel",
-    "get_char",
-    "get_pixel",
 ]

@@ -2040,10 +2040,6 @@ async def test_run_shows_version_notification_from_background_check(monkeypatch:
         "harnify_coding_agent.modes.interactive.interactive_mode.check_for_new_pi_version",
         fake_version_check,
     )
-    monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.get_update_instruction",
-        lambda _package_name: "Run: upgrade-pi",
-    )
     monkeypatch.setattr(interactive_mode_module, "ensureTool", _noop_async)
 
     mode = InteractiveMode(ui=ui)
@@ -2067,7 +2063,7 @@ async def test_run_shows_version_notification_from_background_check(monkeypatch:
 
     stripped = _strip_ansi(rendered)
     assert "Update Available" in stripped
-    assert "New version 9.9.9 is available. Run: upgrade-pi" in stripped
+    assert f"New version 9.9.9 is available. Run {APP_NAME} update" in stripped
     assert "Changelog:" in stripped
 
 

@@ -220,6 +220,8 @@ class RpcClient:
         unsubscribe = self.on_event(listener)
         try:
             await asyncio.wait_for(future, timeout=timeout)
+        except TimeoutError as error:
+            raise RuntimeError(f"Timeout waiting for agent to become idle. Stderr: {self._stderr}") from error
         finally:
             unsubscribe()
 
@@ -235,6 +237,8 @@ class RpcClient:
         unsubscribe = self.on_event(listener)
         try:
             return await asyncio.wait_for(future, timeout=timeout)
+        except TimeoutError as error:
+            raise RuntimeError(f"Timeout collecting events. Stderr: {self._stderr}") from error
         finally:
             unsubscribe()
 
@@ -282,7 +286,9 @@ class RpcClient:
             chunk = await self.process.stderr.read(4096)
             if not chunk:
                 break
-            self._stderr += chunk.decode("utf-8", errors="replace")
+            text = chunk.decode("utf-8", errors="replace")
+            self._stderr += text
+            sys.stderr.write(text)
 
     def _handle_line(self, line: str) -> None:
         try:
@@ -326,6 +332,34 @@ class RpcClient:
         if not response.get("success", False):
             raise RuntimeError(str(response.get("error", "Unknown RPC error")))
         return response.get("data")
+
+    onEvent = on_event
+    getStderr = get_stderr
+    followUp = follow_up
+    newSession = new_session
+    getState = get_state
+    setModel = set_model
+    cycleModel = cycle_model
+    getAvailableModels = get_available_models
+    setThinkingLevel = set_thinking_level
+    cycleThinkingLevel = cycle_thinking_level
+    setSteeringMode = set_steering_mode
+    setFollowUpMode = set_follow_up_mode
+    setAutoCompaction = set_auto_compaction
+    setAutoRetry = set_auto_retry
+    abortRetry = abort_retry
+    abortBash = abort_bash
+    getSessionStats = get_session_stats
+    exportHtml = export_html
+    switchSession = switch_session
+    getForkMessages = get_fork_messages
+    getLastAssistantText = get_last_assistant_text
+    setSessionName = set_session_name
+    getMessages = get_messages
+    getCommands = get_commands
+    waitForIdle = wait_for_idle
+    collectEvents = collect_events
+    promptAndWait = prompt_and_wait
 
 
 RpcClientOptions = RpcClientOptions

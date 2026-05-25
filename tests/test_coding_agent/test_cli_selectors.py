@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,8 @@ from harnify_coding_agent.core.session_cwd import SessionCwdIssue
 from harnify_coding_agent.core.package_manager import ResolvedPaths
 from harnify_coding_agent.core.settings_manager import SettingsManager
 from harnify_coding_agent.main import main, prompt_for_missing_session_cwd
-from harnify_coding_agent.package_manager_cli import handle_config_command
+import harnify_coding_agent.package_manager_cli as package_manager_cli_module
+from harnify_coding_agent.package_manager_cli import handle_config_command, handle_package_command
 
 
 class _FakeTerminal:
@@ -192,9 +194,10 @@ async def test_handle_config_command_uses_real_package_resolution(
 
     monkeypatch.setattr("harnify_coding_agent.package_manager_cli.select_config", fake_select_config)
 
-    code = await handle_config_command(["config"])
+    handled = await handle_config_command(["config"])
 
-    assert code == 0
+    assert handled is True
+    assert package_manager_cli_module._take_command_exit_code() == 0
     assert captured[0]["cwd"] == str(project)
     assert captured[0]["agentDir"] == str(agent_dir)
     assert isinstance(captured[0]["settingsManager"], SettingsManager)
@@ -238,6 +241,71 @@ async def test_main_routes_package_command_before_normal_arg_parsing(monkeypatch
     monkeypatch.setattr("harnify_coding_agent.main.handle_config_command", fail_config_command)
 
     assert await main(["install", "demo"]) == 23
+
+
+@pytest.mark.asyncio
+async def test_main_routes_package_command_boolean_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_package_command(_args: list[str]) -> bool:
+        return True
+
+    async def fail_config_command(_args: list[str]) -> int | None:
+        raise AssertionError("config command should not run")
+
+    monkeypatch.setattr("harnify_coding_agent.main.handle_package_command", fake_package_command)
+    monkeypatch.setattr("harnify_coding_agent.main.handle_config_command", fail_config_command)
+    monkeypatch.setattr("harnify_coding_agent.main._take_command_exit_code", lambda: 17)
+
+    assert await main(["install", "demo"]) == 17
+
+
+@pytest.mark.asyncio
+async def test_handle_package_command_reports_invalid_option_for_command(monkeypatch: pytest.MonkeyPatch) -> None:
+    stderr = io.StringIO()
+    monkeypatch.setattr("sys.stderr", stderr)
+
+    handled = await handle_package_command(["install", "--self"])
+
+    assert handled is True
+    assert package_manager_cli_module._take_command_exit_code() == 1
+    assert 'Unknown option --self for "install".' in stderr.getvalue()
+    assert f'Use "{APP_NAME} --help" or "{APP_NAME} install <source> [-l]".' in stderr.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_handle_package_command_supports_extension_update_target(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    agent_dir = tmp_path / "agent"
+    agent_dir.mkdir()
+    monkeypatch.chdir(project)
+    monkeypatch.setenv(f"{APP_NAME.upper()}_CODING_AGENT_DIR", str(agent_dir))
+    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: SettingsManager.inMemory())
+
+    calls: list[str | None] = []
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    monkeypatch.setattr("sys.stdout", stdout)
+    monkeypatch.setattr("sys.stderr", stderr)
+
+    class FakePackageManager:
+        def __init__(self, _options: object) -> None:
+            return None
+
+        async def update(self, source: str | None = None) -> None:
+            calls.append(source)
+
+    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.DefaultPackageManager", FakePackageManager)
+
+    handled = await handle_package_command(["update", "--extension", "npm:demo"])
+
+    assert handled is True
+    assert package_manager_cli_module._take_command_exit_code() == 0
+    assert calls == ["npm:demo"]
+    assert stdout.getvalue() == ""
+    assert stderr.getvalue() == ""
 
 
 @pytest.mark.asyncio

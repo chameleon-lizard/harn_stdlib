@@ -645,6 +645,11 @@ class InteractiveMode:
         self.compactionQueuedMessages = list(getattr(self, "compactionQueuedMessages", []))
         self.pendingBashComponents = list(getattr(self, "pendingBashComponents", []))
         self.bashComponent = getattr(self, "bashComponent", None)
+        self.streamingComponent = getattr(self, "streamingComponent", None)
+        self.streamingMessage = getattr(self, "streamingMessage", None)
+        self.retryEscapeHandler = getattr(self, "retryEscapeHandler", None)
+        self.retryCountdown = getattr(self, "retryCountdown", None)
+        self.retryLoader = getattr(self, "retryLoader", None)
         self._shutdownFuture: asyncio.Future[int] | None = None
         self._backgroundTasks: set[asyncio.Task[Any]] = set()
         self._sessionUnsubscribe: Callable[[], None] | None = None

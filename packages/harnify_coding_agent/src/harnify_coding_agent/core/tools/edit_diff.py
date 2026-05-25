@@ -8,6 +8,7 @@ import errno as errno_module
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterator
 
 from harnify_coding_agent.core.tools.path_utils import resolve_to_cwd
 
@@ -50,6 +51,23 @@ class _MatchedEdit:
     matchIndex: int
     matchLength: int
     newText: str
+
+
+@dataclass(slots=True)
+class _StripBomResult:
+    bom: str
+    text: str
+
+    def __iter__(self) -> Iterator[str]:
+        yield self.bom
+        yield self.text
+
+
+@dataclass(slots=True)
+class _DiffPart:
+    value: str
+    added: bool = False
+    removed: bool = False
 
 
 def detect_line_ending(content: str) -> str:
@@ -134,8 +152,8 @@ def fuzzy_find_text(content: str, old_text: str) -> FuzzyMatchResult:
     )
 
 
-def strip_bom(content: str) -> tuple[str, str]:
-    return ("\ufeff", content[1:]) if content.startswith("\ufeff") else ("", content)
+def strip_bom(content: str) -> _StripBomResult:
+    return _StripBomResult(bom="\ufeff", text=content[1:]) if content.startswith("\ufeff") else _StripBomResult(bom="", text=content)
 
 
 def _count_occurrences(content: str, old_text: str) -> int:
@@ -249,51 +267,74 @@ def apply_edits_to_normalized_content(
 
 
 def generate_unified_patch(path: str, old_content: str, new_content: str, context_lines: int = 4) -> str:
-    return "\n".join(
+    return "".join(
         difflib.unified_diff(
-            old_content.splitlines(),
-            new_content.splitlines(),
+            old_content.splitlines(keepends=True),
+            new_content.splitlines(keepends=True),
             fromfile=path,
             tofile=path,
             n=context_lines,
-            lineterm="",
         )
     )
 
 
+def _diff_lines(old_content: str, new_content: str) -> list[_DiffPart]:
+    old_chunks = old_content.splitlines(keepends=True)
+    new_chunks = new_content.splitlines(keepends=True)
+    matcher = difflib.SequenceMatcher(a=old_chunks, b=new_chunks)
+
+    parts: list[_DiffPart] = []
+    for tag, old_start, old_end, new_start, new_end in matcher.get_opcodes():
+        if tag == "equal":
+            parts.append(_DiffPart(value="".join(old_chunks[old_start:old_end])))
+        elif tag == "delete":
+            parts.append(_DiffPart(value="".join(old_chunks[old_start:old_end]), removed=True))
+        elif tag == "insert":
+            parts.append(_DiffPart(value="".join(new_chunks[new_start:new_end]), added=True))
+        elif tag == "replace":
+            removed_value = "".join(old_chunks[old_start:old_end])
+            added_value = "".join(new_chunks[new_start:new_end])
+            if removed_value:
+                parts.append(_DiffPart(value=removed_value, removed=True))
+            if added_value:
+                parts.append(_DiffPart(value=added_value, added=True))
+    return parts
+
+
 def generate_diff_string(old_content: str, new_content: str, context_lines: int = 4) -> EditDiffResult:
+    parts = _diff_lines(old_content, new_content)
+
     old_lines = old_content.split("\n")
     new_lines = new_content.split("\n")
-    line_num_width = len(str(max(len(old_lines), len(new_lines))))
-    matcher = difflib.SequenceMatcher(a=old_content.splitlines(), b=new_content.splitlines())
-    opcodes = matcher.get_opcodes()
-
+    max_line_num = max(len(old_lines), len(new_lines))
+    line_num_width = len(str(max_line_num))
     output: list[str] = []
     old_line_num = 1
     new_line_num = 1
     last_was_change = False
     first_changed_line: int | None = None
 
-    for opcode_index, (tag, old_start, old_end, new_start, new_end) in enumerate(opcodes):
-        if tag in {"replace", "delete", "insert"}:
+    for part_index, part in enumerate(parts):
+        raw = part.value.split("\n")
+        if raw and raw[-1] == "":
+            raw.pop()
+
+        if part.added or part.removed:
             if first_changed_line is None:
                 first_changed_line = new_line_num
 
-            if tag in {"replace", "delete"}:
-                for line in old_lines[old_start:old_end]:
-                    output.append(f"-{str(old_line_num).rjust(line_num_width)} {line}")
-                    old_line_num += 1
-
-            if tag in {"replace", "insert"}:
-                for line in new_lines[new_start:new_end]:
+            for line in raw:
+                if part.added:
                     output.append(f"+{str(new_line_num).rjust(line_num_width)} {line}")
                     new_line_num += 1
+                else:
+                    output.append(f"-{str(old_line_num).rjust(line_num_width)} {line}")
+                    old_line_num += 1
 
             last_was_change = True
             continue
 
-        raw = old_lines[old_start:old_end]
-        next_part_is_change = opcode_index < len(opcodes) - 1 and opcodes[opcode_index + 1][0] != "equal"
+        next_part_is_change = part_index < len(parts) - 1 and (parts[part_index + 1].added or parts[part_index + 1].removed)
         has_leading_change = last_was_change
         has_trailing_change = next_part_is_change
 
@@ -361,14 +402,20 @@ def _format_access_error(error: BaseException) -> str:
     return str(error)
 
 
+def _check_readable_file(absolute_path: str) -> None:
+    with open(absolute_path, "rb"):
+        return None
+
+
 async def compute_edits_diff(path: str, edits: list[Edit | dict[str, str]], cwd: str) -> EditDiffResult | EditDiffError:
     absolute_path = resolve_to_cwd(path, cwd)
     try:
-        raw_content = await asyncio.to_thread(Path(absolute_path).read_text, encoding="utf-8")
-    except Exception as error:
-        return EditDiffError(error=f"Could not edit file: {path}. {_format_access_error(error)}.")
+        try:
+            await asyncio.to_thread(_check_readable_file, absolute_path)
+        except BaseException as error:
+            return EditDiffError(error=f"Could not edit file: {path}. {_format_access_error(error)}.")
 
-    try:
+        raw_content = await asyncio.to_thread(Path(absolute_path).read_text, encoding="utf-8")
         _bom, content = strip_bom(raw_content)
         normalized_content = normalize_to_lf(content)
         applied = apply_edits_to_normalized_content(normalized_content, edits, path)
@@ -400,25 +447,14 @@ __all__ = [
     "EditDiffResult",
     "FuzzyMatchResult",
     "applyEditsToNormalizedContent",
-    "apply_edits_to_normalized_content",
     "computeEditDiff",
     "computeEditsDiff",
-    "compute_edit_diff",
-    "compute_edits_diff",
     "detectLineEnding",
-    "detect_line_ending",
     "fuzzyFindText",
-    "fuzzy_find_text",
     "generateDiffString",
     "generateUnifiedPatch",
-    "generate_diff_string",
-    "generate_unified_patch",
     "normalizeForFuzzyMatch",
     "normalizeToLF",
-    "normalize_for_fuzzy_match",
-    "normalize_to_lf",
     "restoreLineEndings",
-    "restore_line_endings",
     "stripBom",
-    "strip_bom",
 ]

@@ -38,6 +38,7 @@ from harnify_coding_agent.core.tools import output_accumulator as output_accumul
 from harnify_coding_agent.core.tools import path_utils as path_utils_module
 from harnify_coding_agent.core.tools import render_utils as render_utils_module
 from harnify_coding_agent.core.tools import tool_definition_wrapper as tool_definition_wrapper_module
+from harnify_coding_agent.core.tools import truncate as truncate_module
 
 
 def test_truncate_head_honors_line_and_byte_limits() -> None:
@@ -63,6 +64,20 @@ def test_truncate_line_and_format_size() -> None:
     assert truncate_line("abcdef", 3) == {"text": "abc... [truncated]", "wasTruncated": True}
     assert format_size(999) == "999B"
     assert format_size(2048) == "2.0KB"
+
+
+def test_truncate_module_exports_match_ts_surface() -> None:
+    assert truncate_module.__all__ == [
+        "DEFAULT_MAX_BYTES",
+        "DEFAULT_MAX_LINES",
+        "GREP_MAX_LINE_LENGTH",
+        "TruncationOptions",
+        "TruncationResult",
+        "formatSize",
+        "truncateHead",
+        "truncateLine",
+        "truncateTail",
+    ]
 
 
 def test_expand_and_resolve_paths(tmp_path: Path) -> None:

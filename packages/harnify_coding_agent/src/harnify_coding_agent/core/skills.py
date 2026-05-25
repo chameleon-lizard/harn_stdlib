@@ -3,21 +3,24 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypedDict
 
 from pathspec import GitIgnoreSpec
-from ruamel.yaml import YAML
 
-from harnify_coding_agent.config import CONFIG_DIR_NAME
+from harnify_coding_agent.config import CONFIG_DIR_NAME as _CONFIG_DIR_NAME
+from harnify_coding_agent.config import get_agent_dir
 from harnify_coding_agent.core.diagnostics import ResourceCollision, ResourceDiagnostic
 from harnify_coding_agent.core.source_info import SourceInfo, create_synthetic_source_info
+from harnify_coding_agent.utils.frontmatter import parse_frontmatter
 from harnify_coding_agent.utils.paths import canonicalize_path, resolve_path
 
-MAX_NAME_LENGTH = 64
-MAX_DESCRIPTION_LENGTH = 1024
-IGNORE_FILE_NAMES = [".gitignore", ".ignore", ".fdignore"]
+_MAX_NAME_LENGTH = 64
+_MAX_DESCRIPTION_LENGTH = 1024
+_IGNORE_FILE_NAMES = [".gitignore", ".ignore", ".fdignore"]
+_VALID_SKILL_NAME_RE = re.compile(r"^[a-z0-9-]+$")
 
 
 @dataclass(slots=True)
@@ -46,6 +49,17 @@ class LoadSkillsOptions(TypedDict):
     agentDir: str
     skillPaths: list[str]
     includeDefaults: bool
+
+
+SkillFrontmatter = TypedDict(
+    "SkillFrontmatter",
+    {
+        "name": str,
+        "description": str,
+        "disable-model-invocation": bool,
+    },
+    total=False,
+)
 
 
 class _IgnoreMatcher:

@@ -62,6 +62,11 @@ from harnify_coding_agent.utils.windows_self_update import cleanup_windows_self_
 AppMode = Literal["interactive", "print", "json", "rpc"]
 PrintOutputMode = Literal["text", "json"]
 
+_RED = "\x1b[31m"
+_YELLOW = "\x1b[33m"
+_DIM = "\x1b[2m"
+_RESET = "\x1b[0m"
+
 
 @dataclass(slots=True)
 class RuntimeDiagnostic:
@@ -142,8 +147,28 @@ def report_diagnostics(
 ) -> None:
     output = stream or sys.stderr
     for diagnostic in diagnostics:
+        color = _RED if diagnostic.type == "error" else _YELLOW if diagnostic.type == "warning" else _DIM
         prefix = "Error: " if diagnostic.type == "error" else "Warning: " if diagnostic.type == "warning" else ""
-        output.write(f"{prefix}{diagnostic.message}\n")
+        output.write(f"{color}{prefix}{diagnostic.message}{_RESET}\n")
+
+
+async def _drain_output_stream(stream: Any) -> None:
+    writable_length = getattr(stream, "writableLength", None)
+    once = getattr(stream, "once", None)
+    if isinstance(writable_length, int) and writable_length > 0 and callable(once):
+        future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+
+        def _on_drain(*_args: Any) -> None:
+            if not future.done():
+                future.set_result(None)
+
+        once("drain", _on_drain)
+        await future
+        return
+
+    flush = getattr(stream, "flush", None)
+    if callable(flush):
+        flush()
 
 
 async def prepare_initial_message(
@@ -729,12 +754,8 @@ async def main(args: list[str], options: MainOptions | None = None) -> int:
                 print_timings()
                 interactive_mode.stop()
                 stop_theme_watcher()
-                flush_stdout = getattr(sys.stdout, "flush", None)
-                if callable(flush_stdout):
-                    flush_stdout()
-                flush_stderr = getattr(sys.stderr, "flush", None)
-                if callable(flush_stderr):
-                    flush_stderr()
+                await _drain_output_stream(sys.stdout)
+                await _drain_output_stream(sys.stderr)
                 return 0
 
             print_timings()

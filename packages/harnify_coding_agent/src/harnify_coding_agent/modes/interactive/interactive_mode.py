@@ -131,7 +131,6 @@ from harnify_coding_agent.modes.interactive.components.settings_selector import 
 from harnify_coding_agent.modes.interactive.components.skill_invocation_message import (
     SkillInvocationMessageComponent,
 )
-from harnify_coding_agent.modes.interactive.components.theme_selector import ThemeSelectorComponent
 from harnify_coding_agent.modes.interactive.components.tool_execution import ToolExecutionComponent
 from harnify_coding_agent.modes.interactive.components.tree_selector import TreeSelectorComponent
 from harnify_coding_agent.modes.interactive.components.user_message import UserMessageComponent

@@ -1781,7 +1781,7 @@ class DefaultPackageManager:
         target: dict[str, tuple[PathMetadata, bool]],
         metadata: PathMetadata,
     ) -> None:
-        all_files = self._collect_manifest_files(package_root, resource_type)
+        all_files = self._collect_manifest_files(package_root, resource_type).allFiles
         if not user_patterns:
             for file_path in all_files:
                 self._add_resource(target, file_path, metadata, False)
@@ -1790,22 +1790,23 @@ class DefaultPackageManager:
         for file_path in all_files:
             self._add_resource(target, file_path, metadata, file_path in enabled_paths)
 
-    def _collect_manifest_files(self, package_root: str, resource_type: ResourceType) -> list[str]:
+    def _collect_manifest_files(self, package_root: str, resource_type: ResourceType) -> _ManifestFiles:
         manifest = _read_pi_manifest(package_root)
         entries = manifest.get(resource_type) if manifest else None
         if entries:
             all_files = self._collect_files_from_manifest_entries(entries, package_root, resource_type)
             manifest_patterns = [entry for entry in entries if _is_override_pattern(entry)]
-            enabled = (
+            enabled_by_manifest = (
                 _apply_patterns(all_files, manifest_patterns, package_root)
                 if manifest_patterns
                 else set(all_files)
             )
-            return list(enabled)
+            return _ManifestFiles(allFiles=list(enabled_by_manifest), enabledByManifest=enabled_by_manifest)
         convention_dir = os.path.join(package_root, resource_type)
         if not os.path.exists(convention_dir):
-            return []
-        return _collect_resource_files(convention_dir, resource_type)
+            return _ManifestFiles(allFiles=[], enabledByManifest=set())
+        all_files = _collect_resource_files(convention_dir, resource_type)
+        return _ManifestFiles(allFiles=all_files, enabledByManifest=set(all_files))
 
     def _add_manifest_entries(
         self,
@@ -1835,7 +1836,8 @@ class DefaultPackageManager:
         for entry in source_entries:
             if _has_glob_pattern(entry):
                 resolved_paths.extend(
-                    os.path.abspath(match) for match in glob.glob(os.path.join(root, entry), recursive=True)
+                    os.path.abspath(os.path.join(root, match))
+                    for match in wc_glob.glob(entry, root_dir=root, flags=_GLOB_MATCH_FLAGS)
                 )
             else:
                 resolved_paths.append(os.path.abspath(os.path.join(root, entry)))
@@ -1893,7 +1895,12 @@ class DefaultPackageManager:
             resource_type: os.path.join(project_base_dir, resource_type)
             for resource_type in RESOURCE_TYPES
         }
-        project_agents_skill_dirs = _collect_ancestor_agents_skill_dirs(self.cwd)
+        user_agents_skills_dir = os.path.join(_get_home_dir(), ".agents", "skills")
+        project_agents_skill_dirs = [
+            directory
+            for directory in _collect_ancestor_agents_skill_dirs(self.cwd)
+            if os.path.abspath(directory) != os.path.abspath(user_agents_skills_dir)
+        ]
 
         def add_resources(
             resource_type: ResourceType,
@@ -1902,15 +1909,9 @@ class DefaultPackageManager:
             overrides: list[str],
             base_dir: str,
         ) -> None:
-            override_patterns = [pattern for pattern in overrides if _is_override_pattern(pattern)]
             target = self._get_target_map(accumulator, resource_type)
             for path in paths:
-                self._add_resource(
-                    target,
-                    path,
-                    metadata,
-                    self._is_enabled_by_overrides(path, override_patterns, base_dir),
-                )
+                self._add_resource(target, path, metadata, self._is_enabled_by_overrides(path, overrides, base_dir))
 
         add_resources(
             "extensions",
@@ -1921,7 +1922,7 @@ class DefaultPackageManager:
         )
         add_resources(
             "skills",
-            _collect_skill_entries(project_dirs["skills"], "pi"),
+            _collect_auto_skill_entries(project_dirs["skills"], "pi"),
             project_metadata,
             project_overrides["skills"],
             project_base_dir,
@@ -1930,7 +1931,7 @@ class DefaultPackageManager:
             agents_base_dir = os.path.dirname(agents_dir)
             add_resources(
                 "skills",
-                _collect_skill_entries(agents_dir, "agents"),
+                _collect_auto_skill_entries(agents_dir, "agents"),
                 {
                     "source": "auto",
                     "scope": "project",
@@ -1964,10 +1965,23 @@ class DefaultPackageManager:
         )
         add_resources(
             "skills",
-            _collect_skill_entries(user_dirs["skills"], "pi"),
+            _collect_auto_skill_entries(user_dirs["skills"], "pi"),
             user_metadata,
             user_overrides["skills"],
             global_base_dir,
+        )
+        user_agents_base_dir = os.path.dirname(user_agents_skills_dir)
+        add_resources(
+            "skills",
+            _collect_auto_skill_entries(user_agents_skills_dir, "agents"),
+            {
+                "source": "auto",
+                "scope": "user",
+                "origin": "top-level",
+                "baseDir": user_agents_base_dir,
+            },
+            user_overrides["skills"],
+            user_agents_base_dir,
         )
         add_resources(
             "prompts",
@@ -2013,11 +2027,12 @@ class DefaultPackageManager:
         enabled: bool,
     ) -> None:
         if path and path not in target:
-            target[path] = (dict(metadata), enabled)
+            target[path] = (metadata, enabled)
 
     def _is_enabled_by_overrides(self, path: str, patterns: list[str], base_dir: str) -> bool:
         if not patterns:
             return True
+        patterns = [pattern for pattern in patterns if _is_override_pattern(pattern)]
         enabled = True
         excludes = [pattern[1:] for pattern in patterns if pattern.startswith("!")]
         force_includes = [pattern[1:] for pattern in patterns if pattern.startswith("+")]

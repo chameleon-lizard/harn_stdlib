@@ -3070,14 +3070,6 @@ class InteractiveMode:
             self._set_editor_text("")
             await self.handleExportCommand(text)
             return
-        if text == "/theme":
-            self._set_editor_text("")
-            self.showThemeSelector()
-            return
-        if text.startswith("/theme "):
-            self._set_editor_text("")
-            await self.handleThemeCommand(text[7:].strip())
-            return
         if text == "/import" or text.startswith("/import "):
             await self.handleImportCommand(text)
             self._set_editor_text("")

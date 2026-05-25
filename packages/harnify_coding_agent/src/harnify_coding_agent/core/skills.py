@@ -326,23 +326,10 @@ def _create_skill_source_info(file_path: str, base_dir: str, source: str) -> Sou
     return create_synthetic_source_info(file_path, {"source": source, "baseDir": base_dir})
 
 
-def _parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
-    normalized = content.replace("\r\n", "\n").replace("\r", "\n")
-    if not normalized.startswith("---"):
-        return {}, normalized
-    end_index = normalized.find("\n---", 3)
-    if end_index == -1:
-        return {}, normalized
-    yaml_string = normalized[4:end_index]
-    body = normalized[end_index + 4 :].strip()
-    data = _yaml_load(yaml_string) or {}
-    return (data if isinstance(data, dict) else {}, body)
-
-
 def _add_ignore_rules(matcher: _IgnoreMatcher, dir_path: str, root_dir: str) -> None:
     relative_dir = os.path.relpath(dir_path, root_dir)
     prefix = f"{_to_posix_path(relative_dir)}/" if relative_dir != "." else ""
-    for filename in IGNORE_FILE_NAMES:
+    for filename in _IGNORE_FILE_NAMES:
         ignore_path = os.path.join(dir_path, filename)
         if not os.path.exists(ignore_path):
             continue
@@ -406,38 +393,17 @@ def _escape_xml(value: str) -> str:
     )
 
 
-def _yaml_load(content: str) -> Any:
-    yaml = YAML(typ="safe")
-    return yaml.load(content)
-
-
-def _string_or_none(value: Any) -> str | None:
-    return str(value) if isinstance(value, str) else None
-
-
-def _default_agent_dir() -> str:
-    return str(Path.home() / ".harnify" / "agent")
-
-
 formatSkillsForPrompt = format_skills_for_prompt
 loadSkills = load_skills
 loadSkillsFromDir = load_skills_from_dir
 
 __all__ = [
-    "CONFIG_DIR_NAME",
-    "IGNORE_FILE_NAMES",
-    "LoadSkillsFromDirOptions",
-    "LoadSkillsOptions",
-    "LoadSkillsResult",
-    "MAX_DESCRIPTION_LENGTH",
-    "MAX_NAME_LENGTH",
+    "SkillFrontmatter",
     "Skill",
-    "formatSkillsForPrompt",
-    "format_skills_for_prompt",
-    "loadSkills",
+    "LoadSkillsResult",
+    "LoadSkillsFromDirOptions",
     "loadSkillsFromDir",
-    "load_skills",
-    "load_skills_from_dir",
-    "validate_description",
-    "validate_name",
+    "formatSkillsForPrompt",
+    "LoadSkillsOptions",
+    "loadSkills",
 ]

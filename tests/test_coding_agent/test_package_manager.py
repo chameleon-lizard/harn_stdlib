@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 import harnify_coding_agent.core.package_manager as package_manager_module
+from harnify_coding_agent.config import CONFIG_DIR_NAME
 from harnify_coding_agent.core.package_manager import DefaultPackageManager
 from harnify_coding_agent.core.resource_loader import DefaultResourceLoader
 from harnify_coding_agent.core.settings_manager import SettingsManager
@@ -278,7 +279,7 @@ async def test_resource_loader_loads_project_and_cli_package_resources(tmp_path:
     agent_dir = tmp_path / "agent"
     agent_dir.mkdir()
 
-    project_package = cwd / ".harnify" / "packages" / "project-addon"
+    project_package = cwd / CONFIG_DIR_NAME / "packages" / "project-addon"
     cli_package = tmp_path / "cli-addon"
     _write_package(
         project_package,

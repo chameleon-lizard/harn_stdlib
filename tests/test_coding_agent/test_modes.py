@@ -162,19 +162,16 @@ def test_rpc_types_optional_shapes_match_ts() -> None:
     assert typing.get_origin(slash_hints["description"]) is typing.NotRequired
     assert typing.get_args(slash_hints["description"]) == (str,)
 
-    state_hints = typing.get_type_hints(rpc_types_module.RpcSessionState, include_extras=True)
-    for name in ("model", "sessionFile", "sessionName"):
-        assert typing.get_origin(state_hints[name]) is typing.NotRequired
-    assert typing.get_args(state_hints["sessionFile"]) == (str,)
-    assert typing.get_args(state_hints["sessionName"]) == (str,)
+    state_annotations = rpc_types_module.RpcSessionState.__annotations__
+    assert str(state_annotations["model"]) == "ForwardRef('NotRequired[Model[Any]]', module='harnify_coding_agent.modes.rpc.rpc_types')"
+    assert str(state_annotations["sessionFile"]) == "ForwardRef('NotRequired[str]', module='harnify_coding_agent.modes.rpc.rpc_types')"
+    assert str(state_annotations["sessionName"]) == "ForwardRef('NotRequired[str]', module='harnify_coding_agent.modes.rpc.rpc_types')"
 
-    status_hints = typing.get_type_hints(rpc_types_module.RpcExtensionUISetStatusRequest, include_extras=True)
-    assert typing.get_origin(status_hints["statusText"]) is typing.NotRequired
-    assert typing.get_args(status_hints["statusText"]) == (str,)
+    status_annotations = rpc_types_module.RpcExtensionUISetStatusRequest.__annotations__
+    assert str(status_annotations["statusText"]) == "ForwardRef('NotRequired[str]', module='harnify_coding_agent.modes.rpc.rpc_types')"
 
-    widget_hints = typing.get_type_hints(rpc_types_module.RpcExtensionUISetWidgetRequest, include_extras=True)
-    assert typing.get_origin(widget_hints["widgetLines"]) is typing.NotRequired
-    assert typing.get_args(widget_hints["widgetLines"]) == (list[str],)
+    widget_annotations = rpc_types_module.RpcExtensionUISetWidgetRequest.__annotations__
+    assert str(widget_annotations["widgetLines"]) == "ForwardRef('NotRequired[list[str]]', module='harnify_coding_agent.modes.rpc.rpc_types')"
 
 
 def _fake_model(provider: str, model_id: str) -> Model[Any]:

@@ -499,7 +499,15 @@ async def _fake_create_runtime(*_args: Any, **_kwargs: Any) -> Any:
         "Services",
         (),
         {
-            "settingsManager": object(),
+            "settingsManager": type(
+                "Settings",
+                (),
+                {
+                    "getTheme": lambda self: None,
+                    "getImageAutoResize": lambda self: True,
+                    "getHttpIdleTimeoutMs": lambda self: 30_000,
+                },
+            )(),
             "resourceLoader": type(
                 "Loader",
                 (),

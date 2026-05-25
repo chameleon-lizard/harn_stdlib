@@ -302,21 +302,22 @@ _register(
     "InteractiveMode",
     "InteractiveModeOptions",
 )
-_register("harnify_coding_agent.modes.print_mode", "PrintModeOptions", "runPrintMode")
+_register("harnify_coding_agent.modes.rpc.rpc_client", "ModelInfo")
+_register("harnify_coding_agent.modes.print_mode", "PrintModeOptions")
 _register(
     "harnify_coding_agent.modes.rpc.rpc_client",
-    "ModelInfo",
     "RpcClient",
     "RpcClientOptions",
     "RpcEventListener",
 )
-_register("harnify_coding_agent.modes.rpc.rpc_mode", "runRpcMode")
 _register(
     "harnify_coding_agent.modes.rpc.rpc_types",
     "RpcCommand",
     "RpcResponse",
     "RpcSessionState",
 )
+_register("harnify_coding_agent.modes.print_mode", "runPrintMode")
+_register("harnify_coding_agent.modes.rpc.rpc_mode", "runRpcMode")
 _register(
     "harnify_coding_agent.modes.interactive.components",
     "ArminComponent",

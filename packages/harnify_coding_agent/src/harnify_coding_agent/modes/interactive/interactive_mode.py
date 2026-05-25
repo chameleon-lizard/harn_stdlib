@@ -2605,7 +2605,7 @@ class InteractiveMode:
             return
         if text == "/new":
             self._set_editor_text("")
-            await self.handleNewSession()
+            await self.handleClearCommand()
             return
         if text == "/compact" or text.startswith("/compact "):
             custom_instructions = text[9:].strip() if text.startswith("/compact ") else None

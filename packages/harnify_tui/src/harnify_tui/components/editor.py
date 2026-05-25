@@ -1519,33 +1519,29 @@ class Editor:
         previous_task = self.autocompleteRequestTask
 
         async def run() -> None:
-            try:
-                if previous_task is not None:
-                    await previous_task
+            if previous_task is not None:
+                await previous_task
 
-                if startToken != self.autocompleteStartToken or self.autocompleteProvider is None:
-                    return
+            if startToken != self.autocompleteStartToken or self.autocompleteProvider is None:
+                return
 
-                controller = _AutocompleteAbortController()
-                self.autocompleteAbort = controller
-                request_id = self.autocompleteRequestId + 1
-                self.autocompleteRequestId = request_id
-                snapshot_text = self.getText()
-                snapshot_line = self.state.cursorLine
-                snapshot_col = self.state.cursorCol
+            controller = _AutocompleteAbortController()
+            self.autocompleteAbort = controller
+            request_id = self.autocompleteRequestId + 1
+            self.autocompleteRequestId = request_id
+            snapshot_text = self.getText()
+            snapshot_line = self.state.cursorLine
+            snapshot_col = self.state.cursorCol
 
-                await self.runAutocompleteRequest(
-                    request_id=request_id,
-                    controller=controller,
-                    snapshotText=snapshot_text,
-                    snapshotLine=snapshot_line,
-                    snapshotCol=snapshot_col,
-                    force=force,
-                    explicitTab=explicitTab,
-                )
-            finally:
-                if self.autocompleteRequestTask is task:
-                    self.autocompleteRequestTask = None
+            await self.runAutocompleteRequest(
+                request_id=request_id,
+                controller=controller,
+                snapshotText=snapshot_text,
+                snapshotLine=snapshot_line,
+                snapshotCol=snapshot_col,
+                force=force,
+                explicitTab=explicitTab,
+            )
 
         task = loop.create_task(run())
         self.autocompleteRequestTask = task

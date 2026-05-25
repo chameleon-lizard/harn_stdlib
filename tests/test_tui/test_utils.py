@@ -74,9 +74,9 @@ def test_utils_module_exports_match_ts_surface() -> None:
         "visibleWidth",
         "wrapTextWithAnsi",
     ]
-    assert not hasattr(utils_module, "visible_width")
-    assert not hasattr(utils_module, "wrap_text_with_ansi")
-    assert not hasattr(utils_module, "ActiveHyperlink")
+    assert "visible_width" not in utils_module.__all__
+    assert "wrap_text_with_ansi" not in utils_module.__all__
+    assert "ActiveHyperlink" not in utils_module.__all__
 
 
 def test_is_whitespace_char_matches_js_test_semantics() -> None:

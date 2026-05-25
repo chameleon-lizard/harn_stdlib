@@ -3375,7 +3375,7 @@ class InteractiveMode:
         try:
             self.session.modelRegistry.authStorage.logout(provider.id)
             self.session.modelRegistry.refresh()
-            self.updateAvailableProviderCount()
+            await _maybe_await(self.updateAvailableProviderCount())
             message = (
                 f"Logged out of {provider.name}"
                 if provider.authType == "oauth"
@@ -3434,7 +3434,7 @@ class InteractiveMode:
                             "Use /model to select a model."
                         )
 
-        self.updateAvailableProviderCount()
+        await _maybe_await(self.updateAvailableProviderCount())
         self.footer.invalidate()
         self.updateEditorBorderColor()
         if selected_model is not None:
@@ -4098,7 +4098,7 @@ class InteractiveMode:
         self.applyRuntimeSettings()
         await self.bindCurrentSessionExtensions()
         self.subscribeToSession()
-        self.updateAvailableProviderCount()
+        await _maybe_await(self.updateAvailableProviderCount())
         self.updateEditorBorderColor()
         self.updateTerminalTitle()
 
@@ -4248,14 +4248,11 @@ class InteractiveMode:
         except Exception:
             return
 
-    def updateAvailableProviderCount(self) -> None:
-        model_registry = getattr(self.session, "modelRegistry", None)
-        get_available = _callable_attr(model_registry, "getAvailable")
-        if get_available is None:
-            return
+    async def updateAvailableProviderCount(self) -> None:
+        models = await self.getModelCandidates()
         providers = {
             str(_value(model, "provider", ""))
-            for model in (get_available() or [])
+            for model in models
             if _value(model, "provider")
         }
         self.footerDataProvider.setAvailableProviderCount(len(providers))
@@ -4680,7 +4677,7 @@ class InteractiveMode:
         on_branch_change = _callable_attr(self.footerDataProvider, "onBranchChange")
         if on_branch_change is not None:
             on_branch_change(lambda: self._request_render())
-        self.updateAvailableProviderCount()
+        await _maybe_await(self.updateAvailableProviderCount())
 
     async def _check_for_new_version(self) -> None:
         release = await check_for_new_pi_version(self.version)

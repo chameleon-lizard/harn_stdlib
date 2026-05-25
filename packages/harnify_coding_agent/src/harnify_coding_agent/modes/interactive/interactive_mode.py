@@ -2875,38 +2875,124 @@ class InteractiveMode:
         self.chatContainer.addChild(Text("\n".join(lines), 1, 0))
         self._request_render()
 
-    def _format_keybinding_display(self, action: str) -> str:
-        keys = list(self.keybindings.getKeys(action))
-        if not keys:
-            return "Unbound"
-        return " / ".join(
-            key.replace("ctrl+", "Ctrl+")
-            .replace("alt+", "Alt+")
-            .replace("shift+", "Shift+")
-            .replace("pageUp", "PageUp")
-            .replace("pageDown", "PageDown")
-            for key in keys
-        )
+    def getEditorKeyDisplay(self, action: str) -> str:
+        return key_display_text(action)
 
     def handleHotkeysCommand(self) -> None:
-        sections = [
-            ("App", ["app.interrupt", "app.clear", "app.exit", "app.model.select", "app.model.cycleForward"]),
-            ("Session", ["app.session.resume", "app.session.tree", "app.session.fork", "app.session.new"]),
-            ("Editor", ["tui.input.submit", "tui.input.newLine", "tui.editor.cursorUp", "tui.editor.cursorDown"]),
-        ]
-        lines = [interactive_theme.theme.bold("Hotkeys"), ""]
-        for title, actions in sections:
-            lines.append(interactive_theme.theme.bold(title))
-            for action in actions:
-                definition = KEYBINDINGS.get(action)
-                description = definition.description if definition is not None else action
-                lines.append(
-                    f"{interactive_theme.theme.fg('dim', self._format_keybinding_display(action) + ':')} {description}"
-                )
-            lines.append("")
+        cursor_up = self.getEditorKeyDisplay("tui.editor.cursorUp")
+        cursor_down = self.getEditorKeyDisplay("tui.editor.cursorDown")
+        cursor_left = self.getEditorKeyDisplay("tui.editor.cursorLeft")
+        cursor_right = self.getEditorKeyDisplay("tui.editor.cursorRight")
+        cursor_word_left = self.getEditorKeyDisplay("tui.editor.cursorWordLeft")
+        cursor_word_right = self.getEditorKeyDisplay("tui.editor.cursorWordRight")
+        cursor_line_start = self.getEditorKeyDisplay("tui.editor.cursorLineStart")
+        cursor_line_end = self.getEditorKeyDisplay("tui.editor.cursorLineEnd")
+        jump_forward = self.getEditorKeyDisplay("tui.editor.jumpForward")
+        jump_backward = self.getEditorKeyDisplay("tui.editor.jumpBackward")
+        page_up = self.getEditorKeyDisplay("tui.editor.pageUp")
+        page_down = self.getEditorKeyDisplay("tui.editor.pageDown")
+
+        submit = self.getEditorKeyDisplay("tui.input.submit")
+        new_line = self.getEditorKeyDisplay("tui.input.newLine")
+        delete_word_backward = self.getEditorKeyDisplay("tui.editor.deleteWordBackward")
+        delete_word_forward = self.getEditorKeyDisplay("tui.editor.deleteWordForward")
+        delete_to_line_start = self.getEditorKeyDisplay("tui.editor.deleteToLineStart")
+        delete_to_line_end = self.getEditorKeyDisplay("tui.editor.deleteToLineEnd")
+        yank = self.getEditorKeyDisplay("tui.editor.yank")
+        yank_pop = self.getEditorKeyDisplay("tui.editor.yankPop")
+        undo = self.getEditorKeyDisplay("tui.editor.undo")
+        tab = self.getEditorKeyDisplay("tui.input.tab")
+
+        interrupt = self.getAppKeyDisplay("app.interrupt")
+        clear = self.getAppKeyDisplay("app.clear")
+        exit_key = self.getAppKeyDisplay("app.exit")
+        suspend = self.getAppKeyDisplay("app.suspend")
+        cycle_thinking_level = self.getAppKeyDisplay("app.thinking.cycle")
+        cycle_model_forward = self.getAppKeyDisplay("app.model.cycleForward")
+        cycle_model_backward = self.getAppKeyDisplay("app.model.cycleBackward")
+        select_model = self.getAppKeyDisplay("app.model.select")
+        expand_tools = self.getAppKeyDisplay("app.tools.expand")
+        toggle_thinking = self.getAppKeyDisplay("app.thinking.toggle")
+        external_editor = self.getAppKeyDisplay("app.editor.external")
+        follow_up = self.getAppKeyDisplay("app.message.followUp")
+        dequeue = self.getAppKeyDisplay("app.message.dequeue")
+        paste_image = self.getAppKeyDisplay("app.clipboard.pasteImage")
+
+        hotkeys = f"""
+**Navigation**
+| Key | Action |
+|-----|--------|
+| `{cursor_up}` / `{cursor_down}` / `{cursor_left}` / `{cursor_right}` | Move cursor / browse history (Up when empty) |
+| `{cursor_word_left}` / `{cursor_word_right}` | Move by word |
+| `{cursor_line_start}` | Start of line |
+| `{cursor_line_end}` | End of line |
+| `{jump_forward}` | Jump forward to character |
+| `{jump_backward}` | Jump backward to character |
+| `{page_up}` / `{page_down}` | Scroll by page |
+
+**Editing**
+| Key | Action |
+|-----|--------|
+| `{submit}` | Send message |
+| `{new_line}` | New line{" (Ctrl+Enter on Windows Terminal)" if sys.platform == "win32" else ""} |
+| `{delete_word_backward}` | Delete word backwards |
+| `{delete_word_forward}` | Delete word forwards |
+| `{delete_to_line_start}` | Delete to start of line |
+| `{delete_to_line_end}` | Delete to end of line |
+| `{yank}` | Paste the most-recently-deleted text |
+| `{yank_pop}` | Cycle through the deleted text after pasting |
+| `{undo}` | Undo |
+
+**Other**
+| Key | Action |
+|-----|--------|
+| `{tab}` | Path completion / accept autocomplete |
+| `{interrupt}` | Cancel autocomplete / abort streaming |
+| `{clear}` | Clear editor (first) / exit (second) |
+| `{exit_key}` | Exit (when editor is empty) |
+| `{suspend}` | Suspend to background |
+| `{cycle_thinking_level}` | Cycle thinking level |
+| `{cycle_model_forward}` / `{cycle_model_backward}` | Cycle models |
+| `{select_model}` | Open model selector |
+| `{expand_tools}` | Toggle tool output expansion |
+| `{toggle_thinking}` | Toggle thinking block visibility |
+| `{external_editor}` | Edit message in external editor |
+| `{follow_up}` | Queue follow-up message |
+| `{dequeue}` | Restore queued messages |
+| `{paste_image}` | Paste image from clipboard |
+| `/` | Slash commands |
+| `!` | Run bash command |
+| `!!` | Run bash command (excluded from context) |
+"""
+
+        extension_runner = getattr(self.session, "extensionRunner", None)
+        get_shortcuts = _callable_attr(extension_runner, "getShortcuts") or _callable_attr(
+            extension_runner, "get_shortcuts"
+        )
+        shortcuts = (
+            dict(get_shortcuts(self.keybindings.getEffectiveConfig()) or {})
+            if get_shortcuts is not None
+            else {}
+        )
+        if shortcuts:
+            hotkeys += """
+**Extensions**
+| Key | Action |
+|-----|--------|
+"""
+            for key, shortcut in shortcuts.items():
+                description = _value(shortcut, "description") or _value(shortcut, "extensionPath")
+                key_display = format_key_text(str(key), KeyTextFormatOptions(capitalize=True))
+                hotkeys += f"| `{key_display}` | {description} |\n"
 
         self.chatContainer.addChild(Spacer(1))
-        self.chatContainer.addChild(Text("\n".join(lines).rstrip(), 1, 0))
+        self.chatContainer.addChild(DynamicBorder())
+        self.chatContainer.addChild(
+            Text(interactive_theme.theme.bold(interactive_theme.theme.fg("accent", "Keyboard Shortcuts")), 1, 0)
+        )
+        self.chatContainer.addChild(Spacer(1))
+        self.chatContainer.addChild(Markdown(hotkeys.strip(), 1, 1, self.getMarkdownThemeWithSettings()))
+        self.chatContainer.addChild(DynamicBorder())
         self._request_render()
 
     def handleDebugCommand(self) -> None:

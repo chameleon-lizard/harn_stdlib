@@ -102,6 +102,12 @@ def test_pi_user_agent_module_exports_match_ts_surface() -> None:
     user_agent = get_pi_user_agent("1.2.3")
     assert user_agent.startswith("pi/1.2.3 (")
     assert "; python/" in user_agent
+    assert user_agent.endswith(")")
+
+
+def test_pi_user_agent_normalizes_arch_like_ts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(pi_user_agent_module.platform, "machine", lambda: "x86_64")
+    assert get_pi_user_agent("1.2.3").endswith("; x64)")
 
 
 def test_version_check_module_exports_match_ts_surface() -> None:

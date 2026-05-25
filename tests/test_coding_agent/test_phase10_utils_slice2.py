@@ -8,6 +8,7 @@ import harnify_coding_agent.utils.exif_orientation as exif_orientation_module
 import harnify_coding_agent.utils.image_convert as image_convert_module
 import harnify_coding_agent.utils.image_resize as image_resize_module
 import harnify_coding_agent.utils.pi_user_agent as pi_user_agent_module
+import harnify_coding_agent.utils.photon as photon_module
 import harnify_coding_agent.utils.syntax_highlight as syntax_highlight_module
 import harnify_coding_agent.utils.version_check as version_check_module
 from harnify_coding_agent.utils.exif_orientation import get_exif_orientation
@@ -119,6 +120,17 @@ def test_version_check_module_exports_match_ts_surface() -> None:
         "getLatestPiVersion",
         "checkForNewPiVersion",
     ]
+
+
+@pytest.mark.asyncio
+async def test_photon_module_exports_and_load_caches() -> None:
+    assert photon_module.__all__ == ["loadPhoton"]
+
+    first = await photon_module.load_photon()
+    second = await photon_module.load_photon()
+
+    assert first is not None
+    assert first is second
 
 
 @pytest.mark.asyncio

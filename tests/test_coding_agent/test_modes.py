@@ -965,6 +965,38 @@ async def test_main_dispatches_interactive(monkeypatch, tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_main_startup_benchmark_stops_interactive_mode_and_theme_watcher(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("harnify_coding_agent.main.run_migrations", lambda _cwd: None)
+    monkeypatch.setattr("harnify_coding_agent.main.create_session_manager", _fake_create_session_manager)
+    monkeypatch.setattr("harnify_coding_agent.main.create_agent_session_runtime", _fake_create_runtime)
+    monkeypatch.setattr("harnify_coding_agent.main.configureHttpDispatcher", lambda _ms: None)
+    monkeypatch.setattr("sys.stdin", type("TTY", (), {"isatty": lambda self: True})())
+    monkeypatch.setenv("PI_STARTUP_BENCHMARK", "1")
+
+    calls: list[tuple[str, Any]] = []
+
+    class FakeInteractiveMode:
+        def __init__(self, runtimeHost: Any = None, options: dict[str, Any] | None = None, **_kwargs: Any) -> None:
+            calls.append(("init-ctor", options or {}))
+
+        async def init(self) -> None:
+            calls.append(("init", None))
+
+        def stop(self) -> None:
+            calls.append(("stop-mode", None))
+
+    monkeypatch.setattr("harnify_coding_agent.main.InteractiveMode", FakeInteractiveMode)
+    monkeypatch.setattr("harnify_coding_agent.main.print_timings", lambda: calls.append(("timings", None)))
+    monkeypatch.setattr("harnify_coding_agent.main.stop_theme_watcher", lambda: calls.append(("stop-theme", None)))
+
+    assert await main([]) == 0
+    assert ("init", None) in calls
+    assert ("stop-mode", None) in calls
+    assert ("stop-theme", None) in calls
+
+
+@pytest.mark.asyncio
 async def test_rpc_client_routes_responses_and_events() -> None:
     client = RpcClient()
     loop = asyncio.get_running_loop()

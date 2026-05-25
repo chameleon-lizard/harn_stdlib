@@ -13,6 +13,7 @@ import harnify_coding_agent.utils.fs_watch as fs_watch_module
 import harnify_coding_agent.utils.frontmatter as frontmatter_module
 import harnify_coding_agent.utils.git as git_module
 import harnify_coding_agent.utils.html as html_module
+import harnify_coding_agent.utils.shell as shell_module
 from harnify_coding_agent.utils.changelog import ChangelogEntry, compare_versions, get_new_entries, parse_changelog
 from harnify_coding_agent.utils.child_process import spawn_process, spawn_process_sync, wait_for_child_process
 from harnify_coding_agent.utils.frontmatter import parse_frontmatter, strip_frontmatter
@@ -181,6 +182,19 @@ def test_get_shell_env_prepends_bin_dir_without_duplicating_and_preserves_path_k
     monkeypatch.setenv("path", "/tmp/harnify-bin:/usr/bin")
     env_with_existing_bin = get_shell_env()
     assert env_with_existing_bin["path"] == "/tmp/harnify-bin:/usr/bin"
+
+
+def test_shell_module_exports_match_ts_surface() -> None:
+    assert shell_module.__all__ == [
+        "ShellConfig",
+        "getShellConfig",
+        "getShellEnv",
+        "killProcessTree",
+        "killTrackedDetachedChildren",
+        "sanitizeBinaryOutput",
+        "trackDetachedChildPid",
+        "untrackDetachedChildPid",
+    ]
 
 
 @pytest.mark.asyncio

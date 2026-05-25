@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from harnify_tui import keybindings as keybindings_module
 from harnify_tui.keybindings import (
     TUI_KEYBINDINGS,
     KeybindingConflict,
@@ -47,3 +48,18 @@ def test_keybindings_report_direct_user_conflicts_without_eviction() -> None:
         )
     ]
     assert keybindings.getKeys("tui.editor.cursorLeft") == ["left", "ctrl+b"]
+
+
+def test_keybindings_module_exports_match_ts_surface() -> None:
+    assert keybindings_module.__all__ == [
+        "Keybinding",
+        "KeybindingConflict",
+        "KeybindingDefinition",
+        "KeybindingDefinitions",
+        "Keybindings",
+        "KeybindingsConfig",
+        "KeybindingsManager",
+        "TUI_KEYBINDINGS",
+        "getKeybindings",
+        "setKeybindings",
+    ]

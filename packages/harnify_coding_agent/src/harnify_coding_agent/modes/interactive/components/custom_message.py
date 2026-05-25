@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import inspect
 from typing import Any
 
 from harnify_tui import Box, Container, DefaultTextStyle, Markdown, Spacer, Text
@@ -10,20 +9,6 @@ from harnify_tui import Box, Container, DefaultTextStyle, Markdown, Spacer, Text
 from harnify_coding_agent.core.extensions.types import MessageRenderer
 from harnify_coding_agent.core.messages import CustomMessage
 from harnify_coding_agent.modes.interactive.theme.theme import get_markdown_theme, theme
-
-
-def _invoke_renderer(renderer: MessageRenderer[Any], message: CustomMessage[Any], expanded: bool) -> Any | None:
-    options = {"expanded": expanded}
-    try:
-        signature = inspect.signature(renderer)
-    except (TypeError, ValueError):
-        return renderer(message, options, theme)
-
-    parameters = list(signature.parameters.values())
-    if any(parameter.kind == inspect.Parameter.VAR_POSITIONAL for parameter in parameters) or len(parameters) >= 3:
-        return renderer(message, options, theme)
-    return renderer(message, options)
-
 
 class CustomMessageComponent(Container):
     def __init__(
@@ -35,7 +20,7 @@ class CustomMessageComponent(Container):
         super().__init__()
         self.message = message
         self.customRenderer = customRenderer
-        self.markdownTheme = markdownTheme or get_markdown_theme()
+        self.markdownTheme = get_markdown_theme() if markdownTheme is None else markdownTheme
         self.customComponent: Any | None = None
         self._expanded = False
         self.addChild(Spacer(1))
@@ -59,7 +44,7 @@ class CustomMessageComponent(Container):
 
         if self.customRenderer is not None:
             try:
-                component = _invoke_renderer(self.customRenderer, self.message, self._expanded)
+                component = self.customRenderer(self.message, {"expanded": self._expanded}, theme)
             except Exception:
                 component = None
             if component is not None:

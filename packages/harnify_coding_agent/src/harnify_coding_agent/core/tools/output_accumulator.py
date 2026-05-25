@@ -161,7 +161,7 @@ class OutputAccumulator:
             self.tailStartsAtLineBoundary = self.tailStartsAtLineBoundary
         else:
             self.tailStartsAtLineBoundary = buffer[start - 1] == 0x0A
-        self.tailText = buffer[start:].decode("utf-8", errors="ignore")
+        self.tailText = buffer[start:].decode("utf-8")
         self.tailBytes = byte_length(self.tailText)
 
     def get_snapshot_text(self) -> str:
@@ -196,7 +196,5 @@ __all__ = [
     "OutputAccumulatorOptions",
     "OutputSnapshot",
     "byteLength",
-    "byte_length",
     "defaultTempFilePath",
-    "default_temp_file_path",
 ]

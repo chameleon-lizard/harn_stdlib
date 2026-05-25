@@ -162,7 +162,9 @@ class _OverlayHandle:
         if self._entry["hidden"] == hidden:
             return
         self._entry["hidden"] = hidden
-        options = self._entry.get("options") or {}
+        options = self._entry.get("options")
+        if options is None:
+            options = {}
         component = self._entry["component"]
         if hidden:
             if self._tui.focusedComponent is component:
@@ -294,13 +296,14 @@ class TUI(Container):
     def showOverlay(self, component: Component, options: OverlayOptions | None = None) -> OverlayHandle:
         entry = {
             "component": component,
-            "options": options or {},
+            "options": options,
             "preFocus": self.focusedComponent,
             "hidden": False,
             "focusOrder": self._nextFocusOrder(),
         }
         self.overlayStack.append(entry)
-        if not entry["options"].get("nonCapturing") and self._isOverlayVisible(entry):
+        entry_options = entry["options"]
+        if not (entry_options is not None and entry_options.get("nonCapturing")) and self._isOverlayVisible(entry):
             self.setFocus(component)
         self.terminal.hideCursor()
         self.requestRender()
@@ -323,14 +326,16 @@ class TUI(Container):
     def _isOverlayVisible(self, entry: dict[str, Any]) -> bool:
         if entry["hidden"]:
             return False
-        visible = entry["options"].get("visible")
+        options = entry["options"]
+        visible = options.get("visible") if options is not None else None
         if callable(visible):
             return bool(visible(self.terminal.columns, self.terminal.rows))
         return True
 
     def _getTopmostVisibleOverlay(self) -> dict[str, Any] | None:
         for entry in reversed(self.overlayStack):
-            if entry["options"].get("nonCapturing"):
+            options = entry["options"]
+            if options is not None and options.get("nonCapturing"):
                 continue
             if self._isOverlayVisible(entry):
                 return entry

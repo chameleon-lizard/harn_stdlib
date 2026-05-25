@@ -861,6 +861,49 @@ async def test_handle_event_compaction_start_sets_escape_handler_loader_and_prog
 
 
 @pytest.mark.asyncio
+async def test_handle_event_agent_start_restores_retry_state_and_starts_working_loader() -> None:
+    progress: list[bool] = []
+    status_calls: list[Any] = []
+    retry_calls: list[str] = []
+    editor = FakeEditor()
+    original_escape = lambda: None
+    editor.onEscape = lambda: None
+
+    mode = InteractiveMode(
+        ui=FakeUi(),
+        defaultEditor=editor,
+        editor=editor,
+        statusContainer=SimpleNamespace(
+            clear=lambda: status_calls.append("cleared"),
+            addChild=lambda child: status_calls.append(child),
+        ),
+        settingsManager=SimpleNamespace(getShowTerminalProgress=lambda: True),
+    )
+    mode.ui.terminal = SimpleNamespace(
+        setProgress=lambda value: progress.append(value),
+        setTitle=lambda _value: None,
+    )
+    mode._toolComponentsById = {"tool-1": object()}
+    mode.retryEscapeHandler = original_escape
+    mode.retryCountdown = SimpleNamespace(dispose=lambda: retry_calls.append("countdown-dispose"))
+    mode.retryLoader = SimpleNamespace(stop=lambda: retry_calls.append("retry-loader-stop"))
+    mode.loadingAnimation = SimpleNamespace(stop=lambda: retry_calls.append("working-stop"))
+    mode.createWorkingLoader = lambda: "working-loader"  # type: ignore[method-assign]
+
+    await mode.handleEvent({"type": "agent_start"})
+
+    assert progress == [True]
+    assert mode._toolComponentsById == {}
+    assert mode.defaultEditor.onEscape is original_escape
+    assert mode.retryEscapeHandler is None
+    assert mode.retryCountdown is None
+    assert mode.retryLoader is None
+    assert mode.loadingAnimation == "working-loader"
+    assert retry_calls == ["countdown-dispose", "retry-loader-stop", "working-stop"]
+    assert status_calls == ["cleared", "cleared", "working-loader"]
+
+
+@pytest.mark.asyncio
 async def test_handle_event_session_info_changed_updates_terminal_title() -> None:
     updates: list[str] = []
     renders: list[str] = []
@@ -873,6 +916,177 @@ async def test_handle_event_session_info_changed_updates_terminal_title() -> Non
 
     assert updates == ["title"]
     assert renders == ["footer", "render"]
+
+
+@pytest.mark.asyncio
+async def test_handle_event_assistant_streaming_updates_tool_components_and_aborts() -> None:
+    footer_calls: list[str] = []
+    mode = InteractiveMode(
+        ui=FakeUi(),
+        chatContainer=Container(),
+        sessionManager=SimpleNamespace(getCwd=lambda: "/tmp/project"),
+        settingsManager=SimpleNamespace(getShowImages=lambda: True, getImageWidthCells=lambda: 48),
+        session=SimpleNamespace(retryAttempt=0),
+        footer=SimpleNamespace(invalidate=lambda: footer_calls.append("footer")),
+    )
+
+    tool_call = {"type": "toolCall", "id": "tool-1", "name": "read", "arguments": {"filePath": "a.txt"}}
+
+    await mode.handleEvent({"type": "message_start", "message": {"role": "assistant", "content": []}})
+    assert mode.streamingComponent is not None
+
+    await mode.handleEvent(
+        {
+            "type": "message_update",
+            "message": {"role": "assistant", "content": [tool_call]},
+        }
+    )
+
+    component = mode._toolComponentsById["tool-1"]
+    assert component.args == {"filePath": "a.txt"}
+
+    await mode.handleEvent(
+        {
+            "type": "message_end",
+            "message": {"role": "assistant", "content": [tool_call], "stopReason": "aborted"},
+        }
+    )
+
+    assert mode.streamingComponent is None
+    assert mode.streamingMessage is None
+    assert mode._toolComponentsById == {}
+    assert component.result is not None
+    assert component.result.isError is True
+    assert component.result.content[0]["text"] == "Operation aborted"
+    assert footer_calls[-1] == "footer"
+
+
+@pytest.mark.asyncio
+async def test_handle_event_tool_execution_lifecycle_updates_component() -> None:
+    mode = InteractiveMode(
+        ui=FakeUi(),
+        chatContainer=Container(),
+        sessionManager=SimpleNamespace(getCwd=lambda: "/tmp/project"),
+        settingsManager=SimpleNamespace(getShowImages=lambda: True, getImageWidthCells=lambda: 48),
+        footer=SimpleNamespace(invalidate=lambda: None),
+    )
+
+    await mode.handleEvent(
+        {
+            "type": "tool_execution_start",
+            "toolName": "grep",
+            "toolCallId": "tool-2",
+            "args": {"pattern": "needle"},
+        }
+    )
+
+    component = mode._toolComponentsById["tool-2"]
+    assert component.executionStarted is True
+
+    await mode.handleEvent(
+        {
+            "type": "tool_execution_update",
+            "toolCallId": "tool-2",
+            "partialResult": {"content": [{"type": "text", "text": "partial"}]},
+        }
+    )
+    assert component.result is not None
+    assert component.result.content[0]["text"] == "partial"
+
+    await mode.handleEvent(
+        {
+            "type": "tool_execution_end",
+            "toolCallId": "tool-2",
+            "result": {"content": [{"type": "text", "text": "done"}]},
+            "isError": False,
+        }
+    )
+
+    assert "tool-2" not in mode._toolComponentsById
+    assert component.result is not None
+    assert component.result.content[0]["text"] == "done"
+
+
+@pytest.mark.asyncio
+async def test_handle_event_auto_retry_start_and_end_manage_escape_and_loader(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loader_events: list[str] = []
+    status_calls: list[Any] = []
+    aborts: list[bool] = []
+    errors: list[str] = []
+    editor = FakeEditor()
+    original_escape = lambda: None
+    editor.onEscape = original_escape
+
+    class FakeLoader:
+        def __init__(self, _ui: Any, _spinner: Any, _message_color: Any, message: str, _indicator: Any = None) -> None:
+            self.message = message
+
+        def stop(self) -> None:
+            loader_events.append("loader-stop")
+
+        def setMessage(self, message: str) -> None:
+            self.message = message
+            loader_events.append(f"message:{message}")
+
+    class FakeCountdown:
+        def __init__(self, timeoutMs: int, _ui: Any, onTick: Any, _onExpire: Any) -> None:
+            loader_events.append(f"countdown:{timeoutMs}")
+            onTick(3)
+
+        def dispose(self) -> None:
+            loader_events.append("countdown-dispose")
+
+    monkeypatch.setattr(interactive_mode_module, "Loader", FakeLoader)
+    monkeypatch.setattr(interactive_mode_module, "CountdownTimer", FakeCountdown)
+
+    mode = InteractiveMode(
+        ui=FakeUi(),
+        defaultEditor=editor,
+        editor=editor,
+        session=SimpleNamespace(abortRetry=lambda: aborts.append(True)),
+        statusContainer=SimpleNamespace(
+            clear=lambda: status_calls.append("cleared"),
+            addChild=lambda child: status_calls.append(child),
+        ),
+        footer=SimpleNamespace(invalidate=lambda: None),
+    )
+    mode.showError = errors.append  # type: ignore[method-assign]
+
+    await mode.handleEvent(
+        {
+            "type": "auto_retry_start",
+            "attempt": 1,
+            "maxAttempts": 2,
+            "delayMs": 3000,
+        }
+    )
+
+    assert mode.retryEscapeHandler is original_escape
+    assert mode.defaultEditor.onEscape is not original_escape
+    mode.defaultEditor.onEscape()
+    assert aborts == [True]
+    assert status_calls[0] == "cleared"
+    assert mode.retryLoader is status_calls[1]
+
+    await mode.handleEvent(
+        {
+            "type": "auto_retry_end",
+            "success": False,
+            "attempt": 1,
+            "finalError": "boom",
+        }
+    )
+
+    assert mode.defaultEditor.onEscape is original_escape
+    assert mode.retryEscapeHandler is None
+    assert mode.retryCountdown is None
+    assert mode.retryLoader is None
+    assert "countdown:3000" in loader_events
+    assert "countdown-dispose" in loader_events
+    assert "loader-stop" in loader_events
+    assert errors == ["Retry failed after 1 attempts: boom"]
 
 
 @pytest.mark.asyncio

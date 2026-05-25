@@ -3062,10 +3062,6 @@ class InteractiveMode:
             self._set_editor_text("")
             await self.showModelsSelector()
             return
-        if text == "/models":
-            self._set_editor_text("")
-            await self.showModelsSelector()
-            return
         if text == "/settings":
             self._set_editor_text("")
             self.showSettingsSelector()

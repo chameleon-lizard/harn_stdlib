@@ -8,15 +8,10 @@ from harnify_coding_agent.modes.interactive.theme.theme import theme
 
 
 class DynamicBorder:
-    wantsKeyRelease = False
-
     def __init__(self, color: Callable[[str], str] | None = None) -> None:
         self.color = color or (lambda text: theme.fg("border", text))
 
     def invalidate(self) -> None:
-        return None
-
-    def handleInput(self, _data: str) -> None:
         return None
 
     def render(self, width: int) -> list[str]:

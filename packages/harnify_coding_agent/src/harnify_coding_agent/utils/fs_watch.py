@@ -70,7 +70,7 @@ def close_watcher(watcher: FSWatcher | None) -> None:
 def watch_with_error_handler(path: str, listener: WatchListener, on_error: Any) -> FSWatcher | None:
     try:
         return _PollingWatcher(path, listener, on_error)
-    except OSError:
+    except Exception:
         on_error()
         return None
 
@@ -87,15 +87,9 @@ def _snapshot(path: str) -> tuple[Any, ...]:
 
 closeWatcher = close_watcher
 watchWithErrorHandler = watch_with_error_handler
-type WatchListenerType = WatchListener
 
 __all__ = [
     "FS_WATCH_RETRY_DELAY_MS",
-    "FSWatcher",
-    "WatchListener",
-    "WatchListenerType",
     "closeWatcher",
-    "close_watcher",
     "watchWithErrorHandler",
-    "watch_with_error_handler",
 ]

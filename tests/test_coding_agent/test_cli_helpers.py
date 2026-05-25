@@ -203,7 +203,7 @@ async def test_list_models_warns_in_yellow_when_registry_load_fails(
     await list_models_module.list_models(Registry())
 
     captured = capsys.readouterr()
-    assert captured.out.startswith("\x1b[33mWarning: errors loading models.json:\nbroken\x1b[0m\n")
+    assert captured.err == "\x1b[33mWarning: errors loading models.json:\nbroken\x1b[0m\n"
 
 
 def test_config_helpers_point_at_bundled_assets() -> None:

@@ -21,6 +21,7 @@ from harnify_coding_agent.modes.interactive.components import (
 )
 import harnify_coding_agent.modes.interactive.components.assistant_message as assistant_message_module
 import harnify_coding_agent.modes.interactive.components.bash_execution as bash_execution_module
+import harnify_coding_agent.modes.interactive.components.tool_execution as tool_execution_module
 from harnify_tui import Text, setKeybindings, visibleWidth
 
 OSC133_ZONE_START = "\x1b]133;A\x07"
@@ -119,6 +120,13 @@ def test_bash_execution_module_exports_match_ts_surface() -> None:
     assert bash_execution_module.__all__ == ["BashExecutionComponent"]
 
 
+def test_tool_execution_module_exports_match_ts_surface() -> None:
+    assert tool_execution_module.__all__ == [
+        "ToolExecutionComponent",
+        "ToolExecutionOptions",
+    ]
+
+
 def test_truncate_to_visual_lines_counts_wrapped_lines() -> None:
     result = truncateToVisualLines("x" * 100, 2, 20, 0)
 
@@ -187,7 +195,7 @@ async def test_tool_execution_uses_custom_renderers_and_shared_state() -> None:
 
 
 @pytest.mark.asyncio
-async def test_tool_execution_generic_fallback_includes_args_and_output() -> None:
+async def test_tool_execution_renderer_fallback_without_renderers_omits_args() -> None:
     async def execute(
         _tool_call_id: str,
         _params: object,
@@ -218,8 +226,66 @@ async def test_tool_execution_generic_fallback_includes_args_and_output() -> Non
     rendered = _strip_ansi("\n".join(component.render(80)))
 
     assert "custom_tool" in rendered
+    assert '"foo": "bar"' not in rendered
+    assert "done" in rendered
+
+
+async def test_tool_execution_no_definition_fallback_includes_args_and_output() -> None:
+    component = ToolExecutionComponent(
+        "unknown_tool",
+        "tool-2b",
+        {"foo": "bar"},
+        {},
+        None,
+        FakeUi(),
+        ".",
+    )
+    component.updateResult({"content": [{"type": "text", "text": "done"}], "details": {}, "isError": False}, False)
+    rendered = _strip_ansi("\n".join(component.render(80)))
+
+    assert "unknown_tool" in rendered
     assert '"foo": "bar"' in rendered
     assert "done" in rendered
+
+
+@pytest.mark.asyncio
+async def test_tool_execution_result_renderer_receives_ts_payload_shape() -> None:
+    payloads: list[dict[str, object]] = []
+
+    async def execute(
+        _tool_call_id: str,
+        _params: object,
+        _signal: object | None,
+        _on_update: object | None,
+        _ctx: object | None,
+    ) -> AgentToolResult:
+        return AgentToolResult(content=[TextContent(text="done")], details={})
+
+    definition = ToolDefinition(
+        name="custom_tool",
+        label="custom_tool",
+        description="custom tool",
+        parameters={},
+        execute=execute,
+        renderResult=lambda result, _options, _theme, _context: (
+            payloads.append(dict(result)),
+            Text("ok", 0, 0),
+        )[1],
+    )
+
+    component = ToolExecutionComponent(
+        "custom_tool",
+        "tool-2c",
+        {"foo": "bar"},
+        {},
+        definition,
+        FakeUi(),
+        ".",
+    )
+    component.updateResult({"content": [{"type": "text", "text": "done"}], "details": {}, "isError": True}, False)
+    component.render(80)
+
+    assert payloads == [{"content": [{"type": "text", "text": "done"}], "details": {}}]
 
 
 def test_tool_execution_uses_builtin_bash_renderer() -> None:

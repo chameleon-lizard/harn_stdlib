@@ -4867,6 +4867,11 @@ class InteractiveMode:
         if drain_input is not None:
             await _maybe_await(drain_input(1000))
 
+        if self._pendingUserInputFuture is not None and not self._pendingUserInputFuture.done():
+            self._pendingUserInputFuture.cancel()
+        self._pendingUserInputFuture = None
+        self.onInputCallback = None
+
         self.stop()
         dispose_runtime = _callable_attr(self.runtimeHost, "dispose")
         if dispose_runtime is not None:

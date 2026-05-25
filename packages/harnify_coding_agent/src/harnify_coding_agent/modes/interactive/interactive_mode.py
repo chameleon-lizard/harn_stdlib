@@ -3233,7 +3233,38 @@ class InteractiveMode:
             self.editor.onExtensionShortcut = _on_extension_shortcut
 
     def setupKeyHandlers(self) -> None:
-        self.defaultEditor.onEscape = lambda: None
+        def _on_escape() -> None:
+            if bool(getattr(self.session, "isStreaming", False)):
+                restore_queued = _callable_attr(self, "restoreQueuedMessagesToEditor")
+                if restore_queued is not None:
+                    restore_queued({"abort": True})
+                else:
+                    agent = getattr(self.session, "agent", None)
+                    abort = _callable_attr(agent, "abort")
+                    if abort is not None:
+                        abort()
+            elif bool(getattr(self.session, "isBashRunning", False)):
+                abort_bash = _callable_attr(self.session, "abortBash")
+                if abort_bash is not None:
+                    abort_bash()
+            elif _is_bash_mode(self.editor):
+                self._set_editor_text("")
+                self.updateEditorBorderColor()
+            elif not self._get_editor_text().strip():
+                action = _safe_call_str(self.settingsManager, "getDoubleEscapeAction", "none")
+                if action == "none":
+                    return
+                now = time.monotonic() * 1000
+                if now - self.lastEscapeTime < 500:
+                    if action == "tree":
+                        self.showTreeSelector()
+                    else:
+                        self.showUserMessageSelector()
+                    self.lastEscapeTime = 0
+                else:
+                    self.lastEscapeTime = now
+
+        self.defaultEditor.onEscape = _on_escape
         if callable(_callable_attr(self.defaultEditor, "onAction")):
             self.defaultEditor.onAction("app.clear", self.handleCtrlC)
             self.defaultEditor.onAction("app.suspend", self.handleCtrlZ)
@@ -3255,8 +3286,9 @@ class InteractiveMode:
             self.defaultEditor.onAction("app.session.fork", self.showUserMessageSelector)
             self.defaultEditor.onAction("app.session.tree", self.showTreeSelector)
             self.defaultEditor.onAction("app.session.resume", lambda: self.showSessionSelector())
-            self.defaultEditor.onAction("app.session.new", lambda: self._schedule_task(self.handleNewSession()))
-        self.defaultEditor.onCtrlD = self.requestShutdown
+            self.defaultEditor.onAction("app.session.new", lambda: self._schedule_task(self.handleClearCommand()))
+        self.ui.onDebug = self.handleDebugCommand
+        self.defaultEditor.onCtrlD = self.handleCtrlD
         self.defaultEditor.onPasteImage = lambda: self._schedule_task(self.handleClipboardImagePaste())
         self.defaultEditor.onChange = lambda text: self._on_editor_change(text)
 
@@ -3347,6 +3379,9 @@ class InteractiveMode:
             self.requestShutdown()
         else:
             self.showStatus("Press Ctrl+C again or Ctrl+D to exit")
+
+    def handleCtrlD(self) -> None:
+        self._schedule_task(self.shutdown())
 
     def showModelSelector(self, initialSearchInput: str | None = None) -> None:
         self.showSelector(

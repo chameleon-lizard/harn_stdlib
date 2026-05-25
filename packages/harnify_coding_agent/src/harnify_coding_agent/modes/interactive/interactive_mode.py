@@ -892,6 +892,210 @@ class InteractiveMode:
         self.chatContainer.addChild(DynamicBorder(lambda text: interactive_theme.theme.fg("warning", text)))
         self._request_render()
 
+    def getAllQueuedMessages(self) -> dict[str, list[str]]:
+        get_steering = _callable_attr(self.session, "getSteeringMessages")
+        get_follow_up = _callable_attr(self.session, "getFollowUpMessages")
+        steering = list(get_steering() or []) if get_steering is not None else []
+        follow_up = list(get_follow_up() or []) if get_follow_up is not None else []
+        return {
+            "steering": [
+                *steering,
+                *[
+                    str(_value(message, "text", ""))
+                    for message in self.compactionQueuedMessages
+                    if _value(message, "mode") == "steer"
+                ],
+            ],
+            "followUp": [
+                *follow_up,
+                *[
+                    str(_value(message, "text", ""))
+                    for message in self.compactionQueuedMessages
+                    if _value(message, "mode") == "followUp"
+                ],
+            ],
+        }
+
+    def clearAllQueues(self) -> dict[str, list[str]]:
+        clear_queue = _callable_attr(self.session, "clearQueue")
+        cleared = clear_queue() if clear_queue is not None else {}
+        steering = list(_value(cleared, "steering", []) or [])
+        follow_up = list(_value(cleared, "followUp", []) or [])
+        compaction_steering = [
+            str(_value(message, "text", ""))
+            for message in self.compactionQueuedMessages
+            if _value(message, "mode") == "steer"
+        ]
+        compaction_follow_up = [
+            str(_value(message, "text", ""))
+            for message in self.compactionQueuedMessages
+            if _value(message, "mode") == "followUp"
+        ]
+        self.compactionQueuedMessages = []
+        return {
+            "steering": [*steering, *compaction_steering],
+            "followUp": [*follow_up, *compaction_follow_up],
+        }
+
+    def getAppKeyDisplay(self, action: str) -> str:
+        return key_display_text(action)
+
+    def updatePendingMessagesDisplay(self) -> None:
+        clear = _callable_attr(self.pendingMessagesContainer, "clear")
+        if clear is not None:
+            clear()
+        queued = self.getAllQueuedMessages()
+        steering_messages = list(queued.get("steering", []))
+        follow_up_messages = list(queued.get("followUp", []))
+        if not steering_messages and not follow_up_messages:
+            return
+
+        add_child = _callable_attr(self.pendingMessagesContainer, "addChild")
+        if add_child is None:
+            return
+
+        add_child(Spacer(1))
+        for message in steering_messages:
+            add_child(TruncatedText(interactive_theme.theme.fg("dim", f"Steering: {message}"), 1, 0))
+        for message in follow_up_messages:
+            add_child(TruncatedText(interactive_theme.theme.fg("dim", f"Follow-up: {message}"), 1, 0))
+        dequeue_hint = self.getAppKeyDisplay("app.message.dequeue")
+        add_child(
+            TruncatedText(interactive_theme.theme.fg("dim", f"↳ {dequeue_hint} to edit all queued messages"), 1, 0)
+        )
+
+    def restoreQueuedMessagesToEditor(self, options: dict[str, Any] | None = None) -> int:
+        cleared = self.clearAllQueues()
+        all_queued = [*list(cleared.get("steering", [])), *list(cleared.get("followUp", []))]
+        if not all_queued:
+            self.updatePendingMessagesDisplay()
+            if bool(_value(options, "abort", False)):
+                abort = _callable_attr(getattr(self.session, "agent", None), "abort")
+                if abort is not None:
+                    abort()
+            return 0
+
+        queued_text = "\n\n".join(all_queued)
+        current_text = _value(options, "currentText")
+        if current_text is None:
+            get_text = _callable_attr(self.editor, "getText")
+            current_text = str(get_text() or "") if get_text is not None else ""
+        combined_text = "\n\n".join(part for part in (queued_text, str(current_text)) if str(part).strip())
+        self._set_editor_text(combined_text)
+        self.updatePendingMessagesDisplay()
+        if bool(_value(options, "abort", False)):
+            abort = _callable_attr(getattr(self.session, "agent", None), "abort")
+            if abort is not None:
+                abort()
+        return len(all_queued)
+
+    def queueCompactionMessage(self, text: str, mode: str) -> None:
+        self.compactionQueuedMessages.append({"text": text, "mode": mode})
+        add_history = _callable_attr(self.editor, "addToHistory")
+        if add_history is not None:
+            add_history(text)
+        self._set_editor_text("")
+        self.updatePendingMessagesDisplay()
+        self.showStatus("Queued message for after compaction")
+
+    def isExtensionCommand(self, text: str) -> bool:
+        if not text.startswith("/"):
+            return False
+        extension_runner = getattr(self.session, "extensionRunner", None)
+        get_command = _callable_attr(extension_runner, "getCommand") or _callable_attr(extension_runner, "get_command")
+        if get_command is None:
+            return False
+        space_index = text.find(" ")
+        command_name = text[1:] if space_index == -1 else text[1:space_index]
+        return bool(get_command(command_name))
+
+    async def flushCompactionQueue(self, options: dict[str, Any] | None = None) -> None:
+        if not self.compactionQueuedMessages:
+            return
+
+        queued_messages = list(self.compactionQueuedMessages)
+        self.compactionQueuedMessages = []
+        self.updatePendingMessagesDisplay()
+        restored = False
+
+        def restore_queue(error: Exception | str) -> None:
+            nonlocal restored
+            if restored:
+                return
+            restored = True
+            clear_queue = _callable_attr(self.session, "clearQueue")
+            if clear_queue is not None:
+                clear_queue()
+            self.compactionQueuedMessages = queued_messages
+            self.updatePendingMessagesDisplay()
+            error_message = error if isinstance(error, str) else str(error)
+            suffix = "s" if len(queued_messages) > 1 else ""
+            self.showError(f"Failed to send queued message{suffix}: {error_message}")
+
+        async def dispatch_message(message: Any) -> None:
+            text = str(_value(message, "text", ""))
+            if self.isExtensionCommand(text):
+                await self.session.prompt(text)
+            elif _value(message, "mode") == "followUp":
+                await self.session.followUp(text)
+            else:
+                await self.session.steer(text)
+
+        try:
+            if bool(_value(options, "willRetry", False)):
+                for message in queued_messages:
+                    await dispatch_message(message)
+                self.updatePendingMessagesDisplay()
+                return
+
+            first_prompt_index = next(
+                (index for index, message in enumerate(queued_messages) if not self.isExtensionCommand(str(_value(message, "text", "")))),
+                -1,
+            )
+            if first_prompt_index == -1:
+                for message in queued_messages:
+                    await self.session.prompt(str(_value(message, "text", "")))
+                return
+
+            pre_commands = queued_messages[:first_prompt_index]
+            first_prompt = queued_messages[first_prompt_index]
+            rest = queued_messages[first_prompt_index + 1 :]
+
+            for message in pre_commands:
+                await self.session.prompt(str(_value(message, "text", "")))
+
+            first_prompt_text = str(_value(first_prompt, "text", ""))
+            task = asyncio.create_task(self.session.prompt(first_prompt_text))
+            self._backgroundTasks.add(task)
+
+            def _finish_prompt(prompt_task: asyncio.Task[Any]) -> None:
+                self._backgroundTasks.discard(prompt_task)
+                try:
+                    prompt_task.result()
+                except asyncio.CancelledError:
+                    return
+                except Exception as error:  # noqa: BLE001
+                    restore_queue(error)
+
+            task.add_done_callback(_finish_prompt)
+
+            for message in rest:
+                await dispatch_message(message)
+            self.updatePendingMessagesDisplay()
+        except Exception as error:  # noqa: BLE001
+            restore_queue(error)
+
+    def flushPendingBashComponents(self) -> None:
+        remove_child = _callable_attr(self.pendingMessagesContainer, "removeChild")
+        add_child = _callable_attr(self.chatContainer, "addChild")
+        if add_child is None:
+            return
+        for component in self.pendingBashComponents:
+            if remove_child is not None:
+                remove_child(component)
+            add_child(component)
+        self.pendingBashComponents = []
+
     def showExtensionNotify(self, message: str, type: str | None = None) -> None:
         if type == "error":
             self.showError(message)

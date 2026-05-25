@@ -43,7 +43,7 @@ from harnify_tui.components import (
     TruncatedText,
 )
 from harnify_tui.editor_component import EditorComponent
-from harnify_tui.fuzzy import FuzzyMatch, fuzzy_filter, fuzzy_match, fuzzyFilter, fuzzyMatch
+from harnify_tui.fuzzy import FuzzyMatch, fuzzyFilter, fuzzyMatch
 from harnify_tui.keybindings import (
     TUI_KEYBINDINGS,
     Keybinding,
@@ -201,8 +201,6 @@ __all__ = [
     "extractSegments",
     "fuzzyFilter",
     "fuzzyMatch",
-    "fuzzy_filter",
-    "fuzzy_match",
     "getCapabilities",
     "getCellDimensions",
     "getKeybindings",

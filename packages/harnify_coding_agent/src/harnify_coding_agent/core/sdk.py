@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Any, Literal, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, NotRequired, TypedDict
 
 from harnify_agent.agent import Agent
 from harnify_agent.types import AgentMessage, ThinkingLevel
@@ -84,9 +84,9 @@ _AGENT_SESSION_RUNTIME_EXPORTS = {
 }
 
 
-class ScopedModel(TypedDict, total=False):
+class ScopedModel(TypedDict):
     model: Model[Any]
-    thinkingLevel: ThinkingLevel
+    thinkingLevel: NotRequired[ThinkingLevel]
 
 
 class CreateAgentSessionOptions(TypedDict, total=False):
@@ -148,10 +148,10 @@ def _get_attribution_headers(
 async def create_agent_session(options: CreateAgentSessionOptions | None = None) -> CreateAgentSessionResult:
     resolved_options = dict(options or {})
     explicit_session_manager = resolved_options.get("sessionManager")
-    cwd = resolve_path(
-        resolved_options.get("cwd")
-        or (explicit_session_manager.getCwd() if explicit_session_manager else os.getcwd())
-    )
+    cwd_option = resolved_options["cwd"] if "cwd" in resolved_options else None
+    cwd = resolve_path(cwd_option if cwd_option is not None else (
+        explicit_session_manager.getCwd() if explicit_session_manager else os.getcwd()
+    ))
     agent_dir = (
         resolve_path(resolved_options["agentDir"])
         if resolved_options.get("agentDir")

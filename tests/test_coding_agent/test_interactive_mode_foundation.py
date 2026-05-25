@@ -3898,7 +3898,13 @@ def test_show_settings_selector_builds_live_settings_callbacks(monkeypatch: pyte
 
     settings_calls: list[tuple[str, Any]] = []
     tool_calls: list[tuple[str, Any]] = []
+    non_target_calls: list[tuple[str, Any]] = []
     ui = FakeUi()
+    tool_child = object.__new__(interactive_mode_module.ToolExecutionComponent)
+    tool_child.setShowImages = lambda value: tool_calls.append(("showImages", value))  # type: ignore[attr-defined]
+    tool_child.setImageWidthCells = lambda value: tool_calls.append(("imageWidthCells", value))  # type: ignore[attr-defined]
+    assistant_child = object.__new__(interactive_mode_module.AssistantMessageComponent)
+    assistant_child.setHideThinkingBlock = lambda value: tool_calls.append(("hideThinkingBlock", value))  # type: ignore[attr-defined]
     mode = InteractiveMode(
         ui=ui,
         settingsManager=SimpleNamespace(
@@ -3956,11 +3962,13 @@ def test_show_settings_selector_builds_live_settings_callbacks(monkeypatch: pyte
         footer=SimpleNamespace(setAutoCompactEnabled=lambda value: settings_calls.append(("footerAutoCompact", value))),
         chatContainer=SimpleNamespace(
             children=[
+                tool_child,
+                assistant_child,
                 SimpleNamespace(
-                    setShowImages=lambda value: tool_calls.append(("showImages", value)),
-                    setImageWidthCells=lambda value: tool_calls.append(("imageWidthCells", value)),
-                    setHideThinkingBlock=lambda value: tool_calls.append(("hideThinkingBlock", value)),
-                )
+                    setShowImages=lambda value: non_target_calls.append(("showImages", value)),
+                    setImageWidthCells=lambda value: non_target_calls.append(("imageWidthCells", value)),
+                    setHideThinkingBlock=lambda value: non_target_calls.append(("hideThinkingBlock", value)),
+                ),
             ],
             clear=lambda: settings_calls.append(("chatClear", True)),
         ),
@@ -4000,6 +4008,7 @@ def test_show_settings_selector_builds_live_settings_callbacks(monkeypatch: pyte
     assert ("showImages", False) in tool_calls
     assert ("imageWidthCells", 64) in tool_calls
     assert ("hideThinkingBlock", True) in tool_calls
+    assert non_target_calls == []
     assert ("autocomplete", True) in settings_calls
     assert ("status", "HTTP idle timeout: 1.5 sec") in settings_calls
     assert ("chatClear", True) in settings_calls

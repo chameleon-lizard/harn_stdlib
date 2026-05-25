@@ -1524,7 +1524,10 @@ class InteractiveMode:
             if use_overlay:
                 overlay_options = _value(options, "overlayOptions")
                 resolved_options = overlay_options() if callable(overlay_options) else overlay_options
-                handle = self.ui.showOverlay(component, resolved_options or {})
+                if resolved_options is None:
+                    width = getattr(component, "width", None)
+                    resolved_options = {"width": width} if width else None
+                handle = self.ui.showOverlay(component, resolved_options)
                 on_handle = _value(options, "onHandle")
                 if callable(on_handle):
                     on_handle(handle)

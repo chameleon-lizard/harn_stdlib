@@ -590,7 +590,6 @@ def _create_theme(
     source_path: str | None = None,
     source_info: Any | None = None,
 ) -> Theme:
-    theme_json = load_theme_json(name)
     resolved = resolve_theme_colors(theme_json.get("colors"), theme_json.get("vars"))
     fg_colors = {
         key: value

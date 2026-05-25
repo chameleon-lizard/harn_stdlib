@@ -468,6 +468,35 @@ def load_theme(name: str) -> Theme:
     )
 
 
+def load_theme_from_path(theme_path: str, mode: str | None = None) -> Theme:
+    theme_json = _load_json(theme_path)
+    name = theme_json.get("name")
+    colors = theme_json.get("colors")
+    if not isinstance(name, str):
+        raise ValueError(f"Theme file must contain a string name: {theme_path}")
+    if not isinstance(colors, dict):
+        raise ValueError(f"Theme file must contain a colors object: {theme_path}")
+
+    resolved = resolve_theme_colors(colors, theme_json.get("vars"))
+    fg_colors = {
+        key: value
+        for key, value in resolved.items()
+        if key not in _BACKGROUND_COLOR_KEYS
+    }
+    bg_colors = {
+        cast(ThemeBg, key): value
+        for key, value in resolved.items()
+        if key in _BACKGROUND_COLOR_KEYS
+    }
+    return Theme(
+        fg_colors,
+        bg_colors,
+        name=name,
+        sourcePath=theme_path,
+        colorMode=mode or _detect_color_mode(),
+    )
+
+
 def set_global_theme(theme_instance: Theme) -> None:
     global theme
     theme = theme_instance
@@ -812,6 +841,7 @@ getThemeByName = get_theme_by_name
 getThemeExportColors = get_theme_export_colors
 initTheme = init_theme
 loadTheme = load_theme
+loadThemeFromPath = load_theme_from_path
 loadThemeJson = load_theme_json
 onThemeChange = on_theme_change
 resolveThemeColors = resolve_theme_colors
@@ -861,8 +891,10 @@ __all__ = [
     "initTheme",
     "init_theme",
     "loadTheme",
+    "loadThemeFromPath",
     "loadThemeJson",
     "load_theme",
+    "load_theme_from_path",
     "load_theme_json",
     "onThemeChange",
     "on_theme_change",

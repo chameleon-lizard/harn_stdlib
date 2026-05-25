@@ -3586,6 +3586,8 @@ class InteractiveMode:
             self.defaultEditor.onAction("app.model.select", lambda: self.showModelSelector())
             self.defaultEditor.onAction("app.tools.expand", self.toggleToolOutputExpansion)
             self.defaultEditor.onAction("app.thinking.toggle", self.toggleThinkingBlockVisibility)
+            self.defaultEditor.onAction("app.message.followUp", lambda: self._schedule_task(self.handleFollowUp()))
+            self.defaultEditor.onAction("app.message.dequeue", self.handleDequeue)
             self.defaultEditor.onAction("app.session.fork", self.showUserMessageSelector)
             self.defaultEditor.onAction("app.session.tree", self.showTreeSelector)
             self.defaultEditor.onAction("app.session.resume", lambda: self.showSessionSelector())
@@ -3687,6 +3689,45 @@ class InteractiveMode:
 
     def handleCtrlD(self) -> None:
         self._schedule_task(self.shutdown())
+
+    async def handleFollowUp(self) -> None:
+        text = self._get_editor_text().strip()
+        if not text:
+            return
+
+        if bool(getattr(self.session, "isCompacting", False)):
+            if self.isExtensionCommand(text):
+                add_history = _callable_attr(self.editor, "addToHistory")
+                if add_history is not None:
+                    add_history(text)
+                self._set_editor_text("")
+                await self.session.prompt(text)
+            else:
+                self.queueCompactionMessage(text, "followUp")
+            return
+
+        if bool(getattr(self.session, "isStreaming", False)):
+            add_history = _callable_attr(self.editor, "addToHistory")
+            if add_history is not None:
+                add_history(text)
+            self._set_editor_text("")
+            await self.session.prompt(text, {"streamingBehavior": "followUp"})
+            self.updatePendingMessagesDisplay()
+            self._request_render()
+            return
+
+        on_submit = getattr(self.editor, "onSubmit", None)
+        if callable(on_submit):
+            self._set_editor_text("")
+            await _maybe_await(on_submit(text))
+
+    def handleDequeue(self) -> None:
+        restored = self.restoreQueuedMessagesToEditor()
+        if restored == 0:
+            self.showStatus("No queued messages to restore")
+            return
+        suffix = "s" if restored > 1 else ""
+        self.showStatus(f"Restored {restored} queued message{suffix} to editor")
 
     def showModelSelector(self, initialSearchInput: str | None = None) -> None:
         self.showSelector(

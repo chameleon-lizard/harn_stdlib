@@ -2993,6 +2993,17 @@ def test_show_settings_selector_builds_live_settings_callbacks(monkeypatch: pyte
         "harnify_coding_agent.modes.interactive.interactive_mode.SettingsSelectorComponent",
         FakeSettingsSelectorComponent,
     )
+    monkeypatch.setattr(
+        "harnify_coding_agent.modes.interactive.interactive_mode.configureHttpDispatcher",
+        lambda timeout_ms: settings_calls.append(("configureHttpDispatcher", timeout_ms)),
+    )
+    monkeypatch.setattr(
+        interactive_mode_module.interactive_theme,
+        "set_theme",
+        lambda theme_name, _watcher=True: (
+            settings_calls.append(("themePreview", theme_name)) or {"success": True}
+        ),
+    )
 
     settings_calls: list[tuple[str, Any]] = []
     tool_calls: list[tuple[str, Any]] = []
@@ -3015,6 +3026,7 @@ def test_show_settings_selector_builds_live_settings_callbacks(monkeypatch: pyte
             getHttpIdleTimeoutMs=lambda: 300_000,
             setHttpIdleTimeoutMs=lambda value: settings_calls.append(("httpIdleTimeoutMs", value)),
             getTheme=lambda: "dark",
+            setTheme=lambda value: settings_calls.append(("theme", value)),
             getCollapseChangelog=lambda: True,
             setCollapseChangelog=lambda value: settings_calls.append(("collapseChangelog", value)),
             getEnableInstallTelemetry=lambda: True,
@@ -3037,7 +3049,6 @@ def test_show_settings_selector_builds_live_settings_callbacks(monkeypatch: pyte
             setShowTerminalProgress=lambda value: settings_calls.append(("showTerminalProgress", value)),
             getWarnings=lambda: {"anthropicExtraUsage": True},
             setWarnings=lambda value: settings_calls.append(("warnings", value)),
-            setCompactionEnabled=lambda value: settings_calls.append(("autoCompact", value)),
             setHideThinkingBlock=lambda value: settings_calls.append(("hideThinkingBlock", value)),
         ),
         session=SimpleNamespace(
@@ -3046,6 +3057,7 @@ def test_show_settings_selector_builds_live_settings_callbacks(monkeypatch: pyte
             followUpMode="one-at-a-time",
             thinkingLevel="off",
             getAvailableThinkingLevels=lambda: ["off", "high"],
+            setAutoCompactionEnabled=lambda value: settings_calls.append(("autoCompactSession", value)),
             setSteeringMode=lambda value: settings_calls.append(("steeringMode", value)),
             setFollowUpMode=lambda value: settings_calls.append(("followUpMode", value)),
             setThinkingLevel=lambda value: settings_calls.append(("thinkingLevel", value)),
@@ -3058,13 +3070,14 @@ def test_show_settings_selector_builds_live_settings_callbacks(monkeypatch: pyte
                     setImageWidthCells=lambda value: tool_calls.append(("imageWidthCells", value)),
                     setHideThinkingBlock=lambda value: tool_calls.append(("hideThinkingBlock", value)),
                 )
-            ]
+            ],
+            clear=lambda: settings_calls.append(("chatClear", True)),
         ),
         defaultEditor=FakeEditor(),
         editor=FakeEditor(),
     )
     mode.setupAutocompleteProvider = lambda: settings_calls.append(("autocomplete", True))  # type: ignore[method-assign]
-    mode.renderCurrentSessionState = lambda: settings_calls.append(("rebuild", True))  # type: ignore[method-assign]
+    mode.rebuildChatFromMessages = lambda: settings_calls.append(("rebuild", True))  # type: ignore[method-assign]
     mode.showStatus = lambda message: settings_calls.append(("status", message))  # type: ignore[method-assign]
     mode.updateEditorBorderColor = lambda: settings_calls.append(("border", True))  # type: ignore[method-assign]
 
@@ -3075,20 +3088,32 @@ def test_show_settings_selector_builds_live_settings_callbacks(monkeypatch: pyte
     assert config.currentTheme == "dark"
     assert config.availableThinkingLevels == ["off", "high"]
 
+    callbacks.onAutoCompactChange(True)
     callbacks.onShowImagesChange(False)
     callbacks.onImageWidthCellsChange(64)
     callbacks.onEnableSkillCommandsChange(False)
+    callbacks.onHttpIdleTimeoutMsChange(1500)
+    callbacks.onThemeChange("solarized")
+    callbacks.onThemePreview("gruvbox")
     callbacks.onHideThinkingBlockChange(True)
 
+    assert ("autoCompactSession", True) in settings_calls
+    assert ("footerAutoCompact", True) in settings_calls
     assert ("showImages", False) in settings_calls
     assert ("imageWidthCells", 64) in settings_calls
     assert ("enableSkillCommands", False) in settings_calls
+    assert ("httpIdleTimeoutMs", 1500) in settings_calls
+    assert ("configureHttpDispatcher", 1500) in settings_calls
+    assert ("theme", "solarized") in settings_calls
     assert ("hideThinkingBlock", True) in settings_calls
     assert ("showImages", False) in tool_calls
     assert ("imageWidthCells", 64) in tool_calls
     assert ("hideThinkingBlock", True) in tool_calls
     assert ("autocomplete", True) in settings_calls
+    assert ("status", "HTTP idle timeout: 1.5 sec") in settings_calls
+    assert ("chatClear", True) in settings_calls
     assert ("rebuild", True) in settings_calls
+    assert ui.invalidated == 2
 
 
 @pytest.mark.asyncio

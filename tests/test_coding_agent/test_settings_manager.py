@@ -130,6 +130,7 @@ def test_settings_manager_nullish_getters_match_ts_runtime() -> None:
         {
             "transport": "",
             "doubleEscapeAction": "",
+            "collapseChangelog": "",
             "retry": {"enabled": None},
             "terminal": {"showImages": None},
             "images": {"autoResize": None},
@@ -139,10 +140,30 @@ def test_settings_manager_nullish_getters_match_ts_runtime() -> None:
 
     assert manager.getTransport() == ""
     assert manager.getDoubleEscapeAction() == ""
+    assert manager.getCollapseChangelog() == ""
     assert manager.getRetryEnabled() is True
     assert manager.getShowImages() is True
     assert manager.getImageAutoResize() is True
     assert manager.getEnableInstallTelemetry() is True
+
+
+def test_settings_manager_preserves_ts_live_list_reference_semantics() -> None:
+    manager = SettingsManager.inMemory()
+
+    extension_paths = ["./ext-a"]
+    manager.setExtensionPaths(extension_paths)
+    extension_paths.append("./ext-b")
+    assert manager.getExtensionPaths() == ["./ext-a", "./ext-b"]
+
+    enabled_models = ["openai/*"]
+    manager.setEnabledModels(enabled_models)
+    enabled_models.append("anthropic/*")
+    assert manager.getEnabledModels() == ["openai/*", "anthropic/*"]
+
+    returned_models = manager.getEnabledModels()
+    assert returned_models is enabled_models
+    returned_models.append("google/*")
+    assert manager.getEnabledModels() == ["openai/*", "anthropic/*", "google/*"]
 
 
 @pytest.mark.asyncio

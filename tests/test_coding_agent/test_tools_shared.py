@@ -37,6 +37,7 @@ from harnify_coding_agent.core.tools import file_mutation_queue as file_mutation
 from harnify_coding_agent.core.tools import output_accumulator as output_accumulator_module
 from harnify_coding_agent.core.tools import path_utils as path_utils_module
 from harnify_coding_agent.core.tools import render_utils as render_utils_module
+from harnify_coding_agent.core.tools import tool_definition_wrapper as tool_definition_wrapper_module
 
 
 def test_truncate_head_honors_line_and_byte_limits() -> None:
@@ -222,6 +223,14 @@ async def test_wrap_tool_definition_passes_extension_context() -> None:
     assert wrapped.label == "Demo"
     assert seen["ctx"] == {"cwd": os.getcwd()}
     assert result.details == {"done": True}
+
+
+def test_tool_definition_wrapper_module_exports_match_ts_surface() -> None:
+    assert tool_definition_wrapper_module.__all__ == [
+        "createToolDefinitionFromAgentTool",
+        "wrapToolDefinition",
+        "wrapToolDefinitions",
+    ]
 
 
 def test_tool_index_factories_preserve_upstream_tool_sets(tmp_path: Path) -> None:

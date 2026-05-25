@@ -3433,7 +3433,6 @@ class InteractiveMode:
             return
         if event_type == "queue_update":
             self.updatePendingMessagesDisplay()
-            self.footer.invalidate()
             self._request_render()
             return
         if event_type == "compaction_start":
@@ -3490,8 +3489,6 @@ class InteractiveMode:
                 self.streamingMessage = message
                 self.chatContainer.addChild(self.streamingComponent)
                 self.streamingComponent.updateContent(message)
-            if self.workingVisible and self.loadingAnimation is None:
-                self.setWorkingVisible(True)
             self.footer.invalidate()
             self._request_render()
             return

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+from harnify_tui import stdin_buffer as stdin_buffer_module
 from harnify_tui.stdin_buffer import StdinBuffer
 
 
@@ -99,3 +100,16 @@ def test_stdin_buffer_emits_bracketed_paste_as_single_paste_event() -> None:
 
     assert paste_events == ["hello\nworld"]
     assert data_events == ["a", "b"]
+
+
+def test_stdin_buffer_module_exports_match_ts_surface() -> None:
+    assert stdin_buffer_module.__all__ == ["StdinBuffer", "StdinBufferEventMap", "StdinBufferOptions"]
+    assert not hasattr(stdin_buffer_module, "ESC")
+    assert not hasattr(stdin_buffer_module, "BRACKETED_PASTE_START")
+    assert not hasattr(stdin_buffer_module, "BRACKETED_PASTE_END")
+
+
+def test_stdin_buffer_preserves_non_integer_timeout_value() -> None:
+    buffer = StdinBuffer({"timeout": 2.5})
+    assert buffer.timeoutMs == 2.5
+    assert not hasattr(buffer, "emitDataSequence")

@@ -388,9 +388,7 @@ __all__ = [
     "ImageProtocol",
     "TerminalCapabilities",
     "CellDimensions",
-    "ImageCellSize",
     "ImageDimensions",
-    "ImageProtocol",
     "ImageRenderOptions",
     "getCellDimensions",
     "setCellDimensions",
@@ -404,6 +402,7 @@ __all__ = [
     "deleteKittyImage",
     "deleteAllKittyImages",
     "encodeITerm2",
+    "ImageCellSize",
     "calculateImageCellSize",
     "calculateImageRows",
     "getPngDimensions",
@@ -414,5 +413,4 @@ __all__ = [
     "renderImage",
     "hyperlink",
     "imageFallback",
-    "TerminalCapabilities",
 ]

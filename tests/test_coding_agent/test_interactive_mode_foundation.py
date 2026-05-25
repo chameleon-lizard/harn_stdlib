@@ -3234,3 +3234,39 @@ async def test_show_models_selector_uses_full_registry_list_when_session_is_scop
     config = captured["config"]
     assert [model.id for model in config.allModels] == ["gpt-4o-mini", "claude-sonnet-4-5"]
     assert config.enabledModelIds == ["openai/gpt-4o-mini"]
+
+
+@pytest.mark.asyncio
+async def test_show_session_selector_shutdown_callback_matches_ts_immediate_shutdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    calls: list[str] = []
+
+    class FakeSessionSelectorComponent:
+        def __init__(
+            self,
+            _list_local: Any,
+            _list_all: Any,
+            _on_select: Any,
+            _on_cancel: Any,
+            on_shutdown: Any,
+            _on_render: Any,
+            _options: Any,
+            _current_session_file: Any,
+        ) -> None:
+            captured["on_shutdown"] = on_shutdown
+
+    monkeypatch.setattr(
+        "harnify_coding_agent.modes.interactive.interactive_mode.SessionSelectorComponent",
+        FakeSessionSelectorComponent,
+    )
+
+    mode = InteractiveMode(ui=FakeUi())
+    mode.shutdown = lambda: asyncio.sleep(0, result=calls.append("shutdown"))  # type: ignore[method-assign]
+
+    mode.showSessionSelector()
+    captured["on_shutdown"]()
+    await asyncio.sleep(0)
+
+    assert calls == ["shutdown"]

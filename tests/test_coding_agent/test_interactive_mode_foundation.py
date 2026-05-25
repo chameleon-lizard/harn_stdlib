@@ -1272,6 +1272,9 @@ async def test_handle_submitted_text_routes_commands_and_prompts() -> None:
     mode.handleClearCommand = handle_clear  # type: ignore[method-assign]
     mode.handleCompactCommand = handle_compact  # type: ignore[method-assign]
     mode.handleReloadCommand = handle_reload  # type: ignore[method-assign]
+    mode.handleDebugCommand = lambda: calls.append("debug")  # type: ignore[method-assign]
+    mode.handleArminSaysHi = lambda: calls.append("armin")  # type: ignore[method-assign]
+    mode.handleDementedDelves = lambda: calls.append("demented")  # type: ignore[method-assign]
     mode.shutdown = handle_quit  # type: ignore[method-assign]
     mode.handleBashCommand = handle_bash  # type: ignore[method-assign]
     mode.onInputCallback = lambda text: calls.append(("input-callback", text))
@@ -1299,6 +1302,9 @@ async def test_handle_submitted_text_routes_commands_and_prompts() -> None:
     await mode.handleSubmittedText("/new")
     await mode.handleSubmittedText("/compact focus on tests")
     await mode.handleSubmittedText("/reload")
+    await mode.handleSubmittedText("/debug")
+    await mode.handleSubmittedText("/arminsayshi")
+    await mode.handleSubmittedText("/dementedelves")
     await mode.handleSubmittedText("/quit")
     await mode.handleSubmittedText("! ls -la")
     await mode.handleSubmittedText("!! pwd")
@@ -1328,6 +1334,9 @@ async def test_handle_submitted_text_routes_commands_and_prompts() -> None:
         "new",
         ("compact", "focus on tests"),
         "reload",
+        "debug",
+        "armin",
+        "demented",
         "quit",
         ("bash", "ls -la", False),
         ("bash", "pwd", True),
@@ -1511,6 +1520,48 @@ async def test_handle_clear_command_renders_new_session_message() -> None:
     assert stopped == [True]
     assert cleared == [True]
     assert "✓ New session started" in stripped
+
+
+def test_handle_debug_command_writes_log_and_renders_status(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    debug_log_path = tmp_path / "debug.log"
+    monkeypatch.setattr(
+        "harnify_coding_agent.modes.interactive.interactive_mode.get_debug_log_path",
+        lambda: str(debug_log_path),
+    )
+
+    ui = FakeUi()
+    ui.render = lambda width: [f"width={width}", "hello"]  # type: ignore[method-assign]
+    ui.terminal = SimpleNamespace(
+        columns=80,
+        rows=24,
+        setProgress=lambda _value: None,
+        setTitle=lambda _value: None,
+    )
+    mode = InteractiveMode(
+        ui=ui,
+        chatContainer=Container(),
+        session=SimpleNamespace(messages=[{"role": "user", "content": "hi"}]),
+    )
+
+    mode.handleDebugCommand()
+
+    content = debug_log_path.read_text(encoding="utf-8")
+    assert "Terminal: 80x24" in content
+    assert '[0] (w=8) "width=80"' in content
+    assert '{"role": "user", "content": "hi"}' in content
+
+    rendered = "\n".join(
+        line
+        for child in mode.chatContainer.children
+        if isinstance(child, Text)
+        for line in child.render(120)
+    )
+    stripped = _strip_ansi(rendered)
+    assert "✓ Debug log written" in stripped
+    assert str(debug_log_path) in stripped
 
 
 @pytest.mark.asyncio

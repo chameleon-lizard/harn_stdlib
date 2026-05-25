@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import os
 import threading
 from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 from harnify_tui import (
@@ -52,8 +53,6 @@ class FlatNode:
 
 
 class TreeList(Component):
-    wantsKeyRelease = False
-
     def __init__(
         self,
         tree: list[SessionTreeNode],
@@ -509,9 +508,15 @@ class TreeList(Component):
         for flat_node in self.flatNodes:
             if flat_node.node.entry.get("id") == entryId:
                 flat_node.node.label = label
-                flat_node.node.labelTimestamp = labelTimestamp if label else None
+                flat_node.node.labelTimestamp = (
+                    labelTimestamp
+                    if label
+                    else None
+                )
                 if label and labelTimestamp is None:
-                    flat_node.node.labelTimestamp = datetime.now().astimezone().isoformat()
+                    flat_node.node.labelTimestamp = (
+                        datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+                    )
                 break
 
     def getStatusLabels(self) -> str:
@@ -688,8 +693,8 @@ class TreeList(Component):
         return theme.bold(result) if isSelected else result
 
     def formatLabelTimestamp(self, timestamp: str) -> str:
-        date = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-        now = datetime.now(date.tzinfo)
+        date = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone()
+        now = datetime.now().astimezone()
         time = f"{date.hour:02d}:{date.minute:02d}"
         if date.year == now.year and date.month == now.month and date.day == now.day:
             return time
@@ -721,7 +726,7 @@ class TreeList(Component):
         return False
 
     def formatToolCall(self, name: str, args: dict[str, Any]) -> str:
-        home = str(Path.home())
+        home = os.environ.get("HOME") or os.environ.get("USERPROFILE") or ""
 
         def shorten_path(path: str) -> str:
             return f"~{path[len(home):]}" if home and path.startswith(home) else path
@@ -732,7 +737,7 @@ class TreeList(Component):
             limit = args.get("limit")
             display = path
             if offset is not None or limit is not None:
-                start = int(offset or 1)
+                start = 1 if offset is None else int(offset)
                 end = start + int(limit) - 1 if limit is not None else ""
                 display += f":{start}{f'-{end}' if end else ''}"
             return f"[read: {display}]"
@@ -754,8 +759,9 @@ class TreeList(Component):
             return f"[find: {pattern} in {path}]"
         if name == "ls":
             return f"[ls: {shorten_path(str(args.get('path') or '.'))}]"
-        args_json = str(args)[:40]
-        return f"[{name}: {args_json}{'...' if len(str(args)) > 40 else ''}]"
+        args_json = json.dumps(args)
+        display = args_json[:40]
+        return f"[{name}: {display}{'...' if len(args_json) > 40 else ''}]"
 
     def handleInput(self, keyData: str) -> None:
         kb = getKeybindings()
@@ -910,8 +916,6 @@ class TreeList(Component):
 
 
 class SearchLine(Component):
-    wantsKeyRelease = False
-
     def __init__(self, treeList: TreeList) -> None:
         self.treeList = treeList
 
@@ -935,8 +939,6 @@ class SearchLine(Component):
 
 
 class LabelInput(Component, Focusable):
-    wantsKeyRelease = False
-
     def __init__(self, entryId: str, currentLabel: str | None) -> None:
         self.entryId = entryId
         self.input = Input()
@@ -945,9 +947,6 @@ class LabelInput(Component, Focusable):
         self.onCancel: callable | None = None
         if currentLabel:
             self.input.setValue(currentLabel)
-            self.input.cursor = len(currentLabel)
-        self.input.onSubmit = self._submit
-        self.input.onEscape = self._cancel
 
     @property
     def focused(self) -> bool:
@@ -957,14 +956,6 @@ class LabelInput(Component, Focusable):
     def focused(self, value: bool) -> None:
         self._focused = value
         self.input.focused = value
-
-    def _submit(self, value: str) -> None:
-        if callable(self.onSubmit):
-            self.onSubmit(self.entryId, value.strip() or None)
-
-    def _cancel(self) -> None:
-        if callable(self.onCancel):
-            self.onCancel()
 
     def invalidate(self) -> None:
         return None
@@ -986,12 +977,18 @@ class LabelInput(Component, Focusable):
         return lines
 
     def handleInput(self, keyData: str) -> None:
-        self.input.handleInput(keyData)
+        kb = getKeybindings()
+        if kb.matches(keyData, "tui.select.confirm"):
+            if callable(self.onSubmit):
+                self.onSubmit(self.entryId, self.input.getValue().strip() or None)
+        elif kb.matches(keyData, "tui.select.cancel"):
+            if callable(self.onCancel):
+                self.onCancel()
+        else:
+            self.input.handleInput(keyData)
 
 
 class TreeSelectorComponent(Container, Focusable):
-    wantsKeyRelease = False
-
     def __init__(
         self,
         tree: list[SessionTreeNode],
@@ -1107,11 +1104,5 @@ class TreeSelectorComponent(Container, Focusable):
 
 __all__ = [
     "FilterMode",
-    "FlatNode",
-    "GutterInfo",
-    "LabelInput",
-    "SearchLine",
-    "ToolCallInfo",
-    "TreeList",
     "TreeSelectorComponent",
 ]

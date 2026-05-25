@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from harnify_coding_agent.modes.interactive.theme.theme import theme
 
 _DIFF_LINE_RE = re.compile(r"^([+\-\s])(\s*\d*)\s(.*)$")
-_TOKEN_RE = re.compile(r"\s+|\S+")
+_TOKEN_RE = re.compile(r"\S+\s*|\s+")
 
 
 @dataclass(slots=True)
@@ -138,14 +138,6 @@ renderIntraLineDiff = render_intra_line_diff
 replaceTabs = replace_tabs
 
 __all__ = [
-    "ParsedDiffLine",
     "RenderDiffOptions",
-    "parseDiffLine",
-    "parse_diff_line",
     "renderDiff",
-    "renderIntraLineDiff",
-    "render_diff",
-    "render_intra_line_diff",
-    "replaceTabs",
-    "replace_tabs",
 ]

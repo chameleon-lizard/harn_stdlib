@@ -245,6 +245,48 @@ async def _maybe_await(value: Any) -> Any:
     return value
 
 
+def _coerce_bash_result(result: Any) -> BashResult:
+    if isinstance(result, BashResult):
+        return result
+
+    exit_code = _value(result, "exitCode", _value(result, "exit_code"))
+    try:
+        resolved_exit_code = int(exit_code) if exit_code is not None else None
+    except Exception:
+        resolved_exit_code = None
+
+    full_output_path = _value(result, "fullOutputPath", _value(result, "full_output_path"))
+    return BashResult(
+        output=str(_value(result, "output", "") or ""),
+        exitCode=resolved_exit_code,
+        cancelled=bool(_value(result, "cancelled", False)),
+        truncated=bool(_value(result, "truncated", False)),
+        fullOutputPath=str(full_output_path) if full_output_path is not None else None,
+    )
+
+
+def _make_bash_truncation_result(content: str) -> TruncationResult:
+    encoded = content.encode("utf-8")
+    lines = content.split("\n") if content else []
+    if content.endswith("\n") and lines:
+        lines.pop()
+    total_lines = len(lines)
+    total_bytes = len(encoded)
+    return TruncationResult(
+        content=content,
+        truncated=True,
+        truncatedBy="bytes",
+        totalLines=total_lines,
+        totalBytes=total_bytes,
+        outputLines=total_lines,
+        outputBytes=total_bytes,
+        lastLinePartial=False,
+        firstLineExceedsLimit=False,
+        maxLines=0,
+        maxBytes=0,
+    )
+
+
 def _is_signal_aborted(signal: Any) -> bool:
     return bool(getattr(signal, "aborted", False))
 
@@ -5686,6 +5728,7 @@ def _safe_call_str(obj: Any, name: str, default: str | None = None) -> str | Non
     except Exception:
         return default
     return str(value) if value is not None else default
+
 
 def _extract_user_text(message: Any) -> str:
     content = _value(message, "content")

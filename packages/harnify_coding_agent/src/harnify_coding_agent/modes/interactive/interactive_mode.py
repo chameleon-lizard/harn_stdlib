@@ -3242,7 +3242,7 @@ class InteractiveMode:
             if _value(model, "provider", "")
         }
         for provider_id in model_providers:
-            if provider_id in oauth_provider_ids:
+            if not isApiKeyLoginProvider(provider_id, oauth_provider_ids):
                 continue
             options.append(
                 AuthSelectorProvider(
@@ -3253,23 +3253,23 @@ class InteractiveMode:
             )
 
         filtered = [option for option in options if authType is None or option.authType == authType]
-        return sorted(filtered, key=lambda option: option.name.lower())
+        return sorted(filtered, key=lambda option: option.name)
 
     def getLogoutProviderOptions(self) -> list[AuthSelectorProvider]:
         auth_storage = self.session.modelRegistry.authStorage
         options: list[AuthSelectorProvider] = []
         for provider_id in auth_storage.list():
             credential = auth_storage.get(provider_id)
-            if not isinstance(credential, dict):
+            if not credential:
                 continue
             options.append(
                 AuthSelectorProvider(
                     id=provider_id,
                     name=self.session.modelRegistry.getProviderDisplayName(provider_id),
-                    authType=str(credential.get("type", "api_key")),
+                    authType=str(_value(credential, "type", "api_key")),
                 )
             )
-        return sorted(options, key=lambda option: option.name.lower())
+        return sorted(options, key=lambda option: option.name)
 
     def showLoginAuthTypeSelector(self) -> None:
         subscription_label = "Use a subscription"

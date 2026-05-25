@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import harnify_coding_agent.migrations as migrations_module
 from harnify_coding_agent.config import APP_NAME
 from harnify_coding_agent.migrations import (
     migrate_auth_to_auth_json,
@@ -85,3 +86,12 @@ def test_run_migrations_collects_deprecation_warnings(tmp_path: Path, monkeypatc
     assert result["migratedAuthProviders"] == []
     assert any("hooks/" in warning for warning in result["deprecationWarnings"])
     assert any("custom tools" in warning for warning in result["deprecationWarnings"])
+
+
+def test_migrations_module_exports_match_ts_surface() -> None:
+    assert migrations_module.__all__ == [
+        "migrateAuthToAuthJson",
+        "migrateSessionsFromAgentRoot",
+        "showDeprecationWarnings",
+        "runMigrations",
+    ]

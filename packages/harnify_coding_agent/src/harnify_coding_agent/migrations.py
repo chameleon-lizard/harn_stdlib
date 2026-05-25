@@ -91,7 +91,7 @@ def migrate_commands_to_prompts(base_dir: str, label: str) -> bool:
     if commands_dir.exists() and not prompts_dir.exists():
         try:
             commands_dir.rename(prompts_dir)
-            print(f"Migrated {label} commands/ -> prompts/")
+            print(f"Migrated {label} commands/ → prompts/")
             return True
         except OSError as error:
             print(f"Warning: Could not migrate {label} commands/ to prompts/: {error}")
@@ -141,7 +141,7 @@ def migrate_tools_to_bin() -> None:
                 pass
 
     if moved_any:
-        print("Migrated managed binaries tools/ -> bin/")
+        print("Migrated managed binaries tools/ → bin/")
 
 
 def check_deprecated_extension_dirs(base_dir: str, label: str) -> list[str]:
@@ -186,10 +186,35 @@ async def show_deprecation_warnings(warnings: list[str]) -> None:
     print("\nMove your extensions to the extensions/ directory.")
     print(f"Migration guide: {MIGRATION_GUIDE_URL}")
     print(f"Documentation: {EXTENSIONS_DOC_URL}")
+    print("\nPress any key to continue...", end="", flush=True)
     if sys.stdin.isatty():
-        print("\nPress Enter to continue...", end="", flush=True)
-        await asyncio.to_thread(sys.stdin.readline)
-        print()
+        await asyncio.to_thread(_read_single_keypress)
+    print()
+
+
+def _read_single_keypress() -> None:
+    if os.name == "nt":
+        import msvcrt
+
+        msvcrt.getch()
+        return
+
+    import termios
+    import tty
+
+    stream = sys.stdin
+    try:
+        fileno = stream.fileno()
+    except OSError:
+        stream.read(1)
+        return
+
+    original_settings = termios.tcgetattr(fileno)
+    try:
+        tty.setraw(fileno)
+        stream.read(1)
+    finally:
+        termios.tcsetattr(fileno, termios.TCSADRAIN, original_settings)
 
 
 def run_migrations(cwd: str) -> dict[str, list[str]]:
@@ -210,19 +235,8 @@ showDeprecationWarnings = show_deprecation_warnings
 runMigrations = run_migrations
 
 __all__ = [
-    "EXTENSIONS_DOC_URL",
-    "MIGRATION_GUIDE_URL",
-    "check_deprecated_extension_dirs",
     "migrateAuthToAuthJson",
     "migrateSessionsFromAgentRoot",
-    "migrate_auth_to_auth_json",
-    "migrate_commands_to_prompts",
-    "migrate_extension_system",
-    "migrate_keybindings_config_file",
-    "migrate_sessions_from_agent_root",
-    "migrate_tools_to_bin",
     "runMigrations",
-    "run_migrations",
     "showDeprecationWarnings",
-    "show_deprecation_warnings",
 ]

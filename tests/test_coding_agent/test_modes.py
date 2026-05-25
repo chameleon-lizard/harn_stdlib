@@ -717,7 +717,22 @@ async def test_rpc_mode_unknown_command_omits_id_like_ts(monkeypatch) -> None:
     assert exit_code == 0
     payload = json.loads(stdout.getvalue().splitlines()[0])
     assert payload["command"] == "unknown"
-    assert payload["id"] is None
+    assert "id" not in payload
+
+
+@pytest.mark.asyncio
+async def test_rpc_mode_non_object_json_uses_ts_raw_cast_path(monkeypatch) -> None:
+    runtime = _FakeRuntime()
+    stdout = io.StringIO()
+    monkeypatch.setattr("sys.stdout", stdout)
+    monkeypatch.setattr("sys.stderr", io.StringIO())
+
+    exit_code = await run_rpc_mode(runtime, input_stream=io.StringIO('[1,2,3]\n'))
+    assert exit_code == 0
+    payload = json.loads(stdout.getvalue().splitlines()[0])
+    assert payload["error"] == "Unknown command: undefined"
+    assert "id" not in payload
+    assert "command" not in payload
 
 
 @pytest.mark.asyncio

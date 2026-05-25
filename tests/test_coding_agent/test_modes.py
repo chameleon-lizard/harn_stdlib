@@ -404,6 +404,20 @@ class _FakeReadable:
         return len(self._listeners.get(event, []))
 
 
+class _PausableInputStream:
+    def __init__(self, chunks: list[str | bytes]) -> None:
+        self._chunks = list(chunks)
+        self.paused = False
+
+    def read(self, _size: int) -> str | bytes:
+        if self._chunks:
+            return self._chunks.pop(0)
+        return ""
+
+    def pause(self) -> None:
+        self.paused = True
+
+
 def test_jsonl_line_buffer_preserves_strict_lf_framing() -> None:
     reader = JsonlLineBuffer()
     lines = reader.feed(b'{"a":"one\xe2\x80\xa8two"}\r\n{"b":2}')
@@ -765,6 +779,38 @@ async def test_rpc_mode_registers_and_restores_signal_handlers(monkeypatch) -> N
     assert [sig for sig, _handler in registered] == expected_signals
     assert all(callable(handler) for _sig, handler in registered)
     assert restored == [(sig, f"previous:{sig}") for sig in expected_signals]
+
+
+@pytest.mark.asyncio
+async def test_rpc_mode_cleanup_pauses_input_stream(monkeypatch) -> None:
+    runtime = _FakeRuntime()
+    stream = _PausableInputStream([""])
+    monkeypatch.setattr("sys.stdout", io.StringIO())
+    monkeypatch.setattr("sys.stderr", io.StringIO())
+
+    exit_code = await run_rpc_mode(runtime, input_stream=stream)
+    assert exit_code == 0
+    assert stream.paused is True
+
+
+@pytest.mark.asyncio
+async def test_rpc_mode_shutdown_handler_triggers_immediate_cleanup(monkeypatch) -> None:
+    runtime = _FakeRuntime()
+    stream = _PausableInputStream(['{"id":"1","type":"get_state"}\n', ""])
+    stdout = io.StringIO()
+    monkeypatch.setattr("sys.stdout", stdout)
+    monkeypatch.setattr("sys.stderr", io.StringIO())
+
+    task = asyncio.create_task(run_rpc_mode(runtime, input_stream=stream))
+    while runtime.session._extension_bindings is None:
+        await asyncio.sleep(0)
+    runtime.session._extension_bindings["shutdownHandler"]()
+
+    exit_code = await task
+    assert exit_code == 0
+    assert stream.paused is True
+    payloads = [json.loads(line) for line in stdout.getvalue().splitlines()]
+    assert payloads[0]["command"] == "get_state"
 
 
 @pytest.mark.asyncio

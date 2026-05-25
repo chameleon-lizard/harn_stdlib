@@ -34,4 +34,4 @@ def truncate_to_visual_lines(
 
 truncateToVisualLines = truncate_to_visual_lines
 
-__all__ = ["VisualTruncateResult", "truncateToVisualLines", "truncate_to_visual_lines"]
+__all__ = ["VisualTruncateResult", "truncateToVisualLines"]

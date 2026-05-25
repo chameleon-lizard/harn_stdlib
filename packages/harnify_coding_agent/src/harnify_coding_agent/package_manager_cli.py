@@ -178,6 +178,13 @@ async def _run_self_update(command: SelfUpdateCommand) -> None:
         code = await asyncio.to_thread(child.wait)
         if code == 0:
             continue
+        if code is not None and code < 0:
+            signal_number = -code
+            try:
+                signal_name = signal_module.Signals(signal_number).name
+            except ValueError:
+                signal_name = str(signal_number)
+            raise RuntimeError(f"{step.display} terminated by signal {signal_name}")
         raise RuntimeError(f"{step.display} exited with code {code if code is not None else 'unknown'}")
 
 

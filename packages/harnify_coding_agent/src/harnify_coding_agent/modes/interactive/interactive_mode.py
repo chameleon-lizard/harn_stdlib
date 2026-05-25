@@ -4170,19 +4170,17 @@ class InteractiveMode:
                 start()
             self._request_render(True)
 
+    def clearEditor(self) -> None:
+        self._set_editor_text("")
+        self._request_render()
+
     def handleCtrlC(self) -> None:
-        current_text = _callable_attr(self.editor, "getText")
-        text = current_text() if current_text is not None else ""
-        if str(text).strip():
-            self._set_editor_text("")
-            self._handleClearCount = 0
-            self.showStatus("Cleared input")
-            return
-        self._handleClearCount += 1
-        if self._handleClearCount >= 2:
-            self.requestShutdown()
+        now = time.time() * 1000
+        if now - self.lastSigintTime < 500:
+            self._schedule_task(self.shutdown())
         else:
-            self.showStatus("Press Ctrl+C again or Ctrl+D to exit")
+            self.clearEditor()
+            self.lastSigintTime = now
 
     def handleCtrlD(self) -> None:
         self._schedule_task(self.shutdown())

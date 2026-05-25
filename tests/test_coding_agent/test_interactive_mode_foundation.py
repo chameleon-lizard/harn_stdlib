@@ -318,12 +318,30 @@ def test_update_editor_border_color_matches_ts_and_requests_render() -> None:
         ui=ui,
         editor=editor,
         defaultEditor=editor,
-        session=SimpleNamespace(state=SimpleNamespace(thinkingLevel="high")),
+        session=SimpleNamespace(thinkingLevel="high"),
     )
 
     mode.updateEditorBorderColor()
 
     expected = interactive_mode_module.interactive_theme.theme.getThinkingBorderColor("high")
+    assert callable(editor.borderColor)
+    assert editor.borderColor("sample") == expected("sample")
+    assert ui.render_calls == [None]
+
+
+def test_on_editor_change_uses_session_thinking_level_when_not_in_bash_mode() -> None:
+    ui = FakeUi()
+    editor = FakeEditor()
+    mode = InteractiveMode(
+        ui=ui,
+        editor=editor,
+        defaultEditor=editor,
+        session=SimpleNamespace(thinkingLevel="medium"),
+    )
+
+    mode._on_editor_change("plain text")
+
+    expected = interactive_mode_module.interactive_theme.theme.getThinkingBorderColor("medium")
     assert callable(editor.borderColor)
     assert editor.borderColor("sample") == expected("sample")
     assert ui.render_calls == [None]
@@ -3026,7 +3044,7 @@ def test_show_settings_selector_builds_live_settings_callbacks(monkeypatch: pyte
             autoCompactionEnabled=False,
             steeringMode="one-at-a-time",
             followUpMode="one-at-a-time",
-            state=SimpleNamespace(thinkingLevel="off"),
+            thinkingLevel="off",
             getAvailableThinkingLevels=lambda: ["off", "high"],
             setSteeringMode=lambda value: settings_calls.append(("steeringMode", value)),
             setFollowUpMode=lambda value: settings_calls.append(("followUpMode", value)),

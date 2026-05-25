@@ -198,7 +198,7 @@ def _print_package_command_help(command: PackageCommand) -> None:
     print(f"Usage: {app_name} list")
 
 
-async def handle_config_command(args: list[str]) -> int | None:
+async def handle_config_command(args: list[str]) -> bool | None:
     if not args or args[0] != "config":
         return None
     _set_command_exit_code(0)
@@ -226,7 +226,7 @@ async def handle_config_command(args: list[str]) -> int | None:
     return True
 
 
-async def handle_package_command(args: list[str]) -> int | None:
+async def handle_package_command(args: list[str]) -> bool | None:
     parsed = _parse_package_command(args)
     if parsed is None:
         return None

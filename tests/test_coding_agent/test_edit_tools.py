@@ -10,6 +10,7 @@ from harnify_coding_agent.core.tools import (
     create_edit_tool_definition,
     create_write_tool,
 )
+from harnify_coding_agent.core.tools import edit as edit_module
 from harnify_coding_agent.core.tools import edit_diff as edit_diff_module
 from harnify_coding_agent.core.tools.edit_diff import generate_diff_string, generate_unified_patch, strip_bom
 
@@ -62,6 +63,34 @@ def test_edit_prepare_arguments_parses_json_edits_string() -> None:
     definition = create_edit_tool_definition(str(Path.cwd()))
     prepared = definition.prepareArguments({"path": "file.txt", "edits": '[{"oldText":"a","newText":"b"}]'})
     assert prepared == {"path": "file.txt", "edits": [{"oldText": "a", "newText": "b"}]}
+
+
+def test_edit_tool_definition_matches_ts_surface() -> None:
+    definition = create_edit_tool_definition(str(Path.cwd()))
+
+    assert definition.promptSnippet == (
+        "Make precise file edits with exact text replacement, including multiple disjoint edits in one call"
+    )
+    assert definition.promptGuidelines == [
+        "Use edit for precise changes (edits[].oldText must match exactly)",
+        "When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls",
+        "Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.",
+        "Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.",
+    ]
+    assert definition.renderShell == "self"
+    assert definition.renderCall is not None
+    assert definition.renderResult is not None
+
+
+def test_edit_module_exports_match_ts_surface() -> None:
+    assert edit_module.__all__ == [
+        "EditOperations",
+        "EditToolDetails",
+        "EditToolInput",
+        "EditToolOptions",
+        "createEditTool",
+        "createEditToolDefinition",
+    ]
 
 
 @pytest.mark.asyncio
@@ -250,6 +279,66 @@ async def test_edit_tool_includes_generic_access_errors(tmp_path: Path) -> None:
             None,
             None,
         )
+
+
+class _AbortSignal:
+    def __init__(self) -> None:
+        self.aborted = False
+        self._listeners: list[Callable[[], None]] = []
+
+    def addEventListener(self, event: str, callback, _options=None) -> None:
+        if event != "abort":
+            return
+        if self.aborted:
+            callback()
+            return
+        self._listeners.append(callback)
+
+    def removeEventListener(self, event: str, callback) -> None:
+        if event != "abort":
+            return
+        self._listeners = [listener for listener in self._listeners if listener is not callback]
+
+    def abort(self) -> None:
+        if self.aborted:
+            return
+        self.aborted = True
+        listeners = list(self._listeners)
+        self._listeners.clear()
+        for callback in listeners:
+            callback()
+
+
+@pytest.mark.asyncio
+async def test_edit_tool_rejects_immediately_on_abort_signal(tmp_path: Path) -> None:
+    class Ops:
+        async def access(self, _path: str) -> None:
+            await asyncio.sleep(0.05)
+
+        async def readFile(self, _path: str) -> bytes:
+            return b"hello\n"
+
+        async def writeFile(self, _path: str, _content: str) -> None:
+            return None
+
+    signal = _AbortSignal()
+    tool = create_edit_tool(str(tmp_path), {"operations": Ops()})
+
+    async def trigger_abort() -> None:
+        await asyncio.sleep(0.01)
+        signal.abort()
+
+    abort_task = asyncio.create_task(trigger_abort())
+    with pytest.raises(RuntimeError, match="Operation aborted"):
+        await tool.execute(
+            "edit-abort",
+            {"path": "abort.txt", "edits": [{"oldText": "hello", "newText": "world"}]},
+            signal,
+            None,
+        )
+
+    await abort_task
+    await asyncio.sleep(0.06)
 
 
 @pytest.mark.asyncio

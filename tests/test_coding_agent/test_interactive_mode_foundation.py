@@ -900,7 +900,7 @@ async def test_handle_event_agent_start_restores_retry_state_and_starts_working_
     assert mode.retryLoader is None
     assert mode.loadingAnimation == "working-loader"
     assert retry_calls == ["countdown-dispose", "retry-loader-stop", "working-stop"]
-    assert status_calls == ["cleared", "cleared", "working-loader"]
+    assert status_calls == ["cleared", "working-loader"]
 
 
 @pytest.mark.asyncio

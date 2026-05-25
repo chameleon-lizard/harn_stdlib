@@ -14,6 +14,7 @@ from typing import Any
 
 import pytest
 from harnify_ai.types import Model
+from harnify_coding_agent.core.bash_executor import BashResult
 from harnify_coding_agent.core.agent_session_runtime import SessionImportFileNotFoundError
 from harnify_coding_agent.core.keybindings import KeybindingsManager
 from harnify_coding_agent.core.session_cwd import MissingSessionCwdError, SessionCwdIssue
@@ -2920,6 +2921,147 @@ async def test_handle_submitted_text_bash_command_clears_tracked_bash_mode_after
     assert calls == [("pwd", False)]
     assert mode.isBashMode is False
     assert border_updates == ["border"]
+
+
+@pytest.mark.asyncio
+async def test_handle_bash_command_uses_extension_returned_result_and_records_session() -> None:
+    ui = FakeUi()
+    chat = Container()
+    emitted: list[dict[str, Any]] = []
+    recorded: list[tuple[str, BashResult, dict[str, Any] | None]] = []
+    returned = BashResult(
+        output="done",
+        exitCode=0,
+        cancelled=False,
+        truncated=True,
+        fullOutputPath="/tmp/bash-full.log",
+    )
+
+    async def emit_user_bash(event: dict[str, Any]) -> dict[str, Any]:
+        emitted.append(event)
+        return {"result": returned}
+
+    async def execute_bash(*_args: Any, **_kwargs: Any) -> BashResult:
+        raise AssertionError("executeBash should not run when extension returns a full result")
+
+    session = SimpleNamespace(
+        isStreaming=False,
+        extensionRunner=SimpleNamespace(emitUserBash=emit_user_bash),
+        executeBash=execute_bash,
+        recordBashResult=lambda command, result, options=None: recorded.append((command, result, options)),
+        state=SimpleNamespace(messages=[]),
+    )
+    mode = InteractiveMode(
+        ui=ui,
+        chatContainer=chat,
+        session=session,
+        sessionManager=SimpleNamespace(getCwd=lambda: "/tmp/project"),
+    )
+
+    await mode.handleBashCommand("pwd", True)
+
+    component = chat.children[-1]
+    assert emitted == [
+        {
+            "type": "user_bash",
+            "command": "pwd",
+            "excludeFromContext": True,
+            "cwd": "/tmp/project",
+        }
+    ]
+    assert recorded == [("pwd", returned, {"excludeFromContext": True})]
+    assert isinstance(component, interactive_mode_module.BashExecutionComponent)
+    assert component.getOutput() == "done"
+    assert component.fullOutputPath == "/tmp/bash-full.log"
+    assert component.truncationResult is not None
+    assert component.truncationResult.truncated is True
+    assert mode.bashComponent is None
+    assert ui.render_calls == [None]
+
+
+@pytest.mark.asyncio
+async def test_handle_bash_command_passes_operations_and_rerenders_chunks_without_overriding_escape() -> None:
+    ui = FakeUi()
+    chat = Container()
+    editor = FakeEditor()
+    original_escape = lambda: None
+    editor.onEscape = original_escape
+    operations = object()
+    captured: dict[str, Any] = {}
+
+    async def emit_user_bash(_event: dict[str, Any]) -> dict[str, Any]:
+        return {"operations": operations}
+
+    async def execute_bash(command: str, on_chunk: Any, options: dict[str, Any] | None = None) -> BashResult:
+        captured["command"] = command
+        captured["options"] = options
+        captured["escape_during"] = mode.defaultEditor.onEscape
+        on_chunk("part")
+        captured["output_during"] = chat.children[-1].getOutput()
+        return BashResult(
+            output="part",
+            exitCode=0,
+            cancelled=False,
+            truncated=True,
+            fullOutputPath="/tmp/full-output.log",
+        )
+
+    session = SimpleNamespace(
+        isStreaming=False,
+        extensionRunner=SimpleNamespace(emit_user_bash=emit_user_bash),
+        executeBash=execute_bash,
+        state=SimpleNamespace(messages=[]),
+    )
+    mode = InteractiveMode(
+        ui=ui,
+        chatContainer=chat,
+        editor=editor,
+        defaultEditor=editor,
+        session=session,
+        sessionManager=SimpleNamespace(getCwd=lambda: "/tmp/project"),
+    )
+
+    await mode.handleBashCommand("pwd")
+
+    component = chat.children[-1]
+    assert captured["command"] == "pwd"
+    assert captured["options"] == {"excludeFromContext": False, "operations": operations}
+    assert captured["escape_during"] is original_escape
+    assert mode.defaultEditor.onEscape is original_escape
+    assert captured["output_during"] == "part"
+    assert component.getOutput() == "part"
+    assert component.fullOutputPath == "/tmp/full-output.log"
+    assert component.truncationResult is not None
+    assert component.truncationResult.truncated is True
+    assert mode.bashComponent is None
+    assert ui.render_calls == [None, None, None]
+
+
+@pytest.mark.asyncio
+async def test_handle_bash_command_error_uses_unknown_error_fallback() -> None:
+    errors: list[str] = []
+    ui = FakeUi()
+
+    async def execute_bash(*_args: Any, **_kwargs: Any) -> BashResult:
+        raise Exception()
+
+    mode = InteractiveMode(
+        ui=ui,
+        chatContainer=Container(),
+        session=SimpleNamespace(
+            isStreaming=False,
+            executeBash=execute_bash,
+            state=SimpleNamespace(messages=[]),
+        ),
+        sessionManager=SimpleNamespace(getCwd=lambda: "/tmp/project"),
+    )
+    mode.showError = errors.append  # type: ignore[method-assign]
+
+    await mode.handleBashCommand("pwd")
+
+    assert errors == ["Bash command failed: Unknown error"]
+    assert mode.bashComponent is None
+    assert ui.render_calls == [None, None]
 
 
 @pytest.mark.asyncio

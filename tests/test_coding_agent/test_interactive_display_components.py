@@ -36,6 +36,7 @@ compaction_summary_message_module = importlib.import_module(
 custom_message_module = importlib.import_module(
     "harnify_coding_agent.modes.interactive.components.custom_message"
 )
+diff_module = importlib.import_module("harnify_coding_agent.modes.interactive.components.diff")
 
 
 def _strip_ansi(text: str) -> str:
@@ -71,6 +72,10 @@ def test_compaction_summary_message_module_exports_match_ts_surface() -> None:
 
 def test_custom_message_module_exports_match_ts_surface() -> None:
     assert custom_message_module.__all__ == ["CustomMessageComponent"]
+
+
+def test_diff_module_exports_match_ts_surface() -> None:
+    assert diff_module.__all__ == ["RenderDiffOptions", "renderDiff"]
 
 
 def test_custom_message_uses_custom_renderer_and_falls_back() -> None:

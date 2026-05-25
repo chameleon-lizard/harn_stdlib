@@ -6,14 +6,12 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, Callable, TypedDict
 
-from ruamel.yaml import YAML
-
+from harnify_coding_agent.config import CONFIG_DIR_NAME
 from harnify_coding_agent.core.source_info import SourceInfo, create_synthetic_source_info
+from harnify_coding_agent.utils.frontmatter import parse_frontmatter
 from harnify_coding_agent.utils.paths import resolve_path
-
-CONFIG_DIR_NAME = ".harnify"
 
 
 @dataclass(slots=True)
@@ -77,9 +75,9 @@ def substitute_args(content: str, args: list[str]) -> str:
 
 def load_prompt_templates(options: LoadPromptTemplatesOptions) -> list[PromptTemplate]:
     resolved_cwd = resolve_path(options["cwd"])
-    resolved_agent_dir = resolve_path(options.get("agentDir") or _default_agent_dir())
-    prompt_paths = list(options.get("promptPaths", []))
-    include_defaults = bool(options.get("includeDefaults", True))
+    resolved_agent_dir = resolve_path(options["agentDir"])
+    prompt_paths = options["promptPaths"]
+    include_defaults = options["includeDefaults"]
 
     templates: list[PromptTemplate] = []
     global_prompts_dir = os.path.join(resolved_agent_dir, "prompts")
@@ -145,17 +143,20 @@ def expand_prompt_template(text: str, templates: list[PromptTemplate]) -> str:
     return substitute_args(template.content, parse_command_args(args_string))
 
 
-def _load_templates_from_dir(dir_path: str, get_source_info: Any) -> list[PromptTemplate]:
+def _load_templates_from_dir(
+    dir_path: str,
+    get_source_info: Callable[[str], SourceInfo],
+) -> list[PromptTemplate]:
     if not os.path.isdir(dir_path):
         return []
     templates: list[PromptTemplate] = []
     try:
-        for entry in sorted(Path(dir_path).iterdir(), key=lambda candidate: candidate.name):
-            entry_path = str(entry)
-            is_file = entry.is_file()
+        for entry in os.scandir(dir_path):
+            entry_path = entry.path
+            is_file = entry.is_file(follow_symlinks=False)
             if entry.is_symlink():
                 try:
-                    is_file = entry.stat().st_mode is not None and Path(entry_path).is_file()
+                    is_file = os.stat(entry_path).st_mode is not None and os.path.isfile(entry_path)
                 except OSError:
                     continue
             if is_file and entry.name.endswith(".md"):
@@ -170,49 +171,29 @@ def _load_templates_from_dir(dir_path: str, get_source_info: Any) -> list[Prompt
 def _load_template_from_file(file_path: str, source_info: SourceInfo) -> PromptTemplate | None:
     try:
         raw_content = Path(file_path).read_text(encoding="utf-8")
-    except OSError:
+        parsed = parse_frontmatter(raw_content)
+        frontmatter = parsed.frontmatter
+        body = parsed.body
+        name = Path(file_path).stem
+        description = str(frontmatter.get("description") or "")
+        if not description:
+            first_line = next((line for line in body.split("\n") if line.strip()), None)
+            if first_line:
+                description = first_line[:60] + ("..." if len(first_line) > 60 else "")
+        return PromptTemplate(
+            name=name,
+            description=description,
+            argumentHint=_string_or_none(frontmatter.get("argument-hint")),
+            content=body,
+            sourceInfo=source_info,
+            filePath=file_path,
+        )
+    except Exception:  # noqa: BLE001
         return None
-    frontmatter, body = _parse_frontmatter(raw_content)
-    name = Path(file_path).stem
-    description = str(frontmatter.get("description") or "")
-    if not description:
-        first_line = next((line for line in body.split("\n") if line.strip()), None)
-        if first_line:
-            description = first_line[:60] + ("..." if len(first_line) > 60 else "")
-    return PromptTemplate(
-        name=name,
-        description=description,
-        argumentHint=_string_or_none(frontmatter.get("argument-hint")),
-        content=body,
-        sourceInfo=source_info,
-        filePath=file_path,
-    )
-
-
-def _parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
-    normalized = content.replace("\r\n", "\n").replace("\r", "\n")
-    if not normalized.startswith("---"):
-        return {}, normalized
-    end_index = normalized.find("\n---", 3)
-    if end_index == -1:
-        return {}, normalized
-    yaml_string = normalized[4:end_index]
-    body = normalized[end_index + 4 :].strip()
-    data = _yaml_load(yaml_string) or {}
-    return (data if isinstance(data, dict) else {}, body)
-
-
-def _yaml_load(content: str) -> Any:
-    yaml = YAML(typ="safe")
-    return yaml.load(content)
 
 
 def _string_or_none(value: Any) -> str | None:
     return str(value) if isinstance(value, str) and value else None
-
-
-def _default_agent_dir() -> str:
-    return str(Path.home() / ".harnify" / "agent")
 
 
 expandPromptTemplate = expand_prompt_template
@@ -221,15 +202,10 @@ parseCommandArgs = parse_command_args
 substituteArgs = substitute_args
 
 __all__ = [
-    "CONFIG_DIR_NAME",
     "LoadPromptTemplatesOptions",
     "PromptTemplate",
     "expandPromptTemplate",
-    "expand_prompt_template",
     "loadPromptTemplates",
-    "load_prompt_templates",
     "parseCommandArgs",
-    "parse_command_args",
     "substituteArgs",
-    "substitute_args",
 ]

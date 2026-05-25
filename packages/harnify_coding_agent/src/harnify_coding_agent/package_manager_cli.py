@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import traceback
 from dataclasses import dataclass
 from typing import Literal
 
@@ -62,6 +63,20 @@ def _get_package_command_usage(command: PackageCommand) -> str:
             return f"{APP_NAME} update [source|self|pi] [--self] [--extensions] [--extension <source>] [--force]"
         case "list":
             return f"{APP_NAME} list"
+
+
+def _report_settings_errors(settings_manager: SettingsManager, context: str) -> None:
+    for settings_error in settings_manager.drainErrors():
+        error = settings_error.error
+        print(
+            f"Warning ({context}, {settings_error.scope} settings): {error}",
+            file=sys.stderr,
+        )
+        if error.__traceback__ is not None:
+            print(
+                "".join(traceback.format_exception(type(error), error, error.__traceback__)).rstrip("\n"),
+                file=sys.stderr,
+            )
 
 
 def _parse_package_command(args: list[str]) -> PackageCommandOptions | None:
@@ -191,6 +206,7 @@ async def handle_config_command(args: list[str]) -> int | None:
     cwd = os.getcwd()
     agent_dir = get_agent_dir()
     settings_manager = SettingsManager.create(cwd, agent_dir)
+    _report_settings_errors(settings_manager, "config command")
     package_manager = DefaultPackageManager(
         {
             "cwd": cwd,
@@ -244,9 +260,16 @@ async def handle_package_command(args: list[str]) -> int | None:
         _set_command_exit_code(1)
         return True
 
+    if parsed.command in {"install", "remove"} and not parsed.source:
+        print(f"Missing {parsed.command} source.", file=sys.stderr)
+        print(f"Usage: {_get_package_command_usage(parsed.command)}", file=sys.stderr)
+        _set_command_exit_code(1)
+        return True
+
     cwd = os.getcwd()
     agent_dir = get_agent_dir()
     settings_manager = SettingsManager.create(cwd, agent_dir)
+    _report_settings_errors(settings_manager, "package command")
     package_manager = DefaultPackageManager(
         {
             "cwd": cwd,
@@ -254,33 +277,57 @@ async def handle_package_command(args: list[str]) -> int | None:
             "settingsManager": settings_manager,
         }
     )
+    set_progress_callback = getattr(package_manager, "setProgressCallback", None)
+    if callable(set_progress_callback):
+        set_progress_callback(
+            lambda event: (
+                print(event.message)
+                if getattr(event, "type", None) == "start" and getattr(event, "message", None)
+                else None
+            )
+        )
 
     try:
         if parsed.command == "list":
-            packages = package_manager.listConfiguredPackages()
-            if not packages:
-                print("No packages configured.")
+            configured_packages = package_manager.listConfiguredPackages()
+            user_packages = [package for package in configured_packages if package.scope == "user"]
+            project_packages = [package for package in configured_packages if package.scope == "project"]
+
+            if not configured_packages:
+                print("No packages installed.")
                 return True
-            for package in packages:
-                scope = "local" if package.scope == "project" else package.scope
-                installed = package.installedPath or "<not installed>"
-                print(f"{package.source}\t{scope}\t{installed}")
+
+            def format_package(package: object) -> None:
+                display = f"{package.source} (filtered)" if package.filtered else package.source
+                print(f"  {display}")
+                if package.installedPath:
+                    print(f"    {package.installedPath}")
+
+            if user_packages:
+                print("User packages:")
+                for package in user_packages:
+                    format_package(package)
+
+            if project_packages:
+                if user_packages:
+                    print()
+                print("Project packages:")
+                for package in project_packages:
+                    format_package(package)
             return True
 
         if parsed.command == "install":
-            if not parsed.source:
-                print("Error: install requires a source argument", file=sys.stderr)
-                _set_command_exit_code(1)
-                return True
             await package_manager.installAndPersist(parsed.source, {"local": parsed.local})
+            print(f"Installed {parsed.source}")
             return True
 
         if parsed.command == "remove":
-            if not parsed.source:
-                print("Error: remove requires a source argument", file=sys.stderr)
+            removed = await package_manager.removeAndPersist(parsed.source, {"local": parsed.local})
+            if not removed:
+                print(f"No matching package found for {parsed.source}", file=sys.stderr)
                 _set_command_exit_code(1)
                 return True
-            await package_manager.removeAndPersist(parsed.source, {"local": parsed.local})
+            print(f"Removed {parsed.source}")
             return True
 
         if parsed.command == "update":

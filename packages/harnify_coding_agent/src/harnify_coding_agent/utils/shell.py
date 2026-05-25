@@ -153,22 +153,12 @@ killTrackedDetachedChildren = kill_tracked_detached_children
 killProcessTree = kill_process_tree
 
 __all__ = [
-    "Error",
     "ShellConfig",
-    "findBashOnPath",
-    "find_bash_on_path",
     "getShellConfig",
     "getShellEnv",
-    "get_shell_config",
-    "get_shell_env",
     "killProcessTree",
     "killTrackedDetachedChildren",
-    "kill_process_tree",
-    "kill_tracked_detached_children",
     "sanitizeBinaryOutput",
-    "sanitize_binary_output",
     "trackDetachedChildPid",
-    "track_detached_child_pid",
     "untrackDetachedChildPid",
-    "untrack_detached_child_pid",
 ]

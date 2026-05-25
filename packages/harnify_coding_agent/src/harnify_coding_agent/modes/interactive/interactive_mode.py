@@ -60,7 +60,6 @@ from harnify_coding_agent.config import (
     get_debug_log_path,
     get_docs_path,
     get_share_viewer_url,
-    get_update_instruction,
 )
 from harnify_coding_agent.core.bash_executor import BashResult
 from harnify_coding_agent.core.agent_session import parse_skill_block
@@ -911,7 +910,10 @@ class InteractiveMode:
         self._append_notice(message, "warning", "Warning")
 
     def showNewVersionNotification(self, release: LatestPiRelease) -> None:
-        update_instruction = get_update_instruction(release.packageName or PACKAGE_NAME)
+        action = interactive_theme.theme.fg("accent", f"{APP_NAME} update")
+        update_instruction = (
+            interactive_theme.theme.fg("muted", f"New version {release.version} is available. Run ") + action
+        )
         changelog_url = "https://pi.dev/changelog"
         changelog_link = (
             hyperlink(interactive_theme.theme.fg("accent", "open changelog"), changelog_url)
@@ -928,10 +930,7 @@ class InteractiveMode:
                 "\n".join(
                     [
                         interactive_theme.theme.bold(interactive_theme.theme.fg("warning", "Update Available")),
-                        interactive_theme.theme.fg(
-                            "muted",
-                            f"New version {release.version} is available. {update_instruction}",
-                        ),
+                        update_instruction,
                     ]
                 ),
                 1,

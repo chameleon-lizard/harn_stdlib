@@ -2712,7 +2712,7 @@ class InteractiveMode:
 
         try:
             result = await self.runtimeHost.fork(leaf_id, {"position": "at"})
-            if result.get("cancelled"):
+            if _value(result, "cancelled", False):
                 self._request_render()
                 return
             self.renderCurrentSessionState()
@@ -2991,7 +2991,7 @@ class InteractiveMode:
                 sessionPath,
                 {"withSession": options.get("withSession")} if options else None,
             )
-            if result.get("cancelled"):
+            if _value(result, "cancelled", False):
                 return result
             self.renderCurrentSessionState()
             self.showStatus("Resumed session")
@@ -3008,7 +3008,7 @@ class InteractiveMode:
                     "withSession": options.get("withSession") if options else None,
                 },
             )
-            if result.get("cancelled"):
+            if _value(result, "cancelled", False):
                 return result
             self.renderCurrentSessionState()
             self.showStatus("Resumed session in current cwd")
@@ -5523,12 +5523,12 @@ class InteractiveMode:
     async def _handle_user_message_fork(self, entryId: str, done: Callable[[], None]) -> None:
         try:
             result = await self.runtimeHost.fork(entryId)
-            if result.get("cancelled"):
+            if _value(result, "cancelled", False):
                 done()
                 self._request_render()
                 return
             self.renderCurrentSessionState()
-            self._set_editor_text(str(result.get("selectedText") or ""))
+            self._set_editor_text(str(_value(result, "selectedText", "") or ""))
             done()
             self.showStatus("Forked to new session")
         except Exception as error:  # noqa: BLE001

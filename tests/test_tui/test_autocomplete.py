@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import shutil
+import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -167,7 +168,13 @@ async def test_fd_file_completion_quotes_space_paths(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_walk_directory_with_fd_aborts_running_process(tmp_path: Path) -> None:
     fake_fd = tmp_path / "fake-fd"
-    fake_fd.write_text("#!/bin/sh\nsleep 1\nprintf 'slow.txt\\n'\n", encoding="utf-8")
+    fake_fd.write_text(
+        "#!/usr/bin/env python3\n"
+        "import sys, time\n"
+        "time.sleep(1)\n"
+        "sys.stdout.write('slow.txt\\n')\n",
+        encoding="utf-8",
+    )
     fake_fd.chmod(0o755)
     signal = DummyAbortSignal()
 

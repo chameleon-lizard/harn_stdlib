@@ -4841,14 +4841,22 @@ class InteractiveMode:
         self._schedule_task(self.maybeWarnAboutAnthropicSubscriptionAuth())
 
         if self.options.initialMessage:
-            await self.session.prompt(
-                self.options.initialMessage,
-                {"images": list(self.options.initialImages or [])},
-            )
-            self.renderCurrentSessionState()
+            try:
+                await self.session.prompt(
+                    self.options.initialMessage,
+                    {"images": list(self.options.initialImages or [])},
+                )
+            except Exception as error:  # noqa: BLE001
+                self.showError(str(error) if error is not None else "Unknown error occurred")
+            else:
+                self.renderCurrentSessionState()
         for message in list(self.options.initialMessages or []):
-            await self.session.prompt(message)
-            self.renderCurrentSessionState()
+            try:
+                await self.session.prompt(message)
+            except Exception as error:  # noqa: BLE001
+                self.showError(str(error) if error is not None else "Unknown error occurred")
+            else:
+                self.renderCurrentSessionState()
 
         self._schedule_task(self._runInputLoop())
 

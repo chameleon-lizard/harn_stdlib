@@ -1461,6 +1461,7 @@ async def test_run_seeds_initial_messages_and_starts_ui(monkeypatch: pytest.Monk
         "harnify_coding_agent.modes.interactive.interactive_mode.check_for_new_pi_version",
         fake_version_check,
     )
+    monkeypatch.setattr(interactive_mode_module, "ensureTool", _noop_async)
 
     mode = InteractiveMode(
         ui=ui,
@@ -1567,6 +1568,7 @@ async def test_init_matches_ts_startup_header_and_render_order(monkeypatch: pyte
         "on_theme_change",
         lambda _callback: calls.append("themeWatcher"),
     )
+    monkeypatch.setattr(interactive_mode_module, "ensureTool", _noop_async)
 
     await mode.init()
 
@@ -1625,6 +1627,7 @@ async def test_run_shows_version_notification_from_background_check(monkeypatch:
         "harnify_coding_agent.modes.interactive.interactive_mode.get_update_instruction",
         lambda _package_name: "Run: upgrade-pi",
     )
+    monkeypatch.setattr(interactive_mode_module, "ensureTool", _noop_async)
 
     mode = InteractiveMode(ui=ui)
     mode.checkForPackageUpdates = lambda: asyncio.sleep(0, result=[])  # type: ignore[method-assign]
@@ -1649,7 +1652,9 @@ async def test_run_shows_version_notification_from_background_check(monkeypatch:
 
 
 @pytest.mark.asyncio
-async def test_run_surfaces_package_updates_tmux_warning_and_models_json_error() -> None:
+async def test_run_surfaces_package_updates_tmux_warning_and_models_json_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     package_notifications: list[list[str]] = []
     warnings: list[str] = []
     errors: list[str] = []
@@ -1684,6 +1689,7 @@ async def test_run_surfaces_package_updates_tmux_warning_and_models_json_error()
     mode.showPackageUpdateNotification = package_notifications.append  # type: ignore[method-assign]
     mode.showWarning = warnings.append  # type: ignore[method-assign]
     mode.showError = errors.append  # type: ignore[method-assign]
+    monkeypatch.setattr(interactive_mode_module, "ensureTool", _noop_async)
 
     run_task = asyncio.create_task(mode.run())
     await asyncio.sleep(0)

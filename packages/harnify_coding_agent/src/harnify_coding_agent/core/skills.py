@@ -81,9 +81,10 @@ def load_skills_from_dir(options: LoadSkillsFromDirOptions) -> LoadSkillsResult:
 
 def load_skills(options: LoadSkillsOptions) -> LoadSkillsResult:
     resolved_cwd = resolve_path(options["cwd"])
-    resolved_agent_dir = resolve_path(options.get("agentDir") or _default_agent_dir())
-    include_defaults = bool(options.get("includeDefaults", True))
-    skill_paths = list(options.get("skillPaths", []))
+    agent_dir = options.get("agentDir")
+    resolved_agent_dir = resolve_path(get_agent_dir() if agent_dir is None else agent_dir)
+    include_defaults = options["includeDefaults"]
+    skill_paths = options["skillPaths"]
 
     skill_map: dict[str, Skill] = {}
     real_path_set: set[str] = set()
@@ -116,7 +117,7 @@ def load_skills(options: LoadSkillsOptions) -> LoadSkillsResult:
             real_path_set.add(real_path)
 
     user_skills_dir = os.path.join(resolved_agent_dir, "skills")
-    project_skills_dir = os.path.join(resolved_cwd, CONFIG_DIR_NAME, "skills")
+    project_skills_dir = os.path.join(resolved_cwd, _CONFIG_DIR_NAME, "skills")
 
     if include_defaults:
         add_skills(_load_skills_from_dir_internal(user_skills_dir, "user", True))
@@ -161,7 +162,7 @@ def load_skills(options: LoadSkillsOptions) -> LoadSkillsResult:
                         path=resolved,
                     )
                 )
-        except OSError as error:
+        except Exception as error:  # noqa: BLE001
             diagnostics.append(ResourceDiagnostic(type="warning", message=str(error), path=resolved))
 
     return LoadSkillsResult(skills=list(skill_map.values()), diagnostics=[*diagnostics, *collision_diagnostics])

@@ -126,6 +126,22 @@ def test_tui_deletes_changed_kitty_image_before_redrawing_new_placement() -> Non
     assert delete_index < draw_index
 
 
+def test_tui_input_listeners_follow_set_semantics() -> None:
+    terminal = FakeTerminal()
+    tui = TUI(terminal)
+    calls: list[str] = []
+
+    def listener(data: str) -> None:
+        calls.append(data)
+        return None
+
+    tui.addInputListener(listener)
+    tui.addInputListener(listener)
+    tui.handleInput("x")
+
+    assert calls == ["x"]
+
+
 def test_tui_module_exports_match_ts_surface() -> None:
     assert tui_module.__all__ == [
         "Component",

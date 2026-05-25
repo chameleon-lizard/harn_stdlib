@@ -4,6 +4,7 @@ import base64
 from io import BytesIO
 
 import pytest
+import harnify_coding_agent.utils.exif_orientation as exif_orientation_module
 from harnify_coding_agent.utils.exif_orientation import get_exif_orientation
 from harnify_coding_agent.utils.image_convert import convert_to_png
 from harnify_coding_agent.utils.syntax_highlight import highlight, render_highlighted_html, supports_language
@@ -47,6 +48,10 @@ def test_render_highlighted_html_and_highlight() -> None:
     )
     assert "[keyword:const]" in highlighted
     assert "[number:1]" in highlighted
+
+
+def test_exif_orientation_module_exports_match_ts_surface() -> None:
+    assert exif_orientation_module.__all__ == ["applyExifOrientation"]
 
 
 @pytest.mark.asyncio

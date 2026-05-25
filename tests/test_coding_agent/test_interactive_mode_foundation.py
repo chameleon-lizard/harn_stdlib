@@ -2334,6 +2334,79 @@ def test_show_bedrock_setup_dialog_renders_info_with_docs_path(monkeypatch: pyte
     assert ui.render_calls == [None]
 
 
+@pytest.mark.asyncio
+async def test_show_login_dialog_only_collects_manual_code_for_callback_providers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dialogs: list[Any] = []
+    completed: list[str] = []
+
+    class FakeDialog:
+        def __init__(self, _ui: Any, provider_id: str, _on_complete: Any, provider_name: str) -> None:
+            self.provider_id = provider_id
+            self.provider_name = provider_name
+            self.signal = SimpleNamespace(aborted=False)
+            self.manual_prompts: list[str] = []
+            self.waiting: list[str] = []
+            self.auth: list[tuple[str, Any]] = []
+            dialogs.append(self)
+
+        def showAuth(self, url: str, instructions: Any = None) -> None:
+            self.auth.append((url, instructions))
+
+        async def showManualInput(self, prompt: str) -> str:
+            self.manual_prompts.append(prompt)
+            return "https://callback"
+
+        def showDeviceCode(self, _info: Any) -> None:
+            return None
+
+        def showWaiting(self, message: str) -> None:
+            self.waiting.append(message)
+
+        def showPrompt(self, _message: str, _placeholder: Any = None) -> Any:
+            raise AssertionError("showPrompt should not be used in this flow")
+
+        def showProgress(self, _message: str) -> None:
+            return None
+
+    async def fake_login(_provider_id: str, callbacks: dict[str, Any]) -> None:
+        callbacks["onAuth"]({"url": "https://auth.example", "instructions": "browser"})
+        callbacks["onDeviceCode"](SimpleNamespace(verificationUri="https://verify.example", userCode="CODE"))
+
+    monkeypatch.setattr(interactive_mode_module, "LoginDialogComponent", FakeDialog)
+
+    auth_storage = SimpleNamespace(
+        getOAuthProviders=lambda: [
+            SimpleNamespace(id="callback-provider", usesCallbackServer=True),
+            SimpleNamespace(id="device-provider", usesCallbackServer=False),
+        ],
+        login=fake_login,
+    )
+    mode = InteractiveMode(
+        ui=FakeUi(),
+        session=SimpleNamespace(
+            model=None,
+            modelRegistry=SimpleNamespace(authStorage=auth_storage),
+        ),
+    )
+    mode.completeProviderAuthentication = lambda provider_id, *_args: asyncio.sleep(  # type: ignore[method-assign]
+        0,
+        result=completed.append(provider_id),
+    )
+
+    await mode.showLoginDialog("callback-provider", "Callback Provider")
+    await asyncio.sleep(0)
+    await mode.showLoginDialog("device-provider", "Device Provider")
+    await asyncio.sleep(0)
+
+    assert completed == ["callback-provider", "device-provider"]
+    assert dialogs[0].manual_prompts == ["Paste redirect URL below, or complete login in browser:"]
+    assert dialogs[1].manual_prompts == []
+    assert dialogs[0].waiting == ["Waiting for authentication..."]
+    assert dialogs[1].waiting == ["Waiting for authentication..."]
+
+
 def test_update_pending_messages_display_renders_session_and_compaction_queues() -> None:
     mode = InteractiveMode(
         pendingMessagesContainer=Container(),

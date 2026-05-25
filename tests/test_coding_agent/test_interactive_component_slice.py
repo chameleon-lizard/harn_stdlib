@@ -146,6 +146,11 @@ def test_countdown_timer_module_exports_match_ts_surface() -> None:
 
 def test_daxnuts_component_renders_and_stops_animation(monkeypatch) -> None:
     timers: list[FakeTimer] = []
+    render_calls: list[bool | None] = []
+
+    class FakeUi:
+        def requestRender(self, force: bool | None = None) -> None:
+            render_calls.append(force)
 
     def timer_factory(interval: float, callback):  # noqa: ANN001
         timer = FakeTimer(interval, callback)
@@ -170,6 +175,11 @@ def test_daxnuts_component_renders_and_stops_animation(monkeypatch) -> None:
 
 def test_daxnuts_component_advances_tick_and_requests_render(monkeypatch) -> None:
     timers: list[FakeTimer] = []
+    render_calls: list[bool | None] = []
+
+    class FakeUi:
+        def requestRender(self, force: bool | None = None) -> None:
+            render_calls.append(force)
 
     def timer_factory(interval: float, callback):  # noqa: ANN001
         timer = FakeTimer(interval, callback)
@@ -184,7 +194,7 @@ def test_daxnuts_component_advances_tick_and_requests_render(monkeypatch) -> Non
     timers[0].callback()
 
     assert component.tick == 1
-    assert ui.render_calls == [None]
+    assert render_calls == [None]
     assert len(timers) == 2
     assert timers[1].started is True
 

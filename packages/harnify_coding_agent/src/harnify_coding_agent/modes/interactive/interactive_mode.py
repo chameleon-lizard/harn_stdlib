@@ -2297,16 +2297,25 @@ class InteractiveMode:
 
     async def handleFatalRuntimeError(self, prefix: str, error: Exception | BaseException | Any) -> None:
         message = str(error) if error is not None else "Unknown error"
-        raise RuntimeError(f"{prefix}: {message}") from (error if isinstance(error, BaseException) else None)
+        self.showError(f"{prefix}: {message}")
+        stop_theme_watcher = getattr(interactive_theme, "stop_theme_watcher", None)
+        if callable(stop_theme_watcher):
+            stop_theme_watcher()
+        self.stop()
+        raise SystemExit(1)
 
-    def rebuildChatFromMessages(self) -> None:
+    def _renderSessionMessages(self, clearChat: bool) -> None:
+        if clearChat:
+            clear = _callable_attr(self.chatContainer, "clear")
+            if clear is not None:
+                clear()
         context_builder = _callable_attr(self.sessionManager, "buildSessionContext")
         context = (
             context_builder()
             if context_builder is not None
             else SimpleNamespace(messages=self.session.state.messages)
         )
-        messages = list(_value(context, "messages", getattr(self.session.state, "messages", [])) or [])
+            messages = list(_value(context, "messages", getattr(self.session.state, "messages", [])) or [])
         pending_tools: dict[str, ToolExecutionComponent] = {}
         self._toolComponentsById = pending_tools
 
@@ -2327,13 +2336,32 @@ class InteractiveMode:
                 continue
             self.addMessageToChat(message, pending_tools)
 
+    def renderInitialMessages(self) -> None:
+        self._renderSessionMessages(clearChat=False)
+        get_entries = _callable_attr(self.sessionManager, "getEntries")
+        all_entries = list(get_entries() or []) if get_entries is not None else []
+        compaction_count = sum(1 for entry in all_entries if _value(entry, "type") == "compaction")
+        if compaction_count > 0:
+            times = "1 time" if compaction_count == 1 else f"{compaction_count} times"
+            self.showStatus(f"Session compacted {times}")
+
+    def rebuildChatFromMessages(self) -> None:
+        self._renderSessionMessages(clearChat=True)
+
     def renderCurrentSessionState(self) -> None:
         clear = _callable_attr(self.chatContainer, "clear")
         if clear is not None:
             clear()
+        clear_pending = _callable_attr(self.pendingMessagesContainer, "clear")
+        if clear_pending is not None:
+            clear_pending()
+        self.compactionQueuedMessages = []
+        self.streamingComponent = None
+        self.streamingMessage = None
+        self._toolComponentsById = {}
         self.lastStatusSpacer = None
         self.lastStatusText = None
-        self.rebuildChatFromMessages()
+        self.renderInitialMessages()
         self._request_render()
 
     def addMessageToChat(
@@ -3080,8 +3108,14 @@ class InteractiveMode:
             await self.session.reload()
             self.keybindings.reload()
             setKeybindings(self.keybindings)
-            await self.rebindCurrentSession()
+            await self.rebindCurrentSession(showLoadedResourcesAndStartup=False)
+            self.rebuildChatFromMessages()
             dismiss(self.editor)
+            self.showLoadedResources({"force": False, "showDiagnosticsWhenQuiet": True})
+            get_model_error = _callable_attr(getattr(self.session, "modelRegistry", None), "getError")
+            models_json_error = get_model_error() if get_model_error is not None else None
+            if models_json_error:
+                self.showError(f"models.json error: {models_json_error}")
             self.showStatus("Reloaded keybindings, extensions, skills, prompts, themes")
         except Exception as error:  # noqa: BLE001
             dismiss(previous_editor)
@@ -3876,7 +3910,11 @@ class InteractiveMode:
             await _maybe_await(flush_queue({"willRetry": bool(_value(event, "willRetry", False))}))
         self._request_render()
 
-    async def rebindCurrentSession(self, session: Any | None = None) -> None:
+    async def rebindCurrentSession(
+        self,
+        session: Any | None = None,
+        showLoadedResourcesAndStartup: bool = True,
+    ) -> None:
         if session is not None:
             self.session = session
         elif getattr(self.runtimeHost, "session", None) is not None:
@@ -3916,16 +3954,10 @@ class InteractiveMode:
         )
         self.setupExtensionShortcuts(self.session.extensionRunner)
         self.subscribeToSession()
-        clear_chat = _callable_attr(self.chatContainer, "clear")
-        if clear_chat is not None:
-            clear_chat()
-        self.lastStatusSpacer = None
-        self.lastStatusText = None
-        self.showLoadedResources({"force": False, "showDiagnosticsWhenQuiet": True})
-        self.rebuildChatFromMessages()
-        self._request_render()
-        self.changelogMarkdown = self.getChangelogForDisplay()
-        self.showStartupNoticesIfNeeded()
+        if showLoadedResourcesAndStartup:
+            self.showLoadedResources({"force": False, "showDiagnosticsWhenQuiet": True})
+            self.showStartupNoticesIfNeeded()
+            self._request_render()
         self.updateTerminalTitle()
 
     def subscribeToSession(self) -> None:
@@ -4358,6 +4390,7 @@ class InteractiveMode:
             return
 
         self.registerSignalHandlers()
+        self.changelogMarkdown = self.getChangelogForDisplay()
         setKeybindings(self.keybindings)
         themes_result = {}
         get_themes = _callable_attr(getattr(self.session, "resourceLoader", None), "getThemes")
@@ -4370,7 +4403,10 @@ class InteractiveMode:
 
         quiet_startup = _safe_call_bool(self.settingsManager, "getQuietStartup")
         self.headerContainer.clear()
-        if not quiet_startup:
+        add_child = _callable_attr(self.ui, "addChild")
+        if add_child is not None:
+            add_child(self.headerContainer)
+        if self.options.verbose or not quiet_startup:
             logo = interactive_theme.theme.bold(
                 interactive_theme.theme.fg("accent", APP_NAME)
             ) + interactive_theme.theme.fg(
@@ -4378,25 +4414,51 @@ class InteractiveMode:
                 f" v{self.version}",
             )
             expanded_instructions = [
-                key_hint("app.interrupt", "interrupt"),
-                key_hint("app.clear", "clear"),
-                key_hint("app.exit", "exit"),
-                key_hint("app.model.select", "select model"),
-                key_hint("app.session.resume", "resume"),
-                raw_key_hint("/model", "model command"),
-                raw_key_hint("/theme", "theme command"),
-                raw_key_hint("/resume", "resume command"),
-                raw_key_hint("!", "bash"),
+                key_hint("app.interrupt", "to interrupt"),
+                key_hint("app.clear", "to clear"),
+                raw_key_hint(f"{key_text('app.clear')} twice", "to exit"),
+                key_hint("app.exit", "to exit (empty)"),
+                key_hint("app.suspend", "to suspend"),
+                key_hint("tui.editor.deleteToLineEnd", "to delete to end"),
+                key_hint("app.thinking.cycle", "to cycle thinking level"),
+                raw_key_hint(
+                    f"{key_text('app.model.cycleForward')}/{key_text('app.model.cycleBackward')}",
+                    "to cycle models",
+                ),
+                key_hint("app.model.select", "to select model"),
+                key_hint("app.tools.expand", "to expand tools"),
+                key_hint("app.thinking.toggle", "to expand thinking"),
+                key_hint("app.editor.external", "for external editor"),
+                raw_key_hint("/", "for commands"),
+                raw_key_hint("!", "to run bash"),
+                raw_key_hint("!!", "to run bash (no context)"),
+                key_hint("app.message.followUp", "to queue follow-up"),
+                key_hint("app.message.dequeue", "to edit all queued messages"),
+                key_hint("app.clipboard.pasteImage", "to paste image"),
+                raw_key_hint("drop files", "to attach"),
             ]
             compact_instructions = [
                 key_hint("app.interrupt", "interrupt"),
+                raw_key_hint(f"{key_text('app.clear')}/{key_text('app.exit')}", "clear/exit"),
                 raw_key_hint("/", "commands"),
                 raw_key_hint("!", "bash"),
-                key_hint("app.tools.expand", "expand"),
+                key_hint("app.tools.expand", "more"),
             ]
+            compact_onboarding = interactive_theme.theme.fg(
+                "dim",
+                f"Press {key_text('app.tools.expand')} to show full startup help and loaded resources.",
+            )
+            onboarding = interactive_theme.theme.fg(
+                "dim",
+                "Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.",
+            )
             self.builtInHeader = ExpandableText(
-                lambda: f"{logo}\n" + interactive_theme.theme.fg("dim", " · ".join(compact_instructions)),
-                lambda: f"{logo}\n" + "\n".join(expanded_instructions),
+                lambda: (
+                    f"{logo}\n"
+                    + interactive_theme.theme.fg("dim", " · ".join(compact_instructions))
+                    + f"\n{compact_onboarding}\n\n{onboarding}"
+                ),
+                lambda: f"{logo}\n" + "\n".join(expanded_instructions) + f"\n\n{onboarding}",
                 self.getStartupExpansionState(),
                 1,
                 0,
@@ -4408,17 +4470,20 @@ class InteractiveMode:
             self.builtInHeader = Text("", 0, 0)
             self.headerContainer.addChild(self.builtInHeader)
 
-        add_child = _callable_attr(self.ui, "addChild")
         if add_child is not None:
             for child in (
-                self.headerContainer,
                 self.chatContainer,
                 self.pendingMessagesContainer,
                 self.statusContainer,
+            ):
+                add_child(child)
+        self.renderWidgets()
+        if add_child is not None:
+            for child in (
                 self.widgetContainerAbove,
                 self.editorContainer,
                 self.widgetContainerBelow,
-                self.customFooter or self.footer,
+                self.footer,
             ):
                 add_child(child)
         set_focus = _callable_attr(self.ui, "setFocus")
@@ -4427,7 +4492,13 @@ class InteractiveMode:
 
         self.setupKeyHandlers()
         self.setupEditorSubmitHandler()
-        self.renderWidgets()
+
+        start = _callable_attr(self.ui, "start")
+        if start is not None:
+            start()
+        self.isInitialized = True
+        await self.rebindCurrentSession()
+        self.renderInitialMessages()
 
         on_theme_change = getattr(interactive_theme, "on_theme_change", None)
         if callable(on_theme_change):
@@ -4441,12 +4512,6 @@ class InteractiveMode:
         on_branch_change = _callable_attr(self.footerDataProvider, "onBranchChange")
         if on_branch_change is not None:
             on_branch_change(lambda: self._request_render())
-
-        start = _callable_attr(self.ui, "start")
-        if start is not None:
-            start()
-        self.isInitialized = True
-        await self.rebindCurrentSession()
         self.updateAvailableProviderCount()
 
     async def _check_for_new_version(self) -> None:

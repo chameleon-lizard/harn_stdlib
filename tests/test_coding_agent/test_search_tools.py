@@ -62,7 +62,7 @@ def _patch_find_ensure_tool(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
                     print(str(error), file=sys.stderr)
                     return 1
 
-                for relative_path in results:
+                for relative_path in sorted(results, key=str.lower):
                     print(os.path.join(search_path, relative_path.replace("/", os.sep)))
                 return 0
 

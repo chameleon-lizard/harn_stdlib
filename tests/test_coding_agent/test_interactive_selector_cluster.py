@@ -17,6 +17,7 @@ from harnify_coding_agent.modes.interactive.components.oauth_selector import (
     AuthSelectorProvider,
     OAuthSelectorComponent,
 )
+import harnify_coding_agent.modes.interactive.components.oauth_selector as oauth_selector_module
 from harnify_coding_agent.modes.interactive.components.scoped_models_selector import (
     ModelsCallbacks,
     ModelsConfig,
@@ -219,3 +220,7 @@ def test_login_dialog_module_exports_match_ts_surface() -> None:
 
 def test_model_selector_module_exports_match_ts_surface() -> None:
     assert model_selector_module.__all__ == ["ModelSelectorComponent"]
+
+
+def test_oauth_selector_module_exports_match_ts_surface() -> None:
+    assert oauth_selector_module.__all__ == ["AuthSelectorProvider", "OAuthSelectorComponent"]

@@ -1681,6 +1681,75 @@ async def test_handle_login_provider_select_routes_bedrock_to_setup_dialog() -> 
     assert calls == [("bedrock", "amazon-bedrock", "Amazon Bedrock")]
 
 
+@pytest.mark.asyncio
+async def test_handle_logout_provider_select_matches_ts_refresh_path() -> None:
+    calls: list[Any] = []
+    statuses: list[str] = []
+    mode = InteractiveMode(
+        session=SimpleNamespace(
+            modelRegistry=SimpleNamespace(
+                authStorage=SimpleNamespace(logout=lambda provider_id: calls.append(("logout", provider_id))),
+                refresh=lambda: calls.append("refresh"),
+            )
+        )
+    )
+    mode.updateAvailableProviderCount = lambda: calls.append("count")  # type: ignore[method-assign]
+    mode.setupAutocompleteProvider = lambda: calls.append("autocomplete")  # type: ignore[method-assign]
+    mode.updateEditorBorderColor = lambda: calls.append("border")  # type: ignore[method-assign]
+    mode.footer = SimpleNamespace(invalidate=lambda: calls.append("footer"))
+    mode.showStatus = statuses.append  # type: ignore[method-assign]
+
+    await mode._handle_logout_provider_select(
+        [SimpleNamespace(id="anthropic", name="Anthropic", authType="oauth")],
+        "anthropic",
+        lambda: calls.append("done"),
+    )
+
+    assert calls == ["done", ("logout", "anthropic"), "refresh", "count"]
+    assert statuses == ["Logged out of Anthropic"]
+
+
+@pytest.mark.asyncio
+async def test_complete_provider_authentication_selects_default_model_for_unknown_current_model() -> None:
+    statuses: list[str] = []
+    errors: list[str] = []
+    set_model_calls: list[str] = []
+    warnings: list[str | None] = []
+    daxnuts: list[str] = []
+    default_model = SimpleNamespace(provider="anthropic", id="claude-opus-4-7")
+    unknown_model = SimpleNamespace(provider="unknown", id="unknown", api="unknown")
+    mode = InteractiveMode(
+        session=SimpleNamespace(
+            setModel=lambda model: set_model_calls.append(model.id),
+            modelRegistry=SimpleNamespace(
+                refresh=lambda: None,
+                getAvailable=lambda: [default_model],
+            ),
+        )
+    )
+    mode.footer = SimpleNamespace(invalidate=lambda: None)
+    mode.updateAvailableProviderCount = lambda: None  # type: ignore[method-assign]
+    mode.updateEditorBorderColor = lambda: None  # type: ignore[method-assign]
+    mode.showStatus = statuses.append  # type: ignore[method-assign]
+    mode.showError = errors.append  # type: ignore[method-assign]
+
+    async def maybe_warn(model: Any = None) -> None:
+        warnings.append(None if model is None else model.id)
+
+    mode.maybeWarnAboutAnthropicSubscriptionAuth = maybe_warn  # type: ignore[method-assign]
+    mode.checkDaxnutsEasterEgg = lambda model: daxnuts.append(model.id)  # type: ignore[method-assign]
+
+    await mode.completeProviderAuthentication("anthropic", "Anthropic", "oauth", unknown_model)
+
+    assert set_model_calls == ["claude-opus-4-7"]
+    assert statuses == [
+        f"Logged in to Anthropic. Selected claude-opus-4-7. Credentials saved to {interactive_mode_module.get_auth_path()}"
+    ]
+    assert errors == []
+    assert warnings == ["claude-opus-4-7"]
+    assert daxnuts == ["claude-opus-4-7"]
+
+
 def test_show_bedrock_setup_dialog_renders_info_with_docs_path(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 

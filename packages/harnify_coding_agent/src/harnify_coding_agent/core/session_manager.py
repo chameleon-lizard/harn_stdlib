@@ -907,14 +907,16 @@ class SessionManager:
             except OSError:
                 directory_files.append([])
 
-        loaded = 0
         sessions: list[SessionInfo] = []
         all_files = [file_path for files in directory_files for file_path in files]
-        results = await _build_session_infos_with_concurrency(
-            all_files,
-            lambda: _notify_session_progress(onProgress, total_files, loaded_ref := {"value": loaded}),
-        )
-        loaded = loaded_ref["value"]
+        loaded_ref = {"value": 0}
+
+        def on_loaded() -> None:
+            loaded_ref["value"] += 1
+            if onProgress is not None:
+                onProgress(loaded_ref["value"], total_files)
+
+        results = await _build_session_infos_with_concurrency(all_files, on_loaded)
         for info in results:
             if info is not None:
                 sessions.append(info)

@@ -6,7 +6,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, TypedDict
+from typing import Callable, TypedDict
 
 from harnify_coding_agent.config import CONFIG_DIR_NAME
 from harnify_coding_agent.core.source_info import SourceInfo, create_synthetic_source_info
@@ -123,7 +123,7 @@ def load_prompt_templates(options: LoadPromptTemplatesOptions) -> list[PromptTem
                 template = _load_template_from_file(resolved, get_source_info(resolved))
                 if template is not None:
                     templates.append(template)
-        except OSError:
+        except Exception:  # noqa: BLE001
             continue
 
     return templates
@@ -157,13 +157,13 @@ def _load_templates_from_dir(
             if entry.is_symlink():
                 try:
                     is_file = os.stat(entry_path).st_mode is not None and os.path.isfile(entry_path)
-                except OSError:
+                except Exception:  # noqa: BLE001
                     continue
             if is_file and entry.name.endswith(".md"):
                 template = _load_template_from_file(entry_path, get_source_info(entry_path))
                 if template is not None:
                     templates.append(template)
-    except OSError:
+    except Exception:  # noqa: BLE001
         return []
     return templates
 
@@ -175,7 +175,7 @@ def _load_template_from_file(file_path: str, source_info: SourceInfo) -> PromptT
         frontmatter = parsed.frontmatter
         body = parsed.body
         name = Path(file_path).stem
-        description = str(frontmatter.get("description") or "")
+        description = frontmatter.get("description") or ""
         if not description:
             first_line = next((line for line in body.split("\n") if line.strip()), None)
             if first_line:
@@ -183,17 +183,13 @@ def _load_template_from_file(file_path: str, source_info: SourceInfo) -> PromptT
         return PromptTemplate(
             name=name,
             description=description,
-            argumentHint=_string_or_none(frontmatter.get("argument-hint")),
+            argumentHint=frontmatter.get("argument-hint") or None,
             content=body,
             sourceInfo=source_info,
             filePath=file_path,
         )
     except Exception:  # noqa: BLE001
         return None
-
-
-def _string_or_none(value: Any) -> str | None:
-    return str(value) if isinstance(value, str) and value else None
 
 
 expandPromptTemplate = expand_prompt_template

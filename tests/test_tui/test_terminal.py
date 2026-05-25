@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
+from harnify_tui import terminal as terminal_module
 from harnify_tui.terminal import ProcessTerminal
 
 
@@ -60,7 +61,10 @@ def test_process_terminal_dimension_fallback(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("COLUMNS", "123")
     monkeypatch.setenv("LINES", "45")
 
-    terminal = ProcessTerminal(stdin=FakeStdin(), stdout=stdout, loop=FakeLoop())
+    terminal = ProcessTerminal()
+    terminal.stdin = FakeStdin()
+    terminal.stdout = stdout
+    terminal.loop = FakeLoop()
 
     assert terminal.columns == 123
     assert terminal.rows == 45
@@ -77,7 +81,10 @@ def test_process_terminal_start_and_stop_leave_terminal_clean(monkeypatch: pytes
     monkeypatch.setattr(signal, "signal", lambda sig, handler: signal_calls.append((sig, handler)))
     monkeypatch.setattr("os.kill", lambda pid, sig: kill_calls.append((pid, sig)))
 
-    terminal = ProcessTerminal(stdin=stdin, stdout=stdout, loop=loop)
+    terminal = ProcessTerminal()
+    terminal.stdin = stdin
+    terminal.stdout = stdout
+    terminal.loop = loop
     received: list[str] = []
 
     terminal.start(received.append, lambda: received.append("<resize>"))
@@ -105,7 +112,10 @@ def test_process_terminal_start_and_stop_leave_terminal_clean(monkeypatch: pytes
 async def test_process_terminal_drain_input_disables_protocols_and_restores_handler() -> None:
     stdin = FakeStdin()
     stdout = FakeStdout()
-    terminal = ProcessTerminal(stdin=stdin, stdout=stdout, loop=FakeLoop())
+    terminal = ProcessTerminal()
+    terminal.stdin = stdin
+    terminal.stdout = stdout
+    terminal.loop = FakeLoop()
 
     terminal.inputHandler = lambda _data: None
     terminal._kittyProtocolActive = True
@@ -117,3 +127,7 @@ async def test_process_terminal_drain_input_disables_protocols_and_restores_hand
     assert terminal.inputHandler is original_handler
     assert "\x1b[<u" in stdout.writes
     assert "\x1b[>4;0m" in stdout.writes
+
+
+def test_terminal_module_exports_match_ts_surface() -> None:
+    assert terminal_module.__all__ == ["ProcessTerminal", "Terminal"]

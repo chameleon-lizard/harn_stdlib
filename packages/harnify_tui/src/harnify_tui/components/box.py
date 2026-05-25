@@ -97,4 +97,4 @@ class Box(Component):
         return padded
 
 
-__all__ = ["Box", "RenderCache"]
+__all__ = ["Box"]

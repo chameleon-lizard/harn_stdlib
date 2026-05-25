@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 import os
 import re
 import signal
@@ -1522,7 +1523,7 @@ async def test_init_ensures_tools_and_logs_scoped_model_scope(monkeypatch: pytes
         return f"/tmp/{name}"
 
     monkeypatch.setattr(interactive_mode_module, "ensureTool", fake_ensure_tool)
-    monkeypatch.setattr(interactive_mode_module, "print", lambda message: printed.append(str(message)))
+    monkeypatch.setattr(builtins, "print", lambda message: printed.append(str(message)))
     monkeypatch.setattr(interactive_mode_module.interactive_theme, "on_theme_change", lambda _callback: None)
 
     await mode.init()

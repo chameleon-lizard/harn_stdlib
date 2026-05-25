@@ -1347,6 +1347,214 @@ async def test_handle_submitted_text_routes_commands_and_prompts() -> None:
     assert editor.text == ""
 
 
+def test_update_pending_messages_display_renders_session_and_compaction_queues() -> None:
+    mode = InteractiveMode(
+        pendingMessagesContainer=Container(),
+        session=SimpleNamespace(
+            getSteeringMessages=lambda: ["queued steer"],
+            getFollowUpMessages=lambda: ["queued follow"],
+        ),
+    )
+    mode.compactionQueuedMessages = [
+        {"text": "compaction steer", "mode": "steer"},
+        {"text": "compaction follow", "mode": "followUp"},
+    ]
+
+    mode.updatePendingMessagesDisplay()
+
+    rendered = "\n".join(
+        line
+        for child in mode.pendingMessagesContainer.children
+        if hasattr(child, "render")
+        for line in child.render(120)
+    )
+    stripped = _strip_ansi(rendered)
+    assert "Steering: queued steer" in stripped
+    assert "Steering: compaction steer" in stripped
+    assert "Follow-up: queued follow" in stripped
+    assert "Follow-up: compaction follow" in stripped
+    assert "to edit all queued messages" in stripped
+
+
+def test_restore_queued_messages_to_editor_merges_session_and_compaction_queues_and_aborts() -> None:
+    editor = FakeEditor()
+    editor.setText("draft")
+    aborts: list[bool] = []
+    mode = InteractiveMode(
+        editor=editor,
+        defaultEditor=editor,
+        pendingMessagesContainer=Container(),
+        session=SimpleNamespace(
+            clearQueue=lambda: {"steering": ["queued steer"], "followUp": ["queued follow"]},
+            agent=SimpleNamespace(abort=lambda: aborts.append(True)),
+        ),
+    )
+    mode.compactionQueuedMessages = [
+        {"text": "compaction steer", "mode": "steer"},
+        {"text": "compaction follow", "mode": "followUp"},
+    ]
+
+    restored = mode.restoreQueuedMessagesToEditor({"abort": True})
+
+    assert restored == 4
+    assert (
+        editor.text
+        == "queued steer\n\ncompaction steer\n\nqueued follow\n\ncompaction follow\n\ndraft"
+    )
+    assert aborts == [True]
+    assert mode.compactionQueuedMessages == []
+
+
+@pytest.mark.asyncio
+async def test_handle_follow_up_streaming_queues_follow_up_and_updates_pending() -> None:
+    editor = FakeEditor()
+    editor.setText("later")
+    calls: list[Any] = []
+    ui = FakeUi()
+
+    async def prompt(text: str, options: dict[str, Any] | None = None) -> None:
+        calls.append(("prompt", text, options))
+
+    mode = InteractiveMode(
+        ui=ui,
+        editor=editor,
+        defaultEditor=editor,
+        session=SimpleNamespace(prompt=prompt, isStreaming=True, isCompacting=False),
+    )
+    mode.updatePendingMessagesDisplay = lambda: calls.append("pending")  # type: ignore[method-assign]
+
+    await mode.handleFollowUp()
+
+    assert calls == [("prompt", "later", {"streamingBehavior": "followUp"}), "pending"]
+    assert editor.history == ["later"]
+    assert editor.text == ""
+    assert ui.render_calls == [None]
+
+
+@pytest.mark.asyncio
+async def test_handle_submitted_text_queues_message_during_compaction() -> None:
+    editor = FakeEditor()
+    statuses: list[str] = []
+    mode = InteractiveMode(
+        ui=FakeUi(),
+        editor=editor,
+        defaultEditor=editor,
+        pendingMessagesContainer=Container(),
+        session=SimpleNamespace(
+            prompt=_noop_async,
+            isStreaming=False,
+            isCompacting=True,
+            extensionRunner=SimpleNamespace(getCommand=lambda _name: None),
+            state=SimpleNamespace(messages=[]),
+        ),
+    )
+    mode.showStatus = statuses.append  # type: ignore[method-assign]
+
+    await mode.handleSubmittedText("hello while compacting")
+
+    assert editor.history == ["hello while compacting"]
+    assert editor.text == ""
+    assert mode.compactionQueuedMessages == [{"text": "hello while compacting", "mode": "steer"}]
+    assert statuses == ["Queued message for after compaction"]
+
+
+@pytest.mark.asyncio
+async def test_handle_submitted_text_streaming_uses_steer_and_updates_pending() -> None:
+    editor = FakeEditor()
+    calls: list[Any] = []
+    ui = FakeUi()
+
+    async def prompt(text: str, options: dict[str, Any] | None = None) -> None:
+        calls.append(("prompt", text, options))
+
+    mode = InteractiveMode(
+        ui=ui,
+        editor=editor,
+        defaultEditor=editor,
+        session=SimpleNamespace(prompt=prompt, isStreaming=True, isCompacting=False, state=SimpleNamespace(messages=[])),
+    )
+    mode.onInputCallback = lambda text: calls.append(("input", text))
+    mode.updatePendingMessagesDisplay = lambda: calls.append("pending")  # type: ignore[method-assign]
+
+    await mode.handleSubmittedText("hello while streaming")
+
+    assert calls == [("prompt", "hello while streaming", {"streamingBehavior": "steer"}), "pending"]
+    assert editor.history == ["hello while streaming"]
+    assert editor.text == ""
+    assert ui.render_calls == [None]
+
+
+@pytest.mark.asyncio
+async def test_flush_compaction_queue_routes_messages_by_mode() -> None:
+    calls: list[tuple[str, Any]] = []
+
+    async def prompt(text: str, options: dict[str, Any] | None = None) -> None:
+        calls.append(("prompt", text))
+
+    async def follow_up(text: str) -> None:
+        calls.append(("followUp", text))
+
+    async def steer(text: str) -> None:
+        calls.append(("steer", text))
+
+    mode = InteractiveMode(
+        session=SimpleNamespace(
+            prompt=prompt,
+            followUp=follow_up,
+            steer=steer,
+            extensionRunner=SimpleNamespace(getCommand=lambda name: object() if name == "ext" else None),
+        ),
+    )
+    mode.compactionQueuedMessages = [
+        {"text": "/ext do-thing", "mode": "steer"},
+        {"text": "primary prompt", "mode": "steer"},
+        {"text": "queued follow-up", "mode": "followUp"},
+        {"text": "queued steer", "mode": "steer"},
+    ]
+
+    await mode.flushCompactionQueue({"willRetry": False})
+    await asyncio.sleep(0)
+
+    assert calls[0] == ("prompt", "/ext do-thing")
+    assert set(calls[1:]) == {
+        ("prompt", "primary prompt"),
+        ("followUp", "queued follow-up"),
+        ("steer", "queued steer"),
+    }
+    assert mode.compactionQueuedMessages == []
+
+
+def test_flush_pending_bash_components_moves_components_to_chat() -> None:
+    pending = Container()
+    chat = Container()
+    first = Text("one", 0, 0)
+    second = Text("two", 0, 0)
+    pending.addChild(first)
+    pending.addChild(second)
+
+    mode = InteractiveMode(pendingMessagesContainer=pending, chatContainer=chat)
+    mode.pendingBashComponents = [first, second]
+
+    mode.flushPendingBashComponents()
+
+    assert pending.children == []
+    assert chat.children[-2:] == [first, second]
+    assert mode.pendingBashComponents == []
+
+
+@pytest.mark.asyncio
+async def test_handle_event_queue_update_refreshes_pending_messages() -> None:
+    calls: list[str] = []
+    mode = InteractiveMode()
+    mode.updatePendingMessagesDisplay = lambda: calls.append("pending")  # type: ignore[method-assign]
+    mode.footer = SimpleNamespace(invalidate=lambda: calls.append("footer"))
+    mode._request_render = lambda force=None: calls.append("render")  # type: ignore[method-assign]
+
+    await mode.handleEvent({"type": "queue_update"})
+
+    assert calls == ["pending", "footer", "render"]
+
+
 def test_create_base_autocomplete_provider_includes_restored_builtin_commands() -> None:
     mode = InteractiveMode(
         session=SimpleNamespace(getSlashCommands=lambda: [], state=SimpleNamespace(messages=[])),

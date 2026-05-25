@@ -237,6 +237,6 @@ runMigrations = run_migrations
 __all__ = [
     "migrateAuthToAuthJson",
     "migrateSessionsFromAgentRoot",
-    "runMigrations",
     "showDeprecationWarnings",
+    "runMigrations",
 ]

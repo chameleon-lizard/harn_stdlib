@@ -993,7 +993,7 @@ def _last_activity_time(entries: list[FileEntry]) -> int | None:
             continue
 
         message_timestamp = _message_field(message, "timestamp")
-        if isinstance(message_timestamp, int | float):
+        if isinstance(message_timestamp, (int, float)) and not isinstance(message_timestamp, bool):
             current = int(message_timestamp)
         else:
             current = _timestamp_ms(entry.get("timestamp"))
@@ -1014,7 +1014,7 @@ def _session_modified_date(entries: list[FileEntry], header: SessionHeader, stat
     return datetime.fromtimestamp(stats_mtime, UTC)
 
 
-async def _build_session_info(file_path: str) -> SessionInfo | None:
+def _build_session_info_sync(file_path: str) -> SessionInfo | None:
     try:
         path = Path(file_path)
         content = path.read_text(encoding="utf-8")
@@ -1070,8 +1070,48 @@ async def _build_session_info(file_path: str) -> SessionInfo | None:
             firstMessage=first_message or "(no messages)",
             allMessagesText=" ".join(all_messages),
         )
-    except OSError:
+    except Exception:
         return None
+
+
+async def _build_session_info(file_path: str) -> SessionInfo | None:
+    return await asyncio.to_thread(_build_session_info_sync, file_path)
+
+
+async def _build_session_infos_with_concurrency(
+    files: list[str],
+    on_loaded: Callable[[], None],
+) -> list[SessionInfo | None]:
+    results: list[SessionInfo | None] = [None] * len(files)
+    in_flight: set[asyncio.Task[None]] = set()
+    next_index = 0
+
+    def start_next() -> None:
+        nonlocal next_index
+        index = next_index
+        if index >= len(files):
+            return
+        next_index += 1
+
+        async def run() -> None:
+            try:
+                results[index] = await _build_session_info(files[index])
+            except Exception:
+                results[index] = None
+            finally:
+                on_loaded()
+
+        task = asyncio.create_task(run())
+        in_flight.add(task)
+        task.add_done_callback(lambda completed: in_flight.discard(completed))
+
+    while next_index < len(files) or in_flight:
+        while next_index < len(files) and len(in_flight) < MAX_CONCURRENT_SESSION_INFO_LOADS:
+            start_next()
+        if in_flight:
+            await asyncio.wait(in_flight, return_when=asyncio.FIRST_COMPLETED)
+
+    return results
 
 
 async def _list_sessions_from_dir(
@@ -1090,12 +1130,15 @@ async def _list_sessions_from_dir(
 
     sessions: list[SessionInfo] = []
     total = len(files)
-    loaded = 0
-    for file_path in files:
-        info = await _build_session_info(file_path)
-        loaded += 1
+    loaded_ref = {"value": 0}
+
+    def on_loaded() -> None:
+        loaded_ref["value"] += 1
         if on_progress is not None:
-            on_progress(loaded, total)
+            on_progress(loaded_ref["value"], total)
+
+    results = await _build_session_infos_with_concurrency(files, on_loaded)
+    for info in results:
         if info is not None:
             sessions.append(info)
     return sessions
@@ -1136,7 +1179,7 @@ def _jsonable(value: Any) -> Any:
 
 
 def _dump_json(value: Any) -> str:
-    return json.dumps(_jsonable(value))
+    return json.dumps(_jsonable(value), ensure_ascii=False, separators=(",", ":"))
 
 
 def _dump_jsonl(entries: list[FileEntry]) -> str:
@@ -1157,37 +1200,31 @@ findMostRecentSession = find_most_recent_session
 
 __all__ = [
     "CURRENT_SESSION_VERSION",
+    "BranchSummaryEntry",
+    "CompactionEntry",
+    "CustomEntry",
+    "CustomMessageEntry",
     "FileEntry",
+    "LabelEntry",
+    "ModelChangeEntry",
     "NewSessionOptions",
     "ReadonlySessionManager",
     "SessionContext",
     "SessionEntry",
+    "SessionEntryBase",
     "SessionHeader",
     "SessionInfo",
+    "SessionInfoEntry",
     "SessionListProgress",
     "SessionManager",
-    "SessionModelInfo",
+    "SessionMessageEntry",
     "SessionTreeNode",
+    "ThinkingLevelChangeEntry",
     "buildSessionContext",
-    "build_session_context",
-    "createSessionId",
-    "create_session_id",
     "findMostRecentSession",
-    "find_most_recent_session",
-    "generateId",
-    "generate_id",
     "getDefaultSessionDir",
     "getLatestCompactionEntry",
-    "get_default_session_dir",
-    "get_latest_compaction_entry",
     "loadEntriesFromFile",
-    "load_entries_from_file",
     "migrateSessionEntries",
-    "migrateV1ToV2",
-    "migrateV2ToV3",
-    "migrate_session_entries",
-    "migrate_v1_to_v2",
-    "migrate_v2_to_v3",
     "parseSessionEntries",
-    "parse_session_entries",
 ]

@@ -32,7 +32,6 @@ from harnify_coding_agent.core.tools.truncate import (
     format_size,
     truncate_head,
 )
-from harnify_coding_agent.modes.interactive.components.keybinding_hints import key_hint
 from harnify_coding_agent.utils.tools_manager import ensure_tool
 from harnify_tui import Text
 
@@ -159,6 +158,8 @@ def _format_find_call(args: Mapping[str, Any] | None, theme_obj: Any) -> str:
 
 
 def _format_find_result(result: Any, options: Any, theme_obj: Any, show_images: bool) -> str:
+    from harnify_coding_agent.modes.interactive.components.keybinding_hints import key_hint
+
     output = get_text_output(result, show_images).strip()
     text = ""
     if output:

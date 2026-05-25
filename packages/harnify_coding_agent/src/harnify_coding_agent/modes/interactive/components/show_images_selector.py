@@ -35,4 +35,4 @@ class ShowImagesSelectorComponent(Container):
         return self.selectList
 
 
-__all__ = ["SHOW_IMAGES_SELECT_LIST_LAYOUT", "ShowImagesSelectorComponent"]
+__all__ = ["ShowImagesSelectorComponent"]

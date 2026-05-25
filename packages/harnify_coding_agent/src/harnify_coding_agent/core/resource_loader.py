@@ -93,6 +93,11 @@ def _warn(message: str) -> None:
     print(message, file=sys.stderr)
 
 
+def _error_message(error: Exception, fallback: str) -> str:
+    message = str(error)
+    return message or fallback
+
+
 def resolve_prompt_input(input_value: str | None, description: str) -> str | None:
     if not input_value:
         return None
@@ -648,6 +653,7 @@ class DefaultResourceLoader:
             if self._is_under_path(normalized_path, root):
                 return SourceInfo(path=file_path, source="local", scope="project", origin="top-level", baseDir=root)
 
+        stats = os.stat(normalized_path)
         base_dir = normalized_path if os.path.isdir(normalized_path) else os.path.abspath(os.path.join(normalized_path, ".."))
         return SourceInfo(
             path=file_path,
@@ -700,7 +706,13 @@ class DefaultResourceLoader:
                         ResourceDiagnostic(type="warning", message="theme path is not a json file", path=resolved)
                     )
             except Exception as error:  # noqa: BLE001
-                diagnostics.append(ResourceDiagnostic(type="warning", message=str(error), path=resolved))
+                diagnostics.append(
+                    ResourceDiagnostic(
+                        type="warning",
+                        message=_error_message(error, "failed to read theme path"),
+                        path=resolved,
+                    )
+                )
         return {"themes": themes, "diagnostics": diagnostics}
 
     def _load_themes_from_dir(
@@ -723,7 +735,13 @@ class DefaultResourceLoader:
                     continue
                 self._load_theme_from_file(entry.path, themes, diagnostics)
         except Exception as error:  # noqa: BLE001
-            diagnostics.append(ResourceDiagnostic(type="warning", message=str(error), path=dir_path))
+            diagnostics.append(
+                ResourceDiagnostic(
+                    type="warning",
+                    message=_error_message(error, "failed to read theme directory"),
+                    path=dir_path,
+                )
+            )
 
     def _load_theme_from_file(
         self,
@@ -734,7 +752,13 @@ class DefaultResourceLoader:
         try:
             themes.append(load_theme_from_path(file_path))
         except Exception as error:
-            diagnostics.append(ResourceDiagnostic(type="warning", message=str(error), path=file_path))
+            diagnostics.append(
+                ResourceDiagnostic(
+                    type="warning",
+                    message=_error_message(error, "failed to load theme"),
+                    path=file_path,
+                )
+            )
 
     async def _load_extension_factories(self, runtime: ExtensionRuntime) -> dict[str, list[Any]]:
         extensions: list[Extension] = []
@@ -751,7 +775,7 @@ class DefaultResourceLoader:
                 )
                 extensions.append(extension)
             except Exception as error:
-                errors.append({"path": extension_path, "error": str(error)})
+                errors.append({"path": extension_path, "error": _error_message(error, "failed to load extension")})
         return {"extensions": extensions, "errors": errors}
 
     def _dedupe_prompts(self, prompts: list[PromptTemplate]) -> dict[str, list[Any]]:

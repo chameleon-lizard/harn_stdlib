@@ -76,7 +76,7 @@ def render_highlighted_html(html: str, theme: HighlightTheme | None = None) -> s
 
 def highlight(code: str, options: HighlightOptions | dict[str, Any] | None = None) -> str:
     resolved = _resolve_options(options)
-    lexer = _resolve_lexer(resolved)
+    lexer = _resolve_lexer(code, resolved)
     output: list[str] = []
     theme = resolved.theme or {}
 
@@ -111,7 +111,7 @@ def _resolve_options(options: HighlightOptions | dict[str, Any] | None) -> Highl
     return HighlightOptions()
 
 
-def _resolve_lexer(options: HighlightOptions):
+def _resolve_lexer(code: str, options: HighlightOptions):
     if options.language:
         try:
             return get_lexer_by_name(options.language)
@@ -126,14 +126,14 @@ def _resolve_lexer(options: HighlightOptions):
             except ClassNotFound:
                 continue
             analyse = getattr(candidate, "analyse_text", None)
-            score = float(analyse("")) if callable(analyse) else 0.0
+            score = float(analyse(code)) if callable(analyse) else 0.0
             if score > best_score:
                 best = candidate
                 best_score = score
         if best is not None:
             return best
     try:
-        return guess_lexer("")
+        return guess_lexer(code)
     except ClassNotFound:
         return TextLexer()
 
@@ -217,9 +217,6 @@ __all__ = [
     "HighlightOptions",
     "HighlightTheme",
     "highlight",
-    "highlightHtml",
     "renderHighlightedHtml",
-    "render_highlighted_html",
     "supportsLanguage",
-    "supports_language",
 ]

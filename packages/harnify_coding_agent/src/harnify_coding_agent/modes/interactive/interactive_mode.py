@@ -5027,6 +5027,60 @@ class InteractiveMode:
         get_available_thinking_levels = _callable_attr(self.session, "getAvailableThinkingLevels")
         get_warnings = _callable_attr(self.settingsManager, "getWarnings")
 
+        def _on_auto_compact_change(enabled: bool) -> None:
+            set_auto_compaction_enabled = _callable_attr(self.session, "setAutoCompactionEnabled")
+            if set_auto_compaction_enabled is not None:
+                set_auto_compaction_enabled(enabled)
+            set_auto_compact_enabled = _callable_attr(self.footer, "setAutoCompactEnabled")
+            if set_auto_compact_enabled is not None:
+                set_auto_compact_enabled(enabled)
+
+        def _on_http_idle_timeout_ms_change(timeout_ms: int) -> None:
+            set_http_idle_timeout_ms = _callable_attr(self.settingsManager, "setHttpIdleTimeoutMs")
+            if set_http_idle_timeout_ms is not None:
+                set_http_idle_timeout_ms(timeout_ms)
+            configureHttpDispatcher(timeout_ms)
+            self.showStatus(
+                f"HTTP idle timeout: {timeout_ms / 1000:g} sec"
+                if timeout_ms
+                else "HTTP idle timeout: disabled"
+            )
+
+        def _on_theme_change(theme_name: str) -> None:
+            result = interactive_theme.set_theme(theme_name, True)
+            set_theme = _callable_attr(self.settingsManager, "setTheme")
+            if set_theme is not None:
+                set_theme(theme_name)
+            invalidate = _callable_attr(self.ui, "invalidate")
+            if invalidate is not None:
+                invalidate()
+            if not result.get("success"):
+                self.showError(
+                    f'Failed to load theme "{theme_name}": {result.get("error")}\nFell back to dark theme.'
+                )
+
+        def _on_theme_preview(theme_name: str) -> None:
+            result = interactive_theme.set_theme(theme_name, True)
+            if result.get("success"):
+                invalidate = _callable_attr(self.ui, "invalidate")
+                if invalidate is not None:
+                    invalidate()
+                self._request_render()
+
+        def _on_hide_thinking_block_change(hidden: bool) -> None:
+            self.hideThinkingBlock = hidden
+            set_hide_thinking_block = _callable_attr(self.settingsManager, "setHideThinkingBlock")
+            if set_hide_thinking_block is not None:
+                set_hide_thinking_block(hidden)
+            for child in getattr(self.chatContainer, "children", []):
+                set_hidden = _callable_attr(child, "setHideThinkingBlock")
+                if set_hidden is not None:
+                    set_hidden(hidden)
+            clear_chat = _callable_attr(self.chatContainer, "clear")
+            if clear_chat is not None:
+                clear_chat()
+            self.rebuildChatFromMessages()
+
         self.showSelector(
             lambda done: {
                 "component": SettingsSelectorComponent(
@@ -5076,12 +5130,7 @@ class InteractiveMode:
                         warnings=dict(get_warnings() or {}) if get_warnings is not None else {},
                     ),
                     SettingsCallbacks(
-                        onAutoCompactChange=lambda enabled: (
-                            _callable_attr(self.settingsManager, "setCompactionEnabled")
-                            and self.settingsManager.setCompactionEnabled(enabled),
-                            _callable_attr(self.footer, "setAutoCompactEnabled")
-                            and self.footer.setAutoCompactEnabled(enabled),
-                        ),
+                        onAutoCompactChange=_on_auto_compact_change,
                         onShowImagesChange=lambda enabled: (
                             _callable_attr(self.settingsManager, "setShowImages")
                             and self.settingsManager.setShowImages(enabled),
@@ -5123,38 +5172,15 @@ class InteractiveMode:
                             hasattr(getattr(self.session, "agent", None), "transport")
                             and setattr(self.session.agent, "transport", transport),
                         ),
-                        onHttpIdleTimeoutMsChange=lambda timeout_ms: (
-                            _callable_attr(self.settingsManager, "setHttpIdleTimeoutMs")
-                            and self.settingsManager.setHttpIdleTimeoutMs(timeout_ms),
-                            self.showStatus(
-                                f"HTTP idle timeout: {timeout_ms / 1000:g} sec"
-                                if timeout_ms
-                                else "HTTP idle timeout: disabled"
-                            ),
-                        ),
+                        onHttpIdleTimeoutMsChange=_on_http_idle_timeout_ms_change,
                         onThinkingLevelChange=lambda level: (
                             _callable_attr(self.session, "setThinkingLevel") and self.session.setThinkingLevel(level),
                             self.footer.invalidate(),
                             self.updateEditorBorderColor(),
                         ),
-                        onThemeChange=lambda theme_name: self._schedule_task(
-                            self._handle_theme_select(theme_name, lambda: None)
-                        ),
-                        onThemePreview=lambda theme_name: (
-                            interactive_theme.set_theme(theme_name, True),
-                            self.updateEditorBorderColor(),
-                            self._request_render(),
-                        ),
-                        onHideThinkingBlockChange=lambda hidden: (
-                            setattr(self, "hideThinkingBlock", hidden),
-                            _callable_attr(self.settingsManager, "setHideThinkingBlock")
-                            and self.settingsManager.setHideThinkingBlock(hidden),
-                            [
-                                _callable_attr(child, "setHideThinkingBlock") and child.setHideThinkingBlock(hidden)
-                                for child in getattr(self.chatContainer, "children", [])
-                            ],
-                            self.renderCurrentSessionState(),
-                        ),
+                        onThemeChange=_on_theme_change,
+                        onThemePreview=_on_theme_preview,
+                        onHideThinkingBlockChange=_on_hide_thinking_block_change,
                         onCollapseChangelogChange=lambda collapsed: (
                             _callable_attr(self.settingsManager, "setCollapseChangelog")
                             and self.settingsManager.setCollapseChangelog(collapsed)

@@ -3090,7 +3090,7 @@ class InteractiveMode:
         try:
             result = await self.runtimeHost.switchSession(
                 sessionPath,
-                {"withSession": options.get("withSession") if options else None},
+                {"withSession": _value(options, "withSession")},
             )
             if _value(result, "cancelled", False):
                 return result
@@ -3106,7 +3106,7 @@ class InteractiveMode:
                 sessionPath,
                 {
                     "cwdOverride": selected_cwd,
-                    "withSession": options.get("withSession") if options else None,
+                    "withSession": _value(options, "withSession"),
                 },
             )
             if _value(result, "cancelled", False):

@@ -5583,7 +5583,7 @@ class InteractiveMode:
                     enabledModelIds=current_enabled_ids,
                 ),
                 ModelsCallbacks(
-                    onChange=lambda enabled_ids: self._schedule_task(_update_session_models(enabled_ids)),
+                    onChange=lambda enabled_ids: _update_session_models(enabled_ids),
                     onPersist=lambda enabled_ids: (
                         _callable_attr(self.settingsManager, "setEnabledModels")
                         and self.settingsManager.setEnabledModels(

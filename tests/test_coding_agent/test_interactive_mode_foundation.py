@@ -1436,6 +1436,80 @@ async def test_run_seeds_initial_messages_and_starts_ui(monkeypatch: pytest.Monk
 
 
 @pytest.mark.asyncio
+async def test_init_matches_ts_startup_header_and_render_order(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+    ui = FakeUi()
+    footer_data_provider = SimpleNamespace(onBranchChange=lambda _callback: calls.append("branchWatcher"))
+    mode = InteractiveMode(
+        ui=ui,
+        footerDataProvider=footer_data_provider,
+        settingsManager=SimpleNamespace(
+            getQuietStartup=lambda: True,
+            getTheme=lambda: "dark",
+        ),
+        options={"verbose": True},
+    )
+    mode.registerSignalHandlers = lambda: calls.append("signals")  # type: ignore[method-assign]
+    mode.updateEditorBorderColor = lambda: calls.append("border")  # type: ignore[method-assign]
+    mode.setupAutocompleteProvider = lambda: calls.append("autocomplete")  # type: ignore[method-assign]
+    mode.renderWidgets = lambda: calls.append("widgets")  # type: ignore[method-assign]
+    mode.setupKeyHandlers = lambda: calls.append("keyHandlers")  # type: ignore[method-assign]
+    mode.setupEditorSubmitHandler = lambda: calls.append("submitHandlers")  # type: ignore[method-assign]
+    mode.updateAvailableProviderCount = lambda: calls.append("count")  # type: ignore[method-assign]
+
+    async def fake_rebind(*_args: Any, **_kwargs: Any) -> None:
+        calls.append("rebind")
+
+    mode.rebindCurrentSession = fake_rebind  # type: ignore[method-assign]
+    mode.renderInitialMessages = lambda: calls.append("renderInitialMessages")  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        interactive_mode_module.interactive_theme,
+        "on_theme_change",
+        lambda _callback: calls.append("themeWatcher"),
+    )
+
+    await mode.init()
+
+    assert ui.children == [
+        mode.headerContainer,
+        mode.chatContainer,
+        mode.pendingMessagesContainer,
+        mode.statusContainer,
+        mode.widgetContainerAbove,
+        mode.editorContainer,
+        mode.widgetContainerBelow,
+        mode.footer,
+    ]
+    assert ui.focused is mode.editor
+    assert ui.started == 1
+    assert calls == [
+        "signals",
+        "border",
+        "autocomplete",
+        "widgets",
+        "keyHandlers",
+        "submitHandlers",
+        "rebind",
+        "renderInitialMessages",
+        "themeWatcher",
+        "branchWatcher",
+        "count",
+    ]
+
+    collapsed = _strip_ansi("\n".join(mode.builtInHeader.render(200)))
+    assert "clear/exit" in collapsed
+    assert "show full startup help and loaded resources" in collapsed
+    assert "Ask it how to use or extend Pi." in collapsed
+
+    mode.builtInHeader.setExpanded(True)
+    expanded = _strip_ansi("\n".join(mode.builtInHeader.render(200)))
+    assert "to suspend" in expanded
+    assert "to queue follow-up" in expanded
+    assert "to edit all queued messages" in expanded
+    assert "drop files" in expanded
+
+
+@pytest.mark.asyncio
 async def test_run_shows_version_notification_from_background_check(monkeypatch: pytest.MonkeyPatch) -> None:
     ui = FakeUi()
 

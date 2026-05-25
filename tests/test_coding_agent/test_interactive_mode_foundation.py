@@ -746,6 +746,220 @@ def test_handle_ctrl_z_suspends_and_restores_tui(monkeypatch: pytest.MonkeyPatch
 
 
 @pytest.mark.asyncio
+async def test_handle_ctrl_c_matches_ts_double_sigint_shutdown_flow(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+    mode = InteractiveMode()
+    mode.clearEditor = lambda: calls.append("clear")  # type: ignore[method-assign]
+
+    async def shutdown() -> int:
+        calls.append("shutdown")
+        return 0
+
+    mode.shutdown = shutdown  # type: ignore[method-assign]
+    times = iter([1.0, 1.3])
+    monkeypatch.setattr(interactive_mode_module.time, "time", lambda: next(times))
+
+    mode.handleCtrlC()
+    await asyncio.sleep(0)
+    mode.handleCtrlC()
+    await asyncio.sleep(0)
+
+    assert calls == ["clear", "shutdown"]
+
+
+def test_register_signal_handlers_and_stop_match_ts_cleanup(monkeypatch: pytest.MonkeyPatch) -> None:
+    installed_handlers: dict[int, Any] = {}
+    previous_sigterm = object()
+    previous_sighup = object()
+    cleanup_calls: list[Any] = []
+
+    class FakeStream:
+        def __init__(self) -> None:
+            self.handlers: dict[str, Any] = {}
+
+        def on(self, event: str, handler: Any) -> None:
+            self.handlers[event] = handler
+
+        def off(self, event: str, handler: Any) -> None:
+            if self.handlers.get(event) is handler:
+                self.handlers.pop(event, None)
+
+    stdout = FakeStream()
+    stderr = FakeStream()
+
+    monkeypatch.setattr(
+        signal,
+        "getsignal",
+        lambda signum: previous_sigterm if signum == signal.SIGTERM else previous_sighup,
+    )
+    monkeypatch.setattr(signal, "signal", lambda signum, handler: installed_handlers.__setitem__(signum, handler))
+    monkeypatch.setattr(interactive_mode_module.sys, "stdout", stdout)
+    monkeypatch.setattr(interactive_mode_module.sys, "stderr", stderr)
+
+    ui = FakeUi()
+    ui.terminal = SimpleNamespace(
+        setProgress=lambda active: cleanup_calls.append(("progress", active)),
+        setTitle=lambda _value: None,
+    )
+    mode = InteractiveMode(
+        ui=ui,
+        settingsManager=SimpleNamespace(getShowTerminalProgress=lambda: True),
+        footer=SimpleNamespace(dispose=lambda: cleanup_calls.append("footer")),
+        footerDataProvider=SimpleNamespace(dispose=lambda: cleanup_calls.append("footer-data")),
+    )
+    mode.extensionTerminalInputUnsubscribers = {lambda: cleanup_calls.append("ext-unsub")}
+    mode.loadingAnimation = SimpleNamespace(stop=lambda: cleanup_calls.append("loader-stop"))
+    mode._sessionUnsubscribe = lambda: cleanup_calls.append("session-unsub")
+    mode.isInitialized = True
+
+    mode.registerSignalHandlers()
+
+    assert signal.SIGTERM in installed_handlers
+    if hasattr(signal, "SIGHUP"):
+        assert signal.SIGHUP in installed_handlers
+    assert "error" in stdout.handlers
+    assert "error" in stderr.handlers
+    assert mode.signalCleanupHandlers
+
+    mode.stop()
+
+    assert ("progress", False) in cleanup_calls
+    assert "loader-stop" in cleanup_calls
+    assert "ext-unsub" in cleanup_calls
+    assert "footer" in cleanup_calls
+    assert "footer-data" in cleanup_calls
+    assert "session-unsub" in cleanup_calls
+    assert installed_handlers[signal.SIGTERM] is previous_sigterm
+    if hasattr(signal, "SIGHUP"):
+        assert installed_handlers[signal.SIGHUP] is previous_sighup
+    assert stdout.handlers == {}
+    assert stderr.handlers == {}
+    assert mode.signalCleanupHandlers == []
+    assert ui.stopped == 1
+    assert mode.isInitialized is False
+
+
+def test_register_signal_handlers_dead_terminal_error_uses_emergency_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeStream:
+        def __init__(self) -> None:
+            self.handlers: dict[str, Any] = {}
+
+        def on(self, event: str, handler: Any) -> None:
+            self.handlers[event] = handler
+
+        def off(self, event: str, handler: Any) -> None:
+            if self.handlers.get(event) is handler:
+                self.handlers.pop(event, None)
+
+    stdout = FakeStream()
+    stderr = FakeStream()
+    monkeypatch.setattr(signal, "getsignal", lambda _signum: None)
+    monkeypatch.setattr(signal, "signal", lambda _signum, _handler: None)
+    monkeypatch.setattr(interactive_mode_module.sys, "stdout", stdout)
+    monkeypatch.setattr(interactive_mode_module.sys, "stderr", stderr)
+
+    mode = InteractiveMode()
+    mode.emergencyTerminalExit = lambda: (_ for _ in ()).throw(SystemExit(129))  # type: ignore[method-assign]
+    mode.registerSignalHandlers()
+
+    with pytest.raises(SystemExit) as exc_info:
+        stdout.handlers["error"](SimpleNamespace(code="EPIPE"))
+
+    assert exc_info.value.code == 129
+    mode.unregisterSignalHandlers()
+
+
+@pytest.mark.asyncio
+async def test_request_shutdown_defers_until_check_shutdown_requested_matches_ts() -> None:
+    calls: list[Any] = []
+    ui = FakeUi()
+    ui.terminal = SimpleNamespace(
+        drainInput=lambda max_ms: asyncio.sleep(0, result=calls.append(("drain", max_ms))),
+        setProgress=lambda active: calls.append(("progress", active)),
+        setTitle=lambda _value: None,
+    )
+    runtime_host = SimpleNamespace(dispose=lambda: asyncio.sleep(0, result=calls.append("runtime-dispose")))
+    mode = InteractiveMode(
+        ui=ui,
+        runtimeHost=runtime_host,
+        settingsManager=SimpleNamespace(getShowTerminalProgress=lambda: True),
+        footer=SimpleNamespace(dispose=lambda: calls.append("footer")),
+        footerDataProvider=SimpleNamespace(dispose=lambda: calls.append("footer-data")),
+        session=SimpleNamespace(isStreaming=True),
+    )
+    mode.isInitialized = True
+    mode.loadingAnimation = SimpleNamespace(stop=lambda: calls.append("loader-stop"))
+    mode.extensionTerminalInputUnsubscribers = {lambda: calls.append("ext-unsub")}
+    mode._sessionUnsubscribe = lambda: calls.append("session-unsub")
+    mode.signalCleanupHandlers = [lambda: calls.append("signals-unregistered")]
+    mode._shutdownFuture = asyncio.get_running_loop().create_future()
+
+    mode.requestShutdown()
+
+    assert mode.shutdownRequested is True
+    assert mode._shutdownFuture.done() is False
+    assert calls == []
+
+    mode.session = SimpleNamespace(isStreaming=False)
+    await mode.checkShutdownRequested()
+
+    assert calls == [
+        "signals-unregistered",
+        ("drain", 1000),
+        ("progress", False),
+        "loader-stop",
+        "ext-unsub",
+        "footer",
+        "footer-data",
+        "session-unsub",
+        "runtime-dispose",
+    ]
+    assert ui.stopped == 1
+    assert mode._shutdownFuture.done() is True
+    assert await asyncio.shield(mode._shutdownFuture) == 0
+
+
+def test_emergency_terminal_exit_matches_ts_exit_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(
+        interactive_mode_module,
+        "kill_tracked_detached_children",
+        lambda: calls.append("kill"),
+    )
+    mode = InteractiveMode()
+    mode.unregisterSignalHandlers = lambda: calls.append("unregister")  # type: ignore[method-assign]
+
+    with pytest.raises(SystemExit) as exc_info:
+        mode.emergencyTerminalExit()
+
+    assert exc_info.value.code == 129
+    assert mode.isShuttingDown is True
+    assert calls == ["unregister", "kill"]
+
+
+def test_uncaught_crash_restores_tui_and_exits(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(
+        interactive_mode_module,
+        "kill_tracked_detached_children",
+        lambda: calls.append("kill"),
+    )
+    ui = FakeUi()
+    mode = InteractiveMode(ui=ui)
+    mode.unregisterSignalHandlers = lambda: calls.append("unregister")  # type: ignore[method-assign]
+
+    with pytest.raises(SystemExit) as exc_info:
+        mode.uncaughtCrash(RuntimeError("boom"))
+
+    assert exc_info.value.code == 1
+    assert mode.isShuttingDown is True
+    assert ui.stopped == 1
+    assert calls == ["unregister", "kill"]
+
+
+@pytest.mark.asyncio
 async def test_import_command_retries_with_selected_cwd() -> None:
     calls: list[tuple[str, str | None]] = []
     statuses: list[str] = []

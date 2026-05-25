@@ -971,6 +971,14 @@ def _message_role(message: Any) -> str | None:
     return role if isinstance(role, str) else None
 
 
+def _is_message_with_content(message: Any) -> bool:
+    if not isinstance(_message_role(message), str):
+        return False
+    if isinstance(message, dict):
+        return "content" in message
+    return hasattr(message, "content")
+
+
 def _set_message_role(message: Any, role: str) -> None:
     if isinstance(message, dict):
         message["role"] = role
@@ -1001,6 +1009,8 @@ def _last_activity_time(entries: list[FileEntry]) -> int | None:
             continue
 
         message = entry.get("message")
+        if not _is_message_with_content(message):
+            continue
         if _message_role(message) not in {"user", "assistant"}:
             continue
 

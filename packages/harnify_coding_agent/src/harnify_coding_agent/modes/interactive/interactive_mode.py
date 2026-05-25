@@ -3991,6 +3991,7 @@ class InteractiveMode:
         )
         if hasattr(self.editor, "borderColor"):
             self.editor.borderColor = border
+        self._request_render()
 
     def toggleToolOutputExpansion(self) -> None:
         self.setToolsExpanded(not self.toolOutputExpanded)

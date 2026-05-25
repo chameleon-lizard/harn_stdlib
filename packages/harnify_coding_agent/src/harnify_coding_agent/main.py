@@ -472,13 +472,20 @@ async def create_session_manager(
     err = error_stream or sys.stderr
     selector = select_session_fn or session_picker.select_session
 
+    def fork_session_or_exit(source_path: str) -> SessionManager:
+        try:
+            return SessionManager.forkFrom(source_path, cwd, session_dir)
+        except Exception as error:
+            err.write(f"Error: {error}\n")
+            raise SystemExit(1) from error
+
     if parsed.noSession:
         return SessionManager.inMemory()
 
     if parsed.fork:
         resolved = await resolve_session_path(parsed.fork, cwd, session_dir)
         if resolved.type in {"path", "local", "global"} and resolved.path:
-            return SessionManager.forkFrom(resolved.path, cwd, session_dir)
+            return fork_session_or_exit(resolved.path)
         err.write(f"No session found matching '{resolved.arg}'\n")
         raise SystemExit(1)
 
@@ -492,7 +499,7 @@ async def create_session_manager(
             if not should_fork:
                 out.write("Aborted.\n")
                 raise SystemExit(0)
-            return SessionManager.forkFrom(resolved.path, cwd, session_dir)
+            return fork_session_or_exit(resolved.path)
         err.write(f"No session found matching '{resolved.arg}'\n")
         raise SystemExit(1)
 
@@ -720,8 +727,8 @@ async def main(args: list[str], options: MainOptions | None = None) -> int:
                 await interactive_mode.init()
                 time_mark("interactiveMode.init")
                 print_timings()
-                interactive_mode.requestShutdown()
-                interactive_mode.dispose()
+                interactive_mode.stop()
+                stop_theme_watcher()
                 flush_stdout = getattr(sys.stdout, "flush", None)
                 if callable(flush_stdout):
                     flush_stdout()

@@ -4969,10 +4969,8 @@ class InteractiveMode:
         try:
             await self.session.setModel(model)
             self.footer.invalidate()
-            self.updateAvailableProviderCount()
             self.updateEditorBorderColor()
             done()
-            self._request_render()
             self.showStatus(f"Model: {_value(model, 'id', model)}")
             self.checkDaxnutsEasterEgg(model)
             await self.maybeWarnAboutAnthropicSubscriptionAuth(model)
@@ -5002,7 +5000,7 @@ class InteractiveMode:
             self.showModelSelector()
             return
 
-        model = findExactModelReferenceMatch(searchTerm, self.getModelCandidates())
+        model = await self.findExactModelMatch(searchTerm)
         if model is None:
             self.showModelSelector(searchTerm)
             return
@@ -5010,16 +5008,18 @@ class InteractiveMode:
         try:
             await self.session.setModel(model)
             self.footer.invalidate()
-            self.updateAvailableProviderCount()
             self.updateEditorBorderColor()
-            self._request_render()
             self.showStatus(f"Model: {_value(model, 'id', model)}")
             self.checkDaxnutsEasterEgg(model)
             await self.maybeWarnAboutAnthropicSubscriptionAuth(model)
         except Exception as error:  # noqa: BLE001
             self.showError(str(error))
 
-    def getModelCandidates(self) -> list[Any]:
+    async def findExactModelMatch(self, searchTerm: str) -> Any | None:
+        models = await self.getModelCandidates()
+        return findExactModelReferenceMatch(searchTerm, models)
+
+    async def getModelCandidates(self) -> list[Any]:
         scoped_models = list(getattr(self.session, "scopedModels", []) or [])
         if scoped_models:
             return [_value(item, "model", item) for item in scoped_models]
@@ -5032,7 +5032,7 @@ class InteractiveMode:
         if get_available is None:
             return []
         try:
-            return list(get_available() or [])
+            return list((await _maybe_await(get_available())) or [])
         except Exception:
             return []
 

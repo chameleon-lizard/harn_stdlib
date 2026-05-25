@@ -152,6 +152,10 @@ def report_diagnostics(
         output.write(f"{color}{prefix}{diagnostic.message}{_RESET}\n")
 
 
+def _format_colored_message(text: str, color: str) -> str:
+    return f"{color}{text}{_RESET}"
+
+
 async def _drain_output_stream(stream: Any) -> None:
     writable_length = getattr(stream, "writableLength", None)
     once = getattr(stream, "once", None)
@@ -501,7 +505,7 @@ async def create_session_manager(
         try:
             return SessionManager.forkFrom(source_path, cwd, session_dir)
         except Exception as error:
-            err.write(f"Error: {error}\n")
+            err.write(_format_colored_message(f"Error: {error}", _RED) + "\n")
             raise SystemExit(1) from error
 
     if parsed.noSession:
@@ -511,7 +515,7 @@ async def create_session_manager(
         resolved = await resolve_session_path(parsed.fork, cwd, session_dir)
         if resolved.type in {"path", "local", "global"} and resolved.path:
             return fork_session_or_exit(resolved.path)
-        err.write(f"No session found matching '{resolved.arg}'\n")
+        err.write(_format_colored_message(f"No session found matching '{resolved.arg}'", _RED) + "\n")
         raise SystemExit(1)
 
     if parsed.session:
@@ -519,13 +523,13 @@ async def create_session_manager(
         if resolved.type in {"path", "local"} and resolved.path:
             return SessionManager.open(resolved.path, session_dir)
         if resolved.type == "global" and resolved.path:
-            out.write(f"Session found in different project: {resolved.cwd}\n")
+            out.write(_format_colored_message(f"Session found in different project: {resolved.cwd}", _YELLOW) + "\n")
             should_fork = await prompt_confirm_fn("Fork this session into current directory?")
             if not should_fork:
-                out.write("Aborted.\n")
+                out.write(_format_colored_message("Aborted.", _DIM) + "\n")
                 raise SystemExit(0)
             return fork_session_or_exit(resolved.path)
-        err.write(f"No session found matching '{resolved.arg}'\n")
+        err.write(_format_colored_message(f"No session found matching '{resolved.arg}'", _RED) + "\n")
         raise SystemExit(1)
 
     if parsed.resume:
@@ -536,7 +540,7 @@ async def create_session_manager(
                 SessionManager.listAll,
             )
             if not selected_path:
-                out.write("No session selected\n")
+                out.write(_format_colored_message("No session selected", _DIM) + "\n")
                 raise SystemExit(0)
             return SessionManager.open(selected_path, session_dir)
         finally:
@@ -574,7 +578,8 @@ async def main(args: list[str], options: MainOptions | None = None) -> int:
     parsed = parse_args(args)
     for diagnostic in parsed.diagnostics:
         prefix = "Error" if diagnostic.type == "error" else "Warning"
-        print(f"{prefix}: {diagnostic.message}", file=sys.stderr)
+        color = _RED if diagnostic.type == "error" else _YELLOW
+        print(_format_colored_message(f"{prefix}: {diagnostic.message}", color), file=sys.stderr)
     if any(diagnostic.type == "error" for diagnostic in parsed.diagnostics):
         return 1
     time_mark("parseArgs")
@@ -598,19 +603,19 @@ async def main(args: list[str], options: MainOptions | None = None) -> int:
         try:
             result = await export_from_file(parsed.export, output_path)
         except Exception as error:
-            print(f"Error: {error}", file=sys.stderr)
+            print(_format_colored_message(f"Error: {error}", _RED), file=sys.stderr)
             return finish(1)
         print(f"Exported to: {result}")
         return finish(0)
 
     if parsed.mode == "rpc" and parsed.fileArgs:
-        print("Error: @file arguments are not supported in RPC mode", file=sys.stderr)
+        print(_format_colored_message("Error: @file arguments are not supported in RPC mode", _RED), file=sys.stderr)
         return finish(1)
 
     try:
         validate_fork_flags(parsed)
     except ValueError as error:
-        print(f"Error: {error}", file=sys.stderr)
+        print(_format_colored_message(f"Error: {error}", _RED), file=sys.stderr)
         return finish(1)
 
     cwd = os.getcwd()
@@ -640,7 +645,10 @@ async def main(args: list[str], options: MainOptions | None = None) -> int:
             if selected_cwd is None:
                 return finish(0)
             if not missing_session_cwd_issue.sessionFile:
-                print(f"Error: {MissingSessionCwdError(missing_session_cwd_issue)}", file=sys.stderr)
+                print(
+                    _format_colored_message(f"Error: {MissingSessionCwdError(missing_session_cwd_issue)}", _RED),
+                    file=sys.stderr,
+                )
                 return finish(1)
             session_manager = SessionManager.open(
                 missing_session_cwd_issue.sessionFile,
@@ -648,7 +656,10 @@ async def main(args: list[str], options: MainOptions | None = None) -> int:
                 selected_cwd,
             )
         else:
-            print(f"Error: {MissingSessionCwdError(missing_session_cwd_issue)}", file=sys.stderr)
+            print(
+                _format_colored_message(f"Error: {MissingSessionCwdError(missing_session_cwd_issue)}", _RED),
+                file=sys.stderr,
+            )
             return finish(1)
     time_mark("createSessionManager")
 
@@ -724,12 +735,15 @@ async def main(args: list[str], options: MainOptions | None = None) -> int:
         time_mark("createAgentSession")
 
         if app_mode != "interactive" and session.model is None:
-            print(formatNoModelsAvailableMessage(), file=sys.stderr)
+            print(_format_colored_message(formatNoModelsAvailableMessage(), _RED), file=sys.stderr)
             return 1
 
         startup_benchmark = is_truthy_env_flag(os.environ.get("PI_STARTUP_BENCHMARK"))
         if startup_benchmark and app_mode != "interactive":
-            print("Error: PI_STARTUP_BENCHMARK only supports interactive mode", file=sys.stderr)
+            print(
+                _format_colored_message("Error: PI_STARTUP_BENCHMARK only supports interactive mode", _RED),
+                file=sys.stderr,
+            )
             return 1
 
         if app_mode == "rpc":

@@ -124,7 +124,6 @@ def visible_width(text: str) -> int:
 
     cached = _width_cache.get(text)
     if cached is not None:
-        _width_cache.move_to_end(text)
         return cached
 
     clean = text.replace("\t", "   ") if "\t" in text else text
@@ -141,9 +140,9 @@ def visible_width(text: str) -> int:
         clean = "".join(stripped_chars)
 
     width = sum(_grapheme_width(segment) for segment in _iter_graphemes(clean))
-    _width_cache[text] = width
-    if len(_width_cache) > _WIDTH_CACHE_SIZE:
+    if len(_width_cache) >= _WIDTH_CACHE_SIZE:
         _width_cache.popitem(last=False)
+    _width_cache[text] = width
     return width
 
 
@@ -369,6 +368,21 @@ class AnsiCodeTracker:
             result += _format_osc8_close(self.activeHyperlink.terminator)
         return result
 
+    def hasActiveCodes(self) -> bool:
+        return (
+            self.bold
+            or self.dim
+            or self.italic
+            or self.underline
+            or self.blink
+            or self.inverse
+            or self.hidden
+            or self.strikethrough
+            or self.fgColor is not None
+            or self.bgColor is not None
+            or self.activeHyperlink is not None
+        )
+
 
 def _update_tracker_from_text(text: str, tracker: AnsiCodeTracker) -> None:
     index = 0
@@ -479,7 +493,7 @@ def _wrap_single_line(line: str, width: int) -> list[str]:
 
 
 def is_whitespace_char(char: str) -> bool:
-    return bool(re.match(r"\s", char))
+    return bool(re.search(r"\s", char))
 
 
 def is_punctuation_char(char: str) -> bool:
@@ -816,35 +830,16 @@ extractSegments = extract_segments
 getSegmenter = get_segmenter
 
 __all__ = [
-    "ActiveHyperlink",
-    "AnsiCodeTracker",
-    "AnsiMatch",
-    "ExtractedSegments",
-    "GraphemeSegmenter",
-    "SliceResult",
-    "SegmentData",
     "applyBackgroundToLine",
-    "apply_background_to_line",
     "extractAnsiCode",
     "extractSegments",
-    "extract_ansi_code",
-    "extract_segments",
     "getSegmenter",
-    "get_segmenter",
     "isPunctuationChar",
     "isWhitespaceChar",
-    "is_punctuation_char",
-    "is_whitespace_char",
     "normalizeTerminalOutput",
-    "normalize_terminal_output",
     "sliceByColumn",
     "sliceWithWidth",
-    "slice_by_column",
-    "slice_with_width",
     "truncateToWidth",
-    "truncate_to_width",
     "visibleWidth",
-    "visible_width",
     "wrapTextWithAnsi",
-    "wrap_text_with_ansi",
 ]

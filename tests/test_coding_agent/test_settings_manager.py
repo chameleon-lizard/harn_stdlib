@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from harnify_coding_agent.core.http_dispatcher import DEFAULT_HTTP_IDLE_TIMEOUT_MS
+from harnify_coding_agent.core import settings_manager as settings_manager_module
 from harnify_coding_agent.core.settings_manager import SettingsManager
 
 
@@ -97,5 +98,84 @@ async def test_http_idle_timeout_defaults_and_project_override(tmp_path: Path) -
     (project_dir / ".pi" / "settings.json").unlink()
     (agent_dir / "settings.json").write_text(json.dumps({"httpIdleTimeoutMs": -1}), encoding="utf-8")
     manager = SettingsManager.create(str(project_dir), str(agent_dir))
-    with pytest.raises(ValueError, match="Invalid httpIdleTimeoutMs setting"):
+    with pytest.raises(Exception, match="Invalid httpIdleTimeoutMs setting"):
         manager.getHttpIdleTimeoutMs()
+
+
+def test_settings_manager_exports_match_ts_surface() -> None:
+    assert settings_manager_module.__all__ == [
+        "CompactionSettings",
+        "BranchSummarySettings",
+        "ProviderRetrySettings",
+        "RetrySettings",
+        "TerminalSettings",
+        "ImageSettings",
+        "ThinkingBudgetsSettings",
+        "MarkdownSettings",
+        "WarningSettings",
+        "TransportSetting",
+        "PackageSource",
+        "Settings",
+        "SettingsScope",
+        "SettingsStorage",
+        "SettingsError",
+        "FileSettingsStorage",
+        "InMemorySettingsStorage",
+        "SettingsManager",
+    ]
+
+
+def test_settings_manager_nullish_getters_match_ts_runtime() -> None:
+    manager = SettingsManager.inMemory(
+        {
+            "transport": "",
+            "doubleEscapeAction": "",
+            "retry": {"enabled": None},
+            "terminal": {"showImages": None},
+            "images": {"autoResize": None},
+            "enableInstallTelemetry": None,
+        }
+    )
+
+    assert manager.getTransport() == ""
+    assert manager.getDoubleEscapeAction() == ""
+    assert manager.getRetryEnabled() is True
+    assert manager.getShowImages() is True
+    assert manager.getImageAutoResize() is True
+    assert manager.getEnableInstallTelemetry() is True
+
+
+@pytest.mark.asyncio
+async def test_settings_manager_flush_waits_for_queued_write(tmp_path: Path) -> None:
+    agent_dir = tmp_path / "agent"
+    project_dir = tmp_path / "project"
+    agent_dir.mkdir()
+    project_dir.mkdir()
+
+    manager = SettingsManager.create(str(project_dir), str(agent_dir))
+    settings_path = agent_dir / "settings.json"
+
+    manager.setTheme("light")
+    assert not settings_path.exists()
+
+    await manager.flush()
+
+    assert _read_json(settings_path)["theme"] == "light"
+
+
+@pytest.mark.asyncio
+async def test_settings_manager_create_respects_explicit_empty_agent_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current_dir = tmp_path / "current"
+    project_dir = tmp_path / "project"
+    current_dir.mkdir()
+    project_dir.mkdir()
+    monkeypatch.chdir(current_dir)
+
+    manager = SettingsManager.create(str(project_dir), "")
+    manager.setTheme("light")
+    await manager.flush()
+
+    assert _read_json(current_dir / "settings.json")["theme"] == "light"

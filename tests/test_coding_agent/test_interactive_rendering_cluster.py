@@ -112,7 +112,6 @@ def test_user_message_keeps_box_height_and_prefixes_closing_zone_markers() -> No
 
 def test_assistant_message_module_exports_match_ts_surface() -> None:
     assert assistant_message_module.__all__ == ["AssistantMessageComponent"]
-    assert lines[2].endswith(BG_RESET)
 
 
 def test_truncate_to_visual_lines_counts_wrapped_lines() -> None:

@@ -1496,6 +1496,7 @@ async def test_init_matches_ts_startup_header_and_render_order(monkeypatch: pyte
         "count",
     ]
 
+    mode.builtInHeader.setExpanded(False)
     collapsed = _strip_ansi(str(getattr(mode.builtInHeader, "text", "")))
     assert "clear/exit" in collapsed
     assert "show full startup help and loaded resources" in collapsed

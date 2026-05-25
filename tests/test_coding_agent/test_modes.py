@@ -4,6 +4,7 @@ import asyncio
 import io
 import json
 import os
+import signal
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ from harnify_coding_agent.core.agent_session import SessionStats, SessionTokenSt
 from harnify_coding_agent.core.compaction import CompactionResult
 from harnify_coding_agent.main import main
 import harnify_coding_agent.modes as modes_package
+import harnify_coding_agent.modes.print_mode as print_mode_module
 from harnify_coding_agent.modes.print_mode import run_print_mode
 from harnify_coding_agent.modes.rpc import JsonlLineBuffer, RpcClient, run_rpc_mode
 import harnify_coding_agent.modes.rpc.rpc_client as rpc_client_module
@@ -71,6 +73,10 @@ def test_modes_package_exports_match_ts_surface() -> None:
     assert modes_package.__all__ == expected
     for name in expected:
         assert getattr(modes_package, name) is not None
+
+
+def test_print_mode_module_exports_match_ts_surface() -> None:
+    assert print_mode_module.__all__ == ["PrintModeOptions", "runPrintMode"]
 
 
 def _fake_model(provider: str, model_id: str) -> Model[Any]:
@@ -140,8 +146,13 @@ class _FakeSession:
             },
         )()
         self._listener = None
+        self._extension_bindings: dict[str, Any] | None = None
+        self._navigate_calls: list[tuple[str, dict[str, Any]]] = []
+        self._reload_calls = 0
+        self._prompt_calls: list[tuple[str, dict[str, Any] | None]] = []
 
-    async def bindExtensions(self, _bindings: dict[str, Any]) -> None:
+    async def bindExtensions(self, bindings: dict[str, Any]) -> None:
+        self._extension_bindings = bindings
         return None
 
     def subscribe(self, listener):
@@ -153,6 +164,7 @@ class _FakeSession:
         return unsubscribe
 
     async def prompt(self, text: str, options: dict[str, Any] | None = None) -> None:
+        self._prompt_calls.append((text, options))
         if callable((options or {}).get("preflightResult")):
             options["preflightResult"](True)
         self.state.messages.append(
@@ -165,6 +177,13 @@ class _FakeSession:
         self.messages = list(self.state.messages)
         if self._listener is not None:
             self._listener({"type": "agent_end", "messages": list(self.messages)})
+
+    async def navigateTree(self, target_id: str, options: dict[str, Any] | None = None) -> dict[str, Any]:
+        self._navigate_calls.append((target_id, dict(options or {})))
+        return {"cancelled": False}
+
+    async def reload(self) -> None:
+        self._reload_calls += 1
 
     async def steer(self, text: str, _images: Any = None) -> None:
         self.pendingMessageCount += 1
@@ -329,10 +348,98 @@ async def test_print_mode_text_and_json(monkeypatch) -> None:
     monkeypatch.setattr("sys.stdout", stdout)
     monkeypatch.setattr("sys.stderr", stderr)
     exit_code = await run_print_mode(runtime, {"mode": "json", "initialMessage": "hello"})
-    lines = [json.loads(line) for line in stdout.getvalue().splitlines()]
+    raw_lines = stdout.getvalue().splitlines()
+    lines = [json.loads(line) for line in raw_lines]
     assert exit_code == 0
+    assert raw_lines[0] == '{"type":"session","id":"session-1"}'
+    assert raw_lines[1] == '{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"answer:hello"}],"stopReason":"stop"}]}'
     assert lines[0]["type"] == "session"
     assert lines[1]["type"] == "agent_end"
+
+
+@pytest.mark.asyncio
+async def test_print_mode_rebind_actions_match_ts(monkeypatch) -> None:
+    runtime = _FakeRuntime()
+    monkeypatch.setattr("sys.stdout", io.StringIO())
+    monkeypatch.setattr("sys.stderr", io.StringIO())
+
+    exit_code = await run_print_mode(runtime, {"mode": "text"})
+    assert exit_code == 0
+
+    bindings = runtime.session._extension_bindings
+    assert bindings is not None
+    actions = bindings["commandContextActions"]
+
+    fork_result = await actions["fork"]("entry-1", {"label": "fork"})
+    assert fork_result == {"cancelled": False}
+
+    navigate_result = await actions["navigateTree"](
+        "entry-2",
+        {
+            "summarize": True,
+            "customInstructions": "custom",
+            "replaceInstructions": "replace",
+            "label": "branch",
+        },
+    )
+    assert navigate_result == {"cancelled": False}
+    assert runtime.session._navigate_calls == [
+        (
+            "entry-2",
+            {
+                "summarize": True,
+                "customInstructions": "custom",
+                "replaceInstructions": "replace",
+                "label": "branch",
+            },
+        )
+    ]
+
+    await actions["reload"]()
+    assert runtime.session._reload_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_print_mode_registers_and_restores_signal_handlers(monkeypatch) -> None:
+    runtime = _FakeRuntime()
+    monkeypatch.setattr("sys.stdout", io.StringIO())
+    monkeypatch.setattr("sys.stderr", io.StringIO())
+
+    calls: list[tuple[int, Any]] = []
+
+    def fake_getsignal(sig: int) -> str:
+        return f"previous:{sig}"
+
+    def fake_signal(sig: int, handler: Any) -> None:
+        calls.append((sig, handler))
+
+    monkeypatch.setattr(print_mode_module.signal, "getsignal", fake_getsignal)
+    monkeypatch.setattr(print_mode_module.signal, "signal", fake_signal)
+
+    exit_code = await run_print_mode(runtime, {"mode": "text"})
+    assert exit_code == 0
+
+    expected_signals = [signal.SIGTERM]
+    sighup = getattr(signal, "SIGHUP", None)
+    if os.name != "nt" and sighup is not None:
+        expected_signals.append(sighup)
+
+    registered = calls[: len(expected_signals)]
+    restored = calls[len(expected_signals) :]
+    assert [sig for sig, _handler in registered] == expected_signals
+    assert all(callable(handler) for _sig, handler in registered)
+    assert restored == [(sig, f"previous:{sig}") for sig in expected_signals]
+
+
+@pytest.mark.asyncio
+async def test_print_mode_preserves_initial_images_nullish_shape(monkeypatch) -> None:
+    runtime = _FakeRuntime()
+    monkeypatch.setattr("sys.stdout", io.StringIO())
+    monkeypatch.setattr("sys.stderr", io.StringIO())
+
+    exit_code = await run_print_mode(runtime, {"mode": "text", "initialMessage": "hello"})
+    assert exit_code == 0
+    assert runtime.session._prompt_calls[0] == ("hello", {"images": None})
 
 
 @pytest.mark.asyncio

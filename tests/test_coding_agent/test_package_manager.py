@@ -7,6 +7,7 @@ import textwrap
 from pathlib import Path
 
 import pytest
+import harnify_coding_agent.core.package_manager as package_manager_module
 from harnify_coding_agent.core.package_manager import DefaultPackageManager
 from harnify_coding_agent.core.resource_loader import DefaultResourceLoader
 from harnify_coding_agent.core.settings_manager import SettingsManager
@@ -411,3 +412,105 @@ async def test_package_manager_resolves_updates_and_removes_npm_sources(tmp_path
 
     await pinned_manager.remove("npm:pi-fake@1.0.0")
     assert not Path(installed_path).exists()
+
+
+def test_package_manager_module_exports_match_ts() -> None:
+    assert package_manager_module.__all__ == [
+        "PathMetadata",
+        "ResolvedResource",
+        "ResolvedPaths",
+        "MissingSourceAction",
+        "ProgressEvent",
+        "ProgressCallback",
+        "PackageUpdate",
+        "ConfiguredPackage",
+        "PackageManager",
+        "DefaultPackageManager",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_package_manager_discovers_user_agents_skills(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    home = tmp_path / "home"
+    workspace = tmp_path / "workspace"
+    agent_dir = tmp_path / "agent"
+    user_skill = home / ".agents" / "skills" / "user-skill" / "SKILL.md"
+    user_skill.parent.mkdir(parents=True, exist_ok=True)
+    user_skill.write_text("---\ndescription: user-skill\n---\n# user-skill", encoding="utf-8")
+    workspace.mkdir()
+    agent_dir.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+
+    manager = DefaultPackageManager(
+        {"cwd": str(workspace), "agentDir": str(agent_dir), "settingsManager": SettingsManager.inMemory()}
+    )
+
+    resolved = await manager.resolve()
+    entry = next(resource for resource in resolved.skills if resource.path == str(user_skill))
+    assert entry.metadata["scope"] == "user"
+    assert entry.metadata["baseDir"] == str(home / ".agents")
+
+
+@pytest.mark.asyncio
+async def test_package_manager_local_directory_without_package_resources_resolves_as_extension_root(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    agent_dir = tmp_path / "agent"
+    local_source = tmp_path / "loose-extension"
+    workspace.mkdir()
+    agent_dir.mkdir()
+    local_source.mkdir()
+    (local_source / "index.py").write_text("async def default(api):\n    return None\n", encoding="utf-8")
+
+    manager = DefaultPackageManager(
+        {"cwd": str(workspace), "agentDir": str(agent_dir), "settingsManager": SettingsManager.inMemory()}
+    )
+
+    resolved = await manager.resolveExtensionSources([str(local_source)])
+    assert [entry.path for entry in resolved.extensions] == [str(local_source)]
+
+
+def test_package_manager_ensure_npm_project_matches_ts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    agent_dir = tmp_path / "agent"
+    workspace.mkdir()
+    agent_dir.mkdir()
+    manager = DefaultPackageManager(
+        {"cwd": str(workspace), "agentDir": str(agent_dir), "settingsManager": SettingsManager.inMemory()}
+    )
+    captured: list[str] = []
+    monkeypatch.setattr(
+        package_manager_module,
+        "mark_path_ignored_by_cloud_sync",
+        lambda path: captured.append(path),
+    )
+
+    install_root = tmp_path / "npm-root"
+    manager._ensure_npm_project(str(install_root))
+
+    assert captured == [str(install_root)]
+    payload = json.loads((install_root / "package.json").read_text(encoding="utf-8"))
+    assert payload == {"name": "pi-extensions", "private": True}
+    assert (install_root / ".gitignore").read_text(encoding="utf-8") == "*\n!.gitignore\n"
+
+
+@pytest.mark.asyncio
+async def test_package_manager_run_command_capture_trims_stdout(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    agent_dir = tmp_path / "agent"
+    workspace.mkdir()
+    agent_dir.mkdir()
+    manager = DefaultPackageManager(
+        {"cwd": str(workspace), "agentDir": str(agent_dir), "settingsManager": SettingsManager.inMemory()}
+    )
+
+    output = await manager._run_command_capture(
+        sys.executable,
+        ["-c", "print('hello')"],
+    )
+
+    assert output == "hello"

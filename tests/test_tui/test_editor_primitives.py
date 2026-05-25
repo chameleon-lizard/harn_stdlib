@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from harnify_tui.editor_component import getExpandedText
+from harnify_tui import editor_component as editor_component_module
 from harnify_tui.kill_ring import KillRing
 from harnify_tui.undo_stack import UndoStack
 from harnify_tui.utils import getSegmenter
@@ -92,9 +92,7 @@ class DummyEditor:
         self.inputs.append(data)
 
 
-def test_get_expanded_text_falls_back_to_get_text() -> None:
-    editor = DummyEditor(text="plain")
-    assert getExpandedText(editor) == "plain"
-
-    editor.getExpandedText = lambda: "expanded"
-    assert getExpandedText(editor) == "expanded"
+def test_editor_component_module_exports_match_ts_surface() -> None:
+    assert editor_component_module.__all__ == ["EditorComponent"]
+    assert not hasattr(editor_component_module, "getExpandedText")
+    assert not hasattr(editor_component_module, "get_expanded_text")

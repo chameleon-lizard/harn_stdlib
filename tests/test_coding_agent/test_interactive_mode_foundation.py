@@ -412,6 +412,26 @@ def test_extension_ui_context_status_widget_and_terminal_helpers() -> None:
     assert ui.input_listeners == []
 
 
+def test_set_hidden_thinking_label_preserves_explicit_empty_string_like_ts() -> None:
+    ui = FakeUi()
+    applied: list[str] = []
+    streaming_applied: list[str] = []
+    mode = InteractiveMode(
+        ui=ui,
+        chatContainer=SimpleNamespace(
+            children=[SimpleNamespace(setHiddenThinkingLabel=lambda label: applied.append(label))]
+        ),
+        streamingComponent=SimpleNamespace(setHiddenThinkingLabel=lambda label: streaming_applied.append(label)),
+    )
+
+    mode.setHiddenThinkingLabel("")
+
+    assert mode.hiddenThinkingLabel == ""
+    assert applied == [""]
+    assert streaming_applied == [""]
+    assert ui.render_calls == [None]
+
+
 def test_set_extension_header_footer_and_reset_ui_restore_builtins() -> None:
     ui = FakeUi()
     built_in_header = Text("Header", 0, 0)

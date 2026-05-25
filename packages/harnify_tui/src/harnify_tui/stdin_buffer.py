@@ -7,9 +7,9 @@ from collections import defaultdict
 from collections.abc import Callable
 from typing import Any, Literal
 
-ESC = "\x1b"
-BRACKETED_PASTE_START = "\x1b[200~"
-BRACKETED_PASTE_END = "\x1b[201~"
+_ESC = "\x1b"
+_BRACKETED_PASTE_START = "\x1b[200~"
+_BRACKETED_PASTE_END = "\x1b[201~"
 
 type SequenceStatus = Literal["complete", "incomplete", "not-escape"]
 type StdinBufferEvent = Literal["data", "paste"]
@@ -140,7 +140,8 @@ class StdinBuffer:
         opts = options or {}
         self.buffer = ""
         self.timeout: threading.Timer | None = None
-        self.timeoutMs = int(opts.get("timeout", 10))
+        timeout = opts.get("timeout")
+        self.timeoutMs = 10 if timeout is None else timeout
         self.pasteMode = False
         self.pasteBuffer = ""
         self.pendingKittyPrintableCodepoint: int | None = None
@@ -165,7 +166,7 @@ class StdinBuffer:
             raw = data
 
         if raw == "" and self.buffer == "":
-            self.emitDataSequence("")
+            self._emitDataSequence("")
             return
 
         self.buffer += raw
@@ -173,10 +174,10 @@ class StdinBuffer:
         if self.pasteMode:
             self.pasteBuffer += self.buffer
             self.buffer = ""
-            end_index = self.pasteBuffer.find(BRACKETED_PASTE_END)
+            end_index = self.pasteBuffer.find(_BRACKETED_PASTE_END)
             if end_index != -1:
                 pasted_content = self.pasteBuffer[:end_index]
-                remaining = self.pasteBuffer[end_index + len(BRACKETED_PASTE_END) :]
+                remaining = self.pasteBuffer[end_index + len(_BRACKETED_PASTE_END) :]
                 self.pasteMode = False
                 self.pasteBuffer = ""
                 self.pendingKittyPrintableCodepoint = None
@@ -185,24 +186,24 @@ class StdinBuffer:
                     self.process(remaining)
             return
 
-        start_index = self.buffer.find(BRACKETED_PASTE_START)
+        start_index = self.buffer.find(_BRACKETED_PASTE_START)
         if start_index != -1:
             if start_index > 0:
                 before_paste = self.buffer[:start_index]
                 sequences, _remainder = _extract_complete_sequences(before_paste)
                 for sequence in sequences:
-                    self.emitDataSequence(sequence)
+                    self._emitDataSequence(sequence)
 
             self.pendingKittyPrintableCodepoint = None
-            self.buffer = self.buffer[start_index + len(BRACKETED_PASTE_START) :]
+            self.buffer = self.buffer[start_index + len(_BRACKETED_PASTE_START) :]
             self.pasteMode = True
             self.pasteBuffer = self.buffer
             self.buffer = ""
 
-            end_index = self.pasteBuffer.find(BRACKETED_PASTE_END)
+            end_index = self.pasteBuffer.find(_BRACKETED_PASTE_END)
             if end_index != -1:
                 pasted_content = self.pasteBuffer[:end_index]
-                remaining = self.pasteBuffer[end_index + len(BRACKETED_PASTE_END) :]
+                remaining = self.pasteBuffer[end_index + len(_BRACKETED_PASTE_END) :]
                 self.pasteMode = False
                 self.pasteBuffer = ""
                 self.pendingKittyPrintableCodepoint = None
@@ -214,14 +215,14 @@ class StdinBuffer:
         sequences, remainder = _extract_complete_sequences(self.buffer)
         self.buffer = remainder
         for sequence in sequences:
-            self.emitDataSequence(sequence)
+            self._emitDataSequence(sequence)
 
         if self.buffer:
             self.timeout = threading.Timer(self.timeoutMs / 1000.0, self._flush_timeout)
             self.timeout.daemon = True
             self.timeout.start()
 
-    def emitDataSequence(self, sequence: str) -> None:
+    def _emitDataSequence(self, sequence: str) -> None:
         raw_codepoint = ord(sequence) if len(sequence) == 1 else None
         if (
             raw_codepoint is not None
@@ -265,7 +266,7 @@ class StdinBuffer:
     def _flush_timeout(self) -> None:
         flushed = self.flush()
         for sequence in flushed:
-            self.emitDataSequence(sequence)
+            self._emitDataSequence(sequence)
 
     def _emit(self, event: StdinBufferEvent, *args: Any) -> None:
         for listener in list(self._listeners.get(event, [])):
@@ -276,9 +277,6 @@ StdinBufferOptions = dict[str, Any]
 StdinBufferEventMap = dict[str, tuple[str]]
 
 __all__ = [
-    "BRACKETED_PASTE_END",
-    "BRACKETED_PASTE_START",
-    "ESC",
     "StdinBuffer",
     "StdinBufferEventMap",
     "StdinBufferOptions",

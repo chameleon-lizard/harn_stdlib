@@ -4717,7 +4717,7 @@ class InteractiveMode:
         if self.options.modelFallbackMessage:
             self.showWarning(self.options.modelFallbackMessage)
 
-        await self.maybeWarnAboutAnthropicSubscriptionAuth()
+        self._schedule_task(self.maybeWarnAboutAnthropicSubscriptionAuth())
 
         if self.options.initialMessage:
             await self.session.prompt(
@@ -4951,8 +4951,7 @@ class InteractiveMode:
             if bool(_value(result.model, "reasoning", False)) and _value(result, "thinkingLevel") != "off":
                 thinking_str = f" (thinking: {_value(result, 'thinkingLevel')})"
             self.showStatus(f"Switched to {_value(result.model, 'name', None) or result.model.id}{thinking_str}")
-            self.checkDaxnutsEasterEgg(result.model)
-            await self.maybeWarnAboutAnthropicSubscriptionAuth(result.model)
+            self._schedule_task(self.maybeWarnAboutAnthropicSubscriptionAuth(result.model))
         except Exception as error:  # noqa: BLE001
             self.showError(str(error))
 

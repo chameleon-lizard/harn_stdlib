@@ -272,7 +272,11 @@ class _ShutdownRequested(Exception):
         self.exit_code = exit_code
 
 
-async def run_rpc_mode(runtime_host: Any, *, input_stream: Any | None = None) -> int:
+def _get_rpc_input_stream() -> Any:
+    return sys.stdin
+
+
+async def _run_rpc_mode(runtime_host: Any, *, input_stream: Any | None = None) -> int:
     takeOverStdout()
     session = runtime_host.session
     unsubscribe = None
@@ -705,6 +709,10 @@ async def run_rpc_mode(runtime_host: Any, *, input_stream: Any | None = None) ->
         return stop.exit_code
     finally:
         await cleanup()
+
+
+async def run_rpc_mode(runtime_host: Any) -> int:
+    return await _run_rpc_mode(runtime_host, input_stream=_get_rpc_input_stream())
 
 
 runRpcMode = run_rpc_mode

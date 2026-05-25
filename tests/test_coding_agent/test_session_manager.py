@@ -1,18 +1,24 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import os
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from harnify_coding_agent.core import session_cwd as session_cwd_module
+from harnify_coding_agent.core import session_manager as session_manager_module
 from harnify_coding_agent.core.session_cwd import (
     MissingSessionCwdError,
     getMissingSessionCwdIssue,
 )
 from harnify_coding_agent.core.session_manager import (
+    SessionInfo,
     SessionManager,
     buildSessionContext,
     findMostRecentSession,
+    getDefaultSessionDir,
     loadEntriesFromFile,
     migrateSessionEntries,
 )
@@ -317,3 +323,149 @@ def test_custom_entries_are_skipped_from_context_but_kept_in_tree() -> None:
     assert len(context.messages) == 2
     assert context.messages[0]["role"] == "user"
     assert context.messages[1]["role"] == "assistant"
+
+
+def test_session_manager_exports_match_ts_surface() -> None:
+    assert session_manager_module.__all__ == [
+        "CURRENT_SESSION_VERSION",
+        "SessionHeader",
+        "NewSessionOptions",
+        "SessionEntryBase",
+        "SessionMessageEntry",
+        "ThinkingLevelChangeEntry",
+        "ModelChangeEntry",
+        "CompactionEntry",
+        "BranchSummaryEntry",
+        "CustomEntry",
+        "LabelEntry",
+        "SessionInfoEntry",
+        "CustomMessageEntry",
+        "SessionEntry",
+        "FileEntry",
+        "SessionTreeNode",
+        "SessionContext",
+        "SessionInfo",
+        "SessionListProgress",
+        "ReadonlySessionManager",
+        "migrateSessionEntries",
+        "parseSessionEntries",
+        "getLatestCompactionEntry",
+        "buildSessionContext",
+        "getDefaultSessionDir",
+        "loadEntriesFromFile",
+        "findMostRecentSession",
+        "SessionManager",
+    ]
+
+
+def test_session_manager_accessors_return_live_references() -> None:
+    session = SessionManager.inMemory()
+    entry_id = session.appendMessage(user_msg("hello"))
+
+    entries = session.getEntries()
+    entries[0]["contentProbe"] = "entry"
+    assert session.getEntry(entry_id)["contentProbe"] == "entry"
+
+    branch = session.getBranch()
+    branch[0]["branchProbe"] = "branch"
+    assert session.getEntry(entry_id)["branchProbe"] == "branch"
+
+    header = session.getHeader()
+    assert header is not None
+    header["headerProbe"] = "header"
+    assert session.getHeader()["headerProbe"] == "header"
+
+
+def test_session_manager_persisted_json_matches_ts_shape(tmp_path: Path) -> None:
+    cwd = tmp_path / "project"
+    session_dir = tmp_path / "sessions"
+    cwd.mkdir()
+    session = SessionManager.create(str(cwd), str(session_dir))
+
+    first = session.appendMessage(user_msg("hello"))
+    session.appendMessage(assistant_msg("hi"))
+    session.appendCompaction("summary", first, 10)
+
+    session_file = session.getSessionFile()
+    assert session_file is not None
+    lines = [line for line in Path(session_file).read_text(encoding="utf-8").splitlines() if line.strip()]
+
+    assert lines
+    assert all(": " not in line and ", " not in line for line in lines)
+    assert "\\u" not in lines[0]
+
+    compaction_line = json.loads(lines[-1])
+    assert "details" not in compaction_line
+    assert "fromHook" not in compaction_line
+    assert compaction_line["type"] == "compaction"
+
+
+def test_session_manager_open_uses_explicit_empty_cwd_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    current_cwd = tmp_path / "current"
+    current_cwd.mkdir()
+    monkeypatch.chdir(current_cwd)
+
+    session_file = tmp_path / "session.jsonl"
+    session_file.write_text(
+        '{"type":"session","id":"abc","timestamp":"2025-01-01T00:00:00Z","cwd":"/from-header"}\n',
+        encoding="utf-8",
+    )
+
+    session = SessionManager.open(str(session_file), None, "")
+    assert session.getCwd() == os.path.abspath("")
+
+
+def test_get_default_session_dir_respects_explicit_empty_agent_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current_cwd = tmp_path / "current"
+    project_cwd = tmp_path / "project"
+    current_cwd.mkdir()
+    project_cwd.mkdir()
+    monkeypatch.chdir(current_cwd)
+
+    session_dir = Path(getDefaultSessionDir(str(project_cwd), ""))
+    assert session_dir.parent.parent == current_cwd
+
+
+@pytest.mark.asyncio
+async def test_session_manager_list_uses_bounded_concurrency(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    files = []
+    for index in range(12):
+        path = tmp_path / f"{index}.jsonl"
+        path.write_text("", encoding="utf-8")
+        files.append(path)
+
+    active = 0
+    max_active = 0
+    progress: list[tuple[int, int]] = []
+
+    async def fake_build_session_info(file_path: str) -> SessionInfo | None:
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return SessionInfo(
+            path=file_path,
+            id=Path(file_path).stem,
+            cwd=str(tmp_path),
+            created=datetime(2025, 1, 1, tzinfo=UTC),
+            modified=datetime(2025, 1, 1, tzinfo=UTC),
+            messageCount=0,
+            firstMessage="(no messages)",
+            allMessagesText="",
+        )
+
+    monkeypatch.setattr(session_manager_module, "_build_session_info", fake_build_session_info)
+
+    sessions = await SessionManager.list(str(tmp_path), str(tmp_path), lambda loaded, total: progress.append((loaded, total)))
+
+    assert len(sessions) == len(files)
+    assert max_active > 1
+    assert max_active <= 10
+    assert progress[-1] == (len(files), len(files))

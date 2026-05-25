@@ -12,6 +12,7 @@ from harnify_ai.types import Model, ModelCost, TextContent
 from harnify_coding_agent.core.agent_session import ParsedSkillBlock
 from harnify_coding_agent.core.keybindings import KeybindingsManager
 from harnify_coding_agent.core.tools import create_read_tool_definition
+import harnify_coding_agent.modes.interactive.components as interactive_components_package
 from harnify_coding_agent.modes.interactive.components import (
     BorderedLoader,
     BranchSummaryMessageComponent,
@@ -20,7 +21,7 @@ from harnify_coding_agent.modes.interactive.components import (
     FooterComponent,
     SkillInvocationMessageComponent,
     ToolExecutionComponent,
-    render_diff,
+    renderDiff,
 )
 from harnify_tui import Text, setKeybindings, visibleWidth
 
@@ -77,6 +78,51 @@ def test_custom_message_module_exports_match_ts_surface() -> None:
 
 def test_diff_module_exports_match_ts_surface() -> None:
     assert diff_module.__all__ == ["RenderDiffOptions", "renderDiff"]
+
+
+def test_interactive_components_package_exports_match_ts_surface() -> None:
+    assert interactive_components_package.__all__ == [
+        "ArminComponent",
+        "AssistantMessageComponent",
+        "BashExecutionComponent",
+        "BorderedLoader",
+        "BranchSummaryMessageComponent",
+        "CompactionSummaryMessageComponent",
+        "CustomEditor",
+        "CustomMessageComponent",
+        "DaxnutsComponent",
+        "RenderDiffOptions",
+        "renderDiff",
+        "DynamicBorder",
+        "ExtensionEditorComponent",
+        "ExtensionInputComponent",
+        "ExtensionSelectorComponent",
+        "FooterComponent",
+        "keyHint",
+        "keyText",
+        "rawKeyHint",
+        "LoginDialogComponent",
+        "ModelSelectorComponent",
+        "OAuthSelectorComponent",
+        "ModelsCallbacks",
+        "ModelsConfig",
+        "ScopedModelsSelectorComponent",
+        "SessionSelectorComponent",
+        "SettingsCallbacks",
+        "SettingsConfig",
+        "SettingsSelectorComponent",
+        "ShowImagesSelectorComponent",
+        "SkillInvocationMessageComponent",
+        "ThemeSelectorComponent",
+        "ThinkingSelectorComponent",
+        "ToolExecutionComponent",
+        "ToolExecutionOptions",
+        "TreeSelectorComponent",
+        "UserMessageComponent",
+        "UserMessageSelectorComponent",
+        "truncateToVisualLines",
+        "VisualTruncateResult",
+    ]
 
 
 def test_footer_module_exports_match_ts_surface() -> None:
@@ -163,7 +209,7 @@ def test_bordered_loader_module_exports_match_ts_surface() -> None:
 
 
 def test_render_diff_highlights_single_line_replacement() -> None:
-    rendered = render_diff("-  10 old value\n+  10 new value\n  11 untouched")
+    rendered = renderDiff("-  10 old value\n+  10 new value\n  11 untouched")
     stripped = _strip_ansi(rendered)
     assert "-  10 old value" in stripped
     assert "+  10 new value" in stripped

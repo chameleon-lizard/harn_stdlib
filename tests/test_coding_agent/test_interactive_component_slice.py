@@ -19,6 +19,9 @@ from harnify_coding_agent.modes.interactive.components.extension_editor import (
 from harnify_coding_agent.modes.interactive.components.extension_input import (
     ExtensionInputComponent,
 )
+from harnify_coding_agent.modes.interactive.components.extension_selector import (
+    ExtensionSelectorComponent,
+)
 from harnify_coding_agent.modes.interactive.components.keybinding_hints import (
     KeyTextFormatOptions,
     format_key_text,
@@ -57,6 +60,9 @@ extension_editor_module = importlib.import_module(
 )
 extension_input_module = importlib.import_module(
     "harnify_coding_agent.modes.interactive.components.extension_input"
+)
+extension_selector_module = importlib.import_module(
+    "harnify_coding_agent.modes.interactive.components.extension_selector"
 )
 
 
@@ -315,6 +321,38 @@ def test_extension_input_ignores_placeholder_and_routes_submit_cancel() -> None:
 
 def test_extension_input_module_exports_match_ts_surface() -> None:
     assert extension_input_module.__all__ == ["ExtensionInputComponent"]
+
+
+def test_extension_selector_renders_and_handles_navigation_callbacks() -> None:
+    selected: list[str] = []
+    cancelled: list[bool] = []
+    toggled: list[bool] = []
+    component = ExtensionSelectorComponent(
+        "Choose",
+        ["alpha", "beta"],
+        selected.append,
+        lambda: cancelled.append(True),
+        {"onToggleToolsExpanded": lambda: toggled.append(True)},
+    )
+
+    initial = _strip_ansi("\n".join(component.render(80)))
+    assert "→ alpha" in initial
+
+    component.handleInput("j")
+    moved = _strip_ansi("\n".join(component.render(80)))
+    assert "→ beta" in moved
+
+    component.handleInput("\x0f")
+    component.handleInput("\n")
+    component.handleInput("\x1b")
+
+    assert toggled == [True]
+    assert selected == ["beta"]
+    assert cancelled == [True]
+
+
+def test_extension_selector_module_exports_match_ts_surface() -> None:
+    assert extension_selector_module.__all__ == ["ExtensionSelectorComponent"]
 
 
 def test_theme_selector_previews_and_confirms() -> None:

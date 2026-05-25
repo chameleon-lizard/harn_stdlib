@@ -3385,6 +3385,36 @@ class InteractiveMode:
             self.footer.invalidate()
             self._request_render()
             return
+        if event_type == "compaction_start":
+            get_progress = _callable_attr(self.settingsManager, "getShowTerminalProgress")
+            terminal = getattr(self.ui, "terminal", None)
+            set_progress = _callable_attr(terminal, "setProgress")
+            if get_progress is not None and bool(get_progress()) and set_progress is not None:
+                set_progress(True)
+
+            self.autoCompactionEscapeHandler = getattr(self.defaultEditor, "onEscape", None)
+            self.defaultEditor.onEscape = lambda: _callable_attr(self.session, "abortCompaction") and self.session.abortCompaction()
+            clear_status = _callable_attr(self.statusContainer, "clear")
+            if clear_status is not None:
+                clear_status()
+            cancel_hint = f"({key_text('app.interrupt')} to cancel)"
+            reason = str(_value(event, "reason", "manual"))
+            label = (
+                f"Compacting context... {cancel_hint}"
+                if reason == "manual"
+                else f"{'Context overflow detected, ' if reason == 'overflow' else ''}Auto-compacting... {cancel_hint}"
+            )
+            self.autoCompactionLoader = Loader(
+                self.ui,
+                lambda spinner: interactive_theme.theme.fg("accent", spinner),
+                lambda text: interactive_theme.theme.fg("muted", text),
+                label,
+            )
+            add_child = _callable_attr(self.statusContainer, "addChild")
+            if add_child is not None:
+                add_child(self.autoCompactionLoader)
+            self._request_render()
+            return
         if event_type == "message_start":
             if self.workingVisible and self.loadingAnimation is None:
                 self.setWorkingVisible(True)
@@ -3396,7 +3426,12 @@ class InteractiveMode:
                 self.stopWorkingLoader()
             self.renderCurrentSessionState()
             return
-        if event_type in {"thinking_level_changed", "session_info_changed"}:
+        if event_type == "session_info_changed":
+            self.updateTerminalTitle()
+            self.footer.invalidate()
+            self._request_render()
+            return
+        if event_type == "thinking_level_changed":
             self.updateEditorBorderColor()
             self.footer.invalidate()
             self._request_render()

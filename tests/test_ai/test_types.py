@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from typing import Literal
 
-import harnify_ai.types as types_module
+import harn_ai.types as types_module
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from harnify_ai.types import Context, Tool, validate_assistant_message_event, validate_message
+from harn_ai.types import Context, Tool, validate_assistant_message_event, validate_message
 
 
 def _usage_payload() -> dict[str, object]:

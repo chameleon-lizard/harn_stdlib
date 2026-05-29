@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import harnify_agent.harness.types as harness_types
-from harnify_agent.harness.messages import (
+import harn_agent.harness.types as harness_types
+from harn_agent.harness.messages import (
     BRANCH_SUMMARY_PREFIX,
     BRANCH_SUMMARY_SUFFIX,
     COMPACTION_SUMMARY_PREFIX,
@@ -18,16 +18,16 @@ from harnify_agent.harness.messages import (
     bash_execution_to_text,
     convert_to_llm,
 )
-from harnify_agent.harness.prompt_templates import (
+from harn_agent.harness.prompt_templates import (
     format_prompt_template_invocation,
     load_prompt_templates,
     load_sourced_prompt_templates,
     parse_command_args,
 )
-from harnify_agent.harness.session.session import Session
-from harnify_agent.harness.skills import format_skill_invocation, load_skills, load_sourced_skills
-from harnify_agent.harness.system_prompt import format_skills_for_system_prompt
-from harnify_agent.harness.types import (
+from harn_agent.harness.session.session import Session
+from harn_agent.harness.skills import format_skill_invocation, load_skills, load_sourced_skills
+from harn_agent.harness.system_prompt import format_skills_for_system_prompt
+from harn_agent.harness.types import (
     AgentHarnessError,
     FileError,
     FileInfo,
@@ -407,12 +407,12 @@ def test_format_skill_invocation_and_system_prompt() -> None:
             name="inspect",
             description="Inspect things",
             content="Use inspection tools.",
-            filePath="/project/.harnify/skills/inspect/SKILL.md",
+            filePath="/project/.harn/skills/inspect/SKILL.md",
         ),
         "Check errors.",
     ) == (
-        '<skill name="inspect" location="/project/.harnify/skills/inspect/SKILL.md">\n'
-        "References are relative to /project/.harnify/skills/inspect.\n\n"
+        '<skill name="inspect" location="/project/.harn/skills/inspect/SKILL.md">\n'
+        "References are relative to /project/.harn/skills/inspect.\n\n"
         "Use inspection tools.\n"
         "</skill>\n\n"
         "Check errors."

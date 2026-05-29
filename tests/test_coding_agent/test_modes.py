@@ -13,18 +13,18 @@ from typing import Any
 from unittest.mock import ANY
 
 import pytest
-from harnify_ai.types import Model
-from harnify_coding_agent.core.agent_session import SessionStats, SessionTokenStats
-from harnify_coding_agent.core.compaction import CompactionResult
-from harnify_coding_agent.main import main
-import harnify_coding_agent.modes as modes_package
-import harnify_coding_agent.modes.print_mode as print_mode_module
-import harnify_coding_agent.modes.rpc.jsonl as rpc_jsonl_module
-import harnify_coding_agent.modes.rpc.rpc_mode as rpc_mode_module
-import harnify_coding_agent.modes.rpc.rpc_types as rpc_types_module
-from harnify_coding_agent.modes.print_mode import run_print_mode
-from harnify_coding_agent.modes.rpc import JsonlLineBuffer, RpcClient, run_rpc_mode
-import harnify_coding_agent.modes.rpc.rpc_client as rpc_client_module
+from harn_ai.types import Model
+from harn_coding_agent.core.agent_session import SessionStats, SessionTokenStats
+from harn_coding_agent.core.compaction import CompactionResult
+from harn_coding_agent.main import main
+import harn_coding_agent.modes as modes_package
+import harn_coding_agent.modes.print_mode as print_mode_module
+import harn_coding_agent.modes.rpc.jsonl as rpc_jsonl_module
+import harn_coding_agent.modes.rpc.rpc_mode as rpc_mode_module
+import harn_coding_agent.modes.rpc.rpc_types as rpc_types_module
+from harn_coding_agent.modes.print_mode import run_print_mode
+from harn_coding_agent.modes.rpc import JsonlLineBuffer, RpcClient, run_rpc_mode
+import harn_coding_agent.modes.rpc.rpc_client as rpc_client_module
 
 
 @dataclass
@@ -163,15 +163,15 @@ def test_rpc_types_optional_shapes_match_ts() -> None:
     assert typing.get_args(slash_hints["description"]) == (str,)
 
     state_annotations = rpc_types_module.RpcSessionState.__annotations__
-    assert str(state_annotations["model"]) == "ForwardRef('NotRequired[Model[Any]]', module='harnify_coding_agent.modes.rpc.rpc_types')"
-    assert str(state_annotations["sessionFile"]) == "ForwardRef('NotRequired[str]', module='harnify_coding_agent.modes.rpc.rpc_types')"
-    assert str(state_annotations["sessionName"]) == "ForwardRef('NotRequired[str]', module='harnify_coding_agent.modes.rpc.rpc_types')"
+    assert str(state_annotations["model"]) == "ForwardRef('NotRequired[Model[Any]]', module='harn_coding_agent.modes.rpc.rpc_types')"
+    assert str(state_annotations["sessionFile"]) == "ForwardRef('NotRequired[str]', module='harn_coding_agent.modes.rpc.rpc_types')"
+    assert str(state_annotations["sessionName"]) == "ForwardRef('NotRequired[str]', module='harn_coding_agent.modes.rpc.rpc_types')"
 
     status_annotations = rpc_types_module.RpcExtensionUISetStatusRequest.__annotations__
-    assert str(status_annotations["statusText"]) == "ForwardRef('str | None', module='harnify_coding_agent.modes.rpc.rpc_types')"
+    assert str(status_annotations["statusText"]) == "ForwardRef('str | None', module='harn_coding_agent.modes.rpc.rpc_types')"
 
     widget_annotations = rpc_types_module.RpcExtensionUISetWidgetRequest.__annotations__
-    assert str(widget_annotations["widgetLines"]) == "ForwardRef('list[str] | None', module='harnify_coding_agent.modes.rpc.rpc_types')"
+    assert str(widget_annotations["widgetLines"]) == "ForwardRef('list[str] | None', module='harn_coding_agent.modes.rpc.rpc_types')"
 
 
 def _fake_model(provider: str, model_id: str) -> Model[Any]:
@@ -857,9 +857,9 @@ async def test_rpc_mode_shutdown_handler_triggers_immediate_cleanup(monkeypatch)
 @pytest.mark.asyncio
 async def test_main_dispatches_print_and_rpc(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("harnify_coding_agent.main.run_migrations", lambda _cwd: None)
-    monkeypatch.setattr("harnify_coding_agent.main.create_session_manager", _fake_create_session_manager)
-    monkeypatch.setattr("harnify_coding_agent.main.create_agent_session_runtime", _fake_create_runtime)
+    monkeypatch.setattr("harn_coding_agent.main.run_migrations", lambda _cwd: None)
+    monkeypatch.setattr("harn_coding_agent.main.create_session_manager", _fake_create_session_manager)
+    monkeypatch.setattr("harn_coding_agent.main.create_agent_session_runtime", _fake_create_runtime)
 
     calls: list[tuple[str, Any]] = []
 
@@ -871,9 +871,9 @@ async def test_main_dispatches_print_and_rpc(monkeypatch, tmp_path: Path) -> Non
         calls.append(("rpc", runtime))
         return 9
 
-    monkeypatch.setattr("harnify_coding_agent.main.run_print_mode", fake_print_mode)
-    monkeypatch.setattr("harnify_coding_agent.main.run_rpc_mode", fake_rpc_mode)
-    monkeypatch.setattr("harnify_coding_agent.main.configureHttpDispatcher", lambda _ms: None)
+    monkeypatch.setattr("harn_coding_agent.main.run_print_mode", fake_print_mode)
+    monkeypatch.setattr("harn_coding_agent.main.run_rpc_mode", fake_rpc_mode)
+    monkeypatch.setattr("harn_coding_agent.main.configureHttpDispatcher", lambda _ms: None)
     monkeypatch.setattr("sys.stdin", type("TTY", (), {"isatty": lambda self: True})())
 
     assert await main(["-p", "hello"]) == 7
@@ -887,9 +887,9 @@ async def test_main_dispatches_print_and_rpc(monkeypatch, tmp_path: Path) -> Non
 @pytest.mark.asyncio
 async def test_main_initializes_theme_and_prints_timings_for_noninteractive_modes(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("harnify_coding_agent.main.run_migrations", lambda _cwd: None)
-    monkeypatch.setattr("harnify_coding_agent.main.create_session_manager", _fake_create_session_manager)
-    monkeypatch.setattr("harnify_coding_agent.main.create_agent_session_runtime", _fake_create_runtime)
+    monkeypatch.setattr("harn_coding_agent.main.run_migrations", lambda _cwd: None)
+    monkeypatch.setattr("harn_coding_agent.main.create_session_manager", _fake_create_session_manager)
+    monkeypatch.setattr("harn_coding_agent.main.create_agent_session_runtime", _fake_create_runtime)
     monkeypatch.setattr("sys.stdin", type("TTY", (), {"isatty": lambda self: True})())
 
     calls: list[tuple[str, Any]] = []
@@ -902,12 +902,12 @@ async def test_main_initializes_theme_and_prints_timings_for_noninteractive_mode
         calls.append(("rpc", runtime))
         return 0
 
-    monkeypatch.setattr("harnify_coding_agent.main.run_print_mode", fake_print_mode)
-    monkeypatch.setattr("harnify_coding_agent.main.run_rpc_mode", fake_rpc_mode)
-    monkeypatch.setattr("harnify_coding_agent.main.configureHttpDispatcher", lambda _ms: calls.append(("dispatcher", _ms)))
-    monkeypatch.setattr("harnify_coding_agent.main.init_theme", lambda name, enable=False: calls.append(("init", (name, enable))))
-    monkeypatch.setattr("harnify_coding_agent.main.print_timings", lambda: calls.append(("timings", None)))
-    monkeypatch.setattr("harnify_coding_agent.main.stop_theme_watcher", lambda: calls.append(("stop", None)))
+    monkeypatch.setattr("harn_coding_agent.main.run_print_mode", fake_print_mode)
+    monkeypatch.setattr("harn_coding_agent.main.run_rpc_mode", fake_rpc_mode)
+    monkeypatch.setattr("harn_coding_agent.main.configureHttpDispatcher", lambda _ms: calls.append(("dispatcher", _ms)))
+    monkeypatch.setattr("harn_coding_agent.main.init_theme", lambda name, enable=False: calls.append(("init", (name, enable))))
+    monkeypatch.setattr("harn_coding_agent.main.print_timings", lambda: calls.append(("timings", None)))
+    monkeypatch.setattr("harn_coding_agent.main.stop_theme_watcher", lambda: calls.append(("stop", None)))
 
     assert await main(["-p", "hello"]) == 0
     assert calls[:5] == [
@@ -931,10 +931,10 @@ async def test_main_initializes_theme_and_prints_timings_for_noninteractive_mode
 @pytest.mark.asyncio
 async def test_main_dispatches_interactive(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("harnify_coding_agent.main.run_migrations", lambda _cwd: None)
-    monkeypatch.setattr("harnify_coding_agent.main.create_session_manager", _fake_create_session_manager)
-    monkeypatch.setattr("harnify_coding_agent.main.create_agent_session_runtime", _fake_create_runtime)
-    monkeypatch.setattr("harnify_coding_agent.main.configureHttpDispatcher", lambda _ms: None)
+    monkeypatch.setattr("harn_coding_agent.main.run_migrations", lambda _cwd: None)
+    monkeypatch.setattr("harn_coding_agent.main.create_session_manager", _fake_create_session_manager)
+    monkeypatch.setattr("harn_coding_agent.main.create_agent_session_runtime", _fake_create_runtime)
+    monkeypatch.setattr("harn_coding_agent.main.configureHttpDispatcher", lambda _ms: None)
     monkeypatch.setattr("sys.stdin", type("TTY", (), {"isatty": lambda self: True})())
 
     captured: dict[str, Any] = {}
@@ -951,7 +951,7 @@ async def test_main_dispatches_interactive(monkeypatch, tmp_path: Path) -> None:
         def dispose(self) -> None:
             captured["disposed"] = True
 
-    monkeypatch.setattr("harnify_coding_agent.main.InteractiveMode", FakeInteractiveMode)
+    monkeypatch.setattr("harn_coding_agent.main.InteractiveMode", FakeInteractiveMode)
 
     assert await main(["first", "second", "--verbose"]) == 11
     assert captured["ran"] is True
@@ -967,12 +967,12 @@ async def test_main_dispatches_interactive(monkeypatch, tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_main_startup_benchmark_stops_interactive_mode_and_theme_watcher(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("harnify_coding_agent.main.run_migrations", lambda _cwd: None)
-    monkeypatch.setattr("harnify_coding_agent.main.create_session_manager", _fake_create_session_manager)
-    monkeypatch.setattr("harnify_coding_agent.main.create_agent_session_runtime", _fake_create_runtime)
-    monkeypatch.setattr("harnify_coding_agent.main.configureHttpDispatcher", lambda _ms: None)
+    monkeypatch.setattr("harn_coding_agent.main.run_migrations", lambda _cwd: None)
+    monkeypatch.setattr("harn_coding_agent.main.create_session_manager", _fake_create_session_manager)
+    monkeypatch.setattr("harn_coding_agent.main.create_agent_session_runtime", _fake_create_runtime)
+    monkeypatch.setattr("harn_coding_agent.main.configureHttpDispatcher", lambda _ms: None)
     monkeypatch.setattr("sys.stdin", type("TTY", (), {"isatty": lambda self: True})())
-    monkeypatch.setenv("HARNIFY_STARTUP_BENCHMARK", "1")
+    monkeypatch.setenv("HARN_STARTUP_BENCHMARK", "1")
 
     calls: list[tuple[str, Any]] = []
 
@@ -986,9 +986,9 @@ async def test_main_startup_benchmark_stops_interactive_mode_and_theme_watcher(m
         def stop(self) -> None:
             calls.append(("stop-mode", None))
 
-    monkeypatch.setattr("harnify_coding_agent.main.InteractiveMode", FakeInteractiveMode)
-    monkeypatch.setattr("harnify_coding_agent.main.print_timings", lambda: calls.append(("timings", None)))
-    monkeypatch.setattr("harnify_coding_agent.main.stop_theme_watcher", lambda: calls.append(("stop-theme", None)))
+    monkeypatch.setattr("harn_coding_agent.main.InteractiveMode", FakeInteractiveMode)
+    monkeypatch.setattr("harn_coding_agent.main.print_timings", lambda: calls.append(("timings", None)))
+    monkeypatch.setattr("harn_coding_agent.main.stop_theme_watcher", lambda: calls.append(("stop-theme", None)))
 
     assert await main([]) == 0
     assert ("init", None) in calls
@@ -999,12 +999,12 @@ async def test_main_startup_benchmark_stops_interactive_mode_and_theme_watcher(m
 @pytest.mark.asyncio
 async def test_main_startup_benchmark_awaits_stream_drain_when_pending(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("harnify_coding_agent.main.run_migrations", lambda _cwd: None)
-    monkeypatch.setattr("harnify_coding_agent.main.create_session_manager", _fake_create_session_manager)
-    monkeypatch.setattr("harnify_coding_agent.main.create_agent_session_runtime", _fake_create_runtime)
-    monkeypatch.setattr("harnify_coding_agent.main.configureHttpDispatcher", lambda _ms: None)
+    monkeypatch.setattr("harn_coding_agent.main.run_migrations", lambda _cwd: None)
+    monkeypatch.setattr("harn_coding_agent.main.create_session_manager", _fake_create_session_manager)
+    monkeypatch.setattr("harn_coding_agent.main.create_agent_session_runtime", _fake_create_runtime)
+    monkeypatch.setattr("harn_coding_agent.main.configureHttpDispatcher", lambda _ms: None)
     monkeypatch.setattr("sys.stdin", type("TTY", (), {"isatty": lambda self: True})())
-    monkeypatch.setenv("HARNIFY_STARTUP_BENCHMARK", "1")
+    monkeypatch.setenv("HARN_STARTUP_BENCHMARK", "1")
 
     class _DrainableStream:
         def __init__(self) -> None:
@@ -1031,9 +1031,9 @@ async def test_main_startup_benchmark_awaits_stream_drain_when_pending(monkeypat
         def stop(self) -> None:
             return None
 
-    monkeypatch.setattr("harnify_coding_agent.main.InteractiveMode", FakeInteractiveMode)
-    monkeypatch.setattr("harnify_coding_agent.main.print_timings", lambda: None)
-    monkeypatch.setattr("harnify_coding_agent.main.stop_theme_watcher", lambda: None)
+    monkeypatch.setattr("harn_coding_agent.main.InteractiveMode", FakeInteractiveMode)
+    monkeypatch.setattr("harn_coding_agent.main.print_timings", lambda: None)
+    monkeypatch.setattr("harn_coding_agent.main.stop_theme_watcher", lambda: None)
 
     assert await main([]) == 0
     assert stdout.events == ["drain"]

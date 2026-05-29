@@ -5,20 +5,20 @@ from types import SimpleNamespace
 
 import pytest
 
-from harnify_ai.models import get_model
-from harnify_ai.providers.openai_prompt_cache import clamp_openai_prompt_cache_key
-import harnify_ai.providers.simple_options as simple_options_provider
-import harnify_ai.providers.transform_messages as transform_messages_provider
-from harnify_ai.api_registry import clear_api_providers
-from harnify_ai.providers.simple_options import adjust_max_tokens_for_thinking, build_base_options, clamp_reasoning
-from harnify_ai.providers.transform_messages import (
+from harn_ai.models import get_model
+from harn_ai.providers.openai_prompt_cache import clamp_openai_prompt_cache_key
+import harn_ai.providers.simple_options as simple_options_provider
+import harn_ai.providers.transform_messages as transform_messages_provider
+from harn_ai.api_registry import clear_api_providers
+from harn_ai.providers.simple_options import adjust_max_tokens_for_thinking, build_base_options, clamp_reasoning
+from harn_ai.providers.transform_messages import (
     transform_messages,
 )
-from harnify_ai.stream import complete_simple
-from harnify_ai.types import SimpleStreamOptions, validate_assistant_message_event, validate_message
-import harnify_ai.providers.register_builtins as register_builtins
+from harn_ai.stream import complete_simple
+from harn_ai.types import SimpleStreamOptions, validate_assistant_message_event, validate_message
+import harn_ai.providers.register_builtins as register_builtins
 
-stream_module = importlib.import_module("harnify_ai.stream")
+stream_module = importlib.import_module("harn_ai.stream")
 
 NON_VISION_USER_IMAGE_PLACEHOLDER = "(image omitted: model does not support images)"
 
@@ -74,7 +74,7 @@ async def test_complete_simple_uses_lazy_registered_provider_module(monkeypatch:
     original_import_module = register_builtins.importlib.import_module
 
     def fake_import_module(name: str):
-        if name == "harnify_ai.providers.openai_responses":
+        if name == "harn_ai.providers.openai_responses":
             return SimpleNamespace(
                 streamOpenAIResponses=stream_openai_responses,
                 streamSimpleOpenAIResponses=stream_openai_responses,

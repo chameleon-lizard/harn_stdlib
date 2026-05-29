@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from harnify_agent.harness.utils.truncate import truncate_head, truncate_line, truncate_tail
+from harn_agent.harness.utils.truncate import truncate_head, truncate_line, truncate_tail
 
 
 def test_truncate_counts_utf8_bytes() -> None:

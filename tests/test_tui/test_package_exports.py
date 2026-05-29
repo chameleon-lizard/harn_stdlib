@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import harnify_tui as tui_module
+import harn_tui as tui_module
 
 
 def test_root_package_exports_match_ts_surface() -> None:

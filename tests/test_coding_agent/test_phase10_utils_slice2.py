@@ -4,22 +4,22 @@ import base64
 from io import BytesIO
 
 import pytest
-import harnify_coding_agent.utils.exif_orientation as exif_orientation_module
-import harnify_coding_agent.utils.image_convert as image_convert_module
-import harnify_coding_agent.utils.image_resize as image_resize_module
-import harnify_coding_agent.utils.harnify_user_agent as harnify_user_agent_module
-import harnify_coding_agent.utils.photon as photon_module
-import harnify_coding_agent.utils.syntax_highlight as syntax_highlight_module
-import harnify_coding_agent.utils.version_check as version_check_module
-from harnify_coding_agent.utils.exif_orientation import get_exif_orientation
-from harnify_coding_agent.utils.image_convert import convert_to_png
-from harnify_coding_agent.utils.harnify_user_agent import get_harnify_user_agent
-from harnify_coding_agent.utils.syntax_highlight import highlight, render_highlighted_html, supports_language
-from harnify_coding_agent.utils.version_check import (
-    check_for_new_harnify_version,
+import harn_coding_agent.utils.exif_orientation as exif_orientation_module
+import harn_coding_agent.utils.image_convert as image_convert_module
+import harn_coding_agent.utils.image_resize as image_resize_module
+import harn_coding_agent.utils.harn_user_agent as harn_user_agent_module
+import harn_coding_agent.utils.photon as photon_module
+import harn_coding_agent.utils.syntax_highlight as syntax_highlight_module
+import harn_coding_agent.utils.version_check as version_check_module
+from harn_coding_agent.utils.exif_orientation import get_exif_orientation
+from harn_coding_agent.utils.image_convert import convert_to_png
+from harn_coding_agent.utils.harn_user_agent import get_harn_user_agent
+from harn_coding_agent.utils.syntax_highlight import highlight, render_highlighted_html, supports_language
+from harn_coding_agent.utils.version_check import (
+    check_for_new_harn_version,
     compare_package_versions,
-    get_latest_harnify_release,
-    get_latest_harnify_version,
+    get_latest_harn_release,
+    get_latest_harn_version,
     is_newer_package_version,
 )
 from PIL import Image
@@ -98,27 +98,27 @@ def test_syntax_highlight_module_exports_match_ts_surface() -> None:
     ]
 
 
-def test_harnify_user_agent_module_exports_match_ts_surface() -> None:
-    assert harnify_user_agent_module.__all__ == ["getHarnifyUserAgent", "get_harnify_user_agent"]
-    user_agent = get_harnify_user_agent("1.2.3")
-    assert user_agent.startswith("harnify/1.2.3 (")
+def test_harn_user_agent_module_exports_match_ts_surface() -> None:
+    assert harn_user_agent_module.__all__ == ["getHarnUserAgent", "get_harn_user_agent"]
+    user_agent = get_harn_user_agent("1.2.3")
+    assert user_agent.startswith("harn/1.2.3 (")
     assert "; python/" in user_agent
     assert user_agent.endswith(")")
 
 
-def test_harnify_user_agent_normalizes_arch_like_ts(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(harnify_user_agent_module.platform, "machine", lambda: "x86_64")
-    assert get_harnify_user_agent("1.2.3").endswith("; x64)")
+def test_harn_user_agent_normalizes_arch_like_ts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(harn_user_agent_module.platform, "machine", lambda: "x86_64")
+    assert get_harn_user_agent("1.2.3").endswith("; x64)")
 
 
 def test_version_check_module_exports_match_ts_surface() -> None:
     assert version_check_module.__all__ == [
-        "LatestHarnifyRelease",
+        "LatestHarnRelease",
         "comparePackageVersions",
         "isNewerPackageVersion",
-        "getLatestHarnifyRelease",
-        "getLatestHarnifyVersion",
-        "checkForNewHarnifyVersion",
+        "getLatestHarnRelease",
+        "getLatestHarnVersion",
+        "checkForNewHarnVersion",
     ]
 
 
@@ -145,26 +145,26 @@ async def test_version_check_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
 
     async def fake_fetch(url: str, headers: dict[str, str], timeout_ms: int):
         calls.append((url, headers, timeout_ms))
-        return {"packageName": "@new-scope/harnify", "version": "1.2.4", "note": " **Read this** "}
+        return {"packageName": "@new-scope/harn", "version": "1.2.4", "note": " **Read this** "}
 
-    monkeypatch.setattr("harnify_coding_agent.utils.version_check._fetch_latest_release_json", fake_fetch)
+    monkeypatch.setattr("harn_coding_agent.utils.version_check._fetch_latest_release_json", fake_fetch)
 
-    release = await get_latest_harnify_release("1.2.3")
+    release = await get_latest_harn_release("1.2.3")
     assert release is not None
-    assert release.packageName == "@new-scope/harnify"
+    assert release.packageName == "@new-scope/harn"
     assert release.version == "1.2.4"
     assert release.note == "**Read this**"
-    assert calls[0][0] == "https://harnify.dev/api/latest-version"
+    assert calls[0][0] == "https://harn.dev/api/latest-version"
     assert calls[0][1]["accept"] == "application/json"
-    assert calls[0][1]["User-Agent"].startswith("harnify/1.2.3 ")
+    assert calls[0][1]["User-Agent"].startswith("harn/1.2.3 ")
 
-    assert await get_latest_harnify_version("1.2.3") == "1.2.4"
-    assert await check_for_new_harnify_version("1.2.3") == release
-    assert await check_for_new_harnify_version("1.2.4") is None
+    assert await get_latest_harn_version("1.2.3") == "1.2.4"
+    assert await check_for_new_harn_version("1.2.3") == release
+    assert await check_for_new_harn_version("1.2.4") is None
 
-    monkeypatch.setenv("HARNIFY_SKIP_VERSION_CHECK", "1")
-    assert await get_latest_harnify_version("1.2.3") is None
-    monkeypatch.delenv("HARNIFY_SKIP_VERSION_CHECK", raising=False)
+    monkeypatch.setenv("HARN_SKIP_VERSION_CHECK", "1")
+    assert await get_latest_harn_version("1.2.3") is None
+    monkeypatch.delenv("HARN_SKIP_VERSION_CHECK", raising=False)
 
 
 @pytest.mark.asyncio

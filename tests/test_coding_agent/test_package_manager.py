@@ -7,11 +7,11 @@ import textwrap
 from pathlib import Path
 
 import pytest
-import harnify_coding_agent.core.package_manager as package_manager_module
-from harnify_coding_agent.config import CONFIG_DIR_NAME, get_themes_dir
-from harnify_coding_agent.core.package_manager import DefaultPackageManager
-from harnify_coding_agent.core.resource_loader import DefaultResourceLoader
-from harnify_coding_agent.core.settings_manager import SettingsManager
+import harn_coding_agent.core.package_manager as package_manager_module
+from harn_coding_agent.config import CONFIG_DIR_NAME, get_themes_dir
+from harn_coding_agent.core.package_manager import DefaultPackageManager
+from harn_coding_agent.core.resource_loader import DefaultResourceLoader
+from harn_coding_agent.core.settings_manager import SettingsManager
 
 
 def _write_extension(path: Path) -> None:
@@ -42,7 +42,7 @@ def _write_package(package_root: Path, *, skill_name: str, prompt_name: str, the
     (package_root / "package.json").write_text(
         json.dumps(
             {
-                "harnify": {
+                "harn": {
                     "extensions": ["extensions/index.py"],
                     "skills": [f"skills/{skill_name}"],
                     "prompts": [f"prompts/{prompt_name}.md"],
@@ -169,7 +169,7 @@ def _write_fake_npm(script_path: Path, registry_path: Path) -> None:
                         {{
                             "name": name,
                             "version": version,
-                            "harnify": {{
+                            "harn": {{
                                 "extensions": ["extensions/index.py"],
                                 "skills": [f"skills/{{meta['skill']}}"],
                                 "prompts": [f"prompts/{{meta['prompt']}}.md"],
@@ -234,7 +234,7 @@ def _create_fake_npm_harness(tmp_path: Path) -> tuple[list[str], Path]:
     registry_path.write_text(
         json.dumps(
             {
-                "harnify-fake": {
+                "harn-fake": {
                     "latest": "1.0.0",
                     "skill": "npm-skill",
                     "prompt": "npm-prompt",
@@ -374,13 +374,13 @@ async def test_package_manager_resolves_updates_and_removes_npm_sources(tmp_path
 
     settings_manager = SettingsManager.inMemory()
     settings_manager.setNpmCommand(npm_command)
-    settings_manager.setPackages(["npm:harnify-fake"])
+    settings_manager.setPackages(["npm:harn-fake"])
     manager = DefaultPackageManager(
         {"cwd": str(cwd), "agentDir": str(agent_dir), "settingsManager": settings_manager}
     )
 
     resolved = await manager.resolve()
-    installed_path = manager.getInstalledPath("npm:harnify-fake", "user")
+    installed_path = manager.getInstalledPath("npm:harn-fake", "user")
 
     assert installed_path is not None
     assert Path(installed_path, "package.json").exists()
@@ -391,30 +391,30 @@ async def test_package_manager_resolves_updates_and_removes_npm_sources(tmp_path
     assert await manager.checkForAvailableUpdates() == []
 
     registry = json.loads(registry_path.read_text(encoding="utf-8"))
-    registry["harnify-fake"]["latest"] = "2.0.0"
+    registry["harn-fake"]["latest"] = "2.0.0"
     registry_path.write_text(json.dumps(registry), encoding="utf-8")
 
     updates = await manager.checkForAvailableUpdates()
-    assert [(entry.source, entry.type, entry.scope) for entry in updates] == [("npm:harnify-fake", "npm", "user")]
+    assert [(entry.source, entry.type, entry.scope) for entry in updates] == [("npm:harn-fake", "npm", "user")]
 
-    await manager.update("npm:harnify-fake")
+    await manager.update("npm:harn-fake")
     installed_payload = json.loads(Path(installed_path, "package.json").read_text(encoding="utf-8"))
     assert installed_payload["version"] == "2.0.0"
 
     pinned_settings = SettingsManager.inMemory()
     pinned_settings.setNpmCommand(npm_command)
-    pinned_settings.setPackages(["npm:harnify-fake@1.0.0"])
+    pinned_settings.setPackages(["npm:harn-fake@1.0.0"])
     pinned_manager = DefaultPackageManager(
         {"cwd": str(cwd), "agentDir": str(agent_dir), "settingsManager": pinned_settings}
     )
     await pinned_manager.resolve()
-    pinned_installed_path = pinned_manager.getInstalledPath("npm:harnify-fake@1.0.0", "user")
+    pinned_installed_path = pinned_manager.getInstalledPath("npm:harn-fake@1.0.0", "user")
     assert pinned_installed_path == installed_path
     pinned_payload = json.loads(Path(installed_path, "package.json").read_text(encoding="utf-8"))
     assert pinned_payload["version"] == "1.0.0"
     assert await pinned_manager.checkForAvailableUpdates() == []
 
-    await pinned_manager.remove("npm:harnify-fake@1.0.0")
+    await pinned_manager.remove("npm:harn-fake@1.0.0")
     assert not Path(installed_path).exists()
 
 
@@ -498,7 +498,7 @@ def test_package_manager_ensure_npm_project_matches_ts(
 
     assert captured == [str(install_root)]
     payload = json.loads((install_root / "package.json").read_text(encoding="utf-8"))
-    assert payload == {"name": "harnify-extensions", "private": True}
+    assert payload == {"name": "harn-extensions", "private": True}
     assert (install_root / ".gitignore").read_text(encoding="utf-8") == "*\n!.gitignore\n"
 
 
@@ -547,7 +547,7 @@ async def test_package_manager_update_unknown_source_still_errors_when_offline(
     agent_dir = tmp_path / "agent"
     workspace.mkdir()
     agent_dir.mkdir()
-    monkeypatch.setenv("HARNIFY_OFFLINE", "1")
+    monkeypatch.setenv("HARN_OFFLINE", "1")
     manager = DefaultPackageManager(
         {"cwd": str(workspace), "agentDir": str(agent_dir), "settingsManager": SettingsManager.inMemory()}
     )

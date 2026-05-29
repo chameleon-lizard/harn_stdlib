@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from harnify_ai.api_registry import (
+from harn_ai.api_registry import (
     ApiProvider,
     clear_api_providers,
     get_api_provider,
@@ -10,9 +10,9 @@ from harnify_ai.api_registry import (
     register_api_provider,
     unregister_api_providers,
 )
-from harnify_ai.models import get_model
-from harnify_ai.types import validate_assistant_message_event
-from harnify_ai.utils.event_stream import AssistantMessageEventStream
+from harn_ai.models import get_model
+from harn_ai.types import validate_assistant_message_event
+from harn_ai.utils.event_stream import AssistantMessageEventStream
 
 
 def _assistant_message_payload(stop_reason: str = "stop") -> dict[str, object]:

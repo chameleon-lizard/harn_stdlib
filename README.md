@@ -1,6 +1,6 @@
-# Harnify
+# Harn
 
-Harnify is an AI coding assistant for the terminal. It is a Python port of
+Harn is an AI coding assistant for the terminal. It is a Python port of
 [earendil-pi](https://github.com/earendil-works/pi-mono), a TypeScript-based
 agent harness, rebuilt from the ground up with a native Python stack. Harnify
 ships a custom TUI, supports 30+ LLM providers out of the box, and gives models
@@ -14,44 +14,44 @@ tools.
 
 ## Installation
 
-Harnify is installed from source. Clone the repository and let uv handle the
+Harn is installed from source. Clone the repository and let uv handle the
 rest.
 
 ### With uv (recommended)
 
 ```bash
 git clone https://github.com/secemp9/harnify.git
-cd harnify
+cd harn
 uv sync
 ```
 
 This installs all four workspace packages and their dependencies into a local
-virtual environment. The `harnify` CLI entry point is immediately available:
+virtual environment. The `harn` CLI entry point is immediately available:
 
 ```bash
-uv run harnify
+uv run harn
 ```
 
 ### With pip
 
 ```bash
 git clone https://github.com/secemp9/harnify.git
-cd harnify
+cd harn
 python -m venv .venv
 source .venv/bin/activate
-pip install -e packages/harnify_ai \
-            -e packages/harnify_agent \
-            -e packages/harnify_tui \
-            -e packages/harnify_coding_agent
+pip install -e packages/harn_ai \
+            -e packages/harn_agent \
+            -e packages/harn_tui \
+            -e packages/harn_coding_agent
 ```
 
 ### With pipx (isolated install)
 
 ```bash
 git clone https://github.com/secemp9/harnify.git
-cd harnify
-pipx install --editable packages/harnify_coding_agent \
-    --pip-args="-e packages/harnify_ai -e packages/harnify_agent -e packages/harnify_tui"
+cd harn
+pipx install --editable packages/harn_coding_agent \
+    --pip-args="-e packages/harn_ai -e packages/harn_agent -e packages/harn_tui"
 ```
 
 ## Quick Start
@@ -60,54 +60,54 @@ Set an API key for at least one provider, then launch the interactive TUI:
 
 ```bash
 export ANTHROPIC_API_KEY="sk-..."
-harnify
+harn
 ```
 
 Or use uv run if you have not activated the virtual environment:
 
 ```bash
-uv run harnify
+uv run harn
 ```
 
 Send a one-shot prompt without entering interactive mode:
 
 ```bash
-harnify -p "List all Python files in src/"
+harn -p "List all Python files in src/"
 ```
 
 Start with a specific provider and model:
 
 ```bash
-harnify --provider openai --model gpt-4o "Refactor the database module"
+harn --provider openai --model gpt-4o "Refactor the database module"
 ```
 
 Use the shorthand provider/model syntax (no `--provider` flag needed):
 
 ```bash
-harnify --model anthropic/claude-sonnet-4-20250514 "Review this code"
+harn --model anthropic/claude-sonnet-4-20250514 "Review this code"
 ```
 
 Continue a previous session:
 
 ```bash
-harnify --continue
+harn --continue
 ```
 
 Attach files to the initial message:
 
 ```bash
-harnify @prompt.md @screenshot.png "What is shown in this image?"
+harn @prompt.md @screenshot.png "What is shown in this image?"
 ```
 
 Control the thinking/reasoning level:
 
 ```bash
-harnify --thinking high "Solve this complex architecture problem"
+harn --thinking high "Solve this complex architecture problem"
 ```
 
 ## Supported Providers
 
-Harnify supports a broad set of LLM providers. Set the corresponding
+Harn supports a broad set of LLM providers. Set the corresponding
 environment variable and optionally pass `--provider <name>`:
 
 | Provider | Environment Variable |
@@ -136,33 +136,33 @@ environment variable and optionally pass `--provider <name>`:
 List available models for a provider:
 
 ```bash
-harnify --list-models
-harnify --list-models openai
+harn --list-models
+harn --list-models openai
 ```
 
 ## Configuration
 
-Harnify stores its configuration under `~/.harnify/agent/` by default. The
-location can be overridden with the `HARNIFY_CODING_AGENT_DIR` environment
+Harn stores its configuration under `~/.harn/agent/` by default. The
+location can be overridden with the `HARN_CODING_AGENT_DIR` environment
 variable.
 
 Key files and directories:
 
 | Path | Purpose |
 |---|---|
-| `~/.harnify/agent/settings.json` | Global settings (default provider, model, theme, etc.) |
-| `~/.harnify/agent/models.json` | Custom model definitions and overrides |
-| `~/.harnify/agent/sessions/` | Saved conversation sessions |
-| `.harnify/` (project root) | Per-project settings and context |
+| `~/.harn/agent/settings.json` | Global settings (default provider, model, theme, etc.) |
+| `~/.harn/agent/models.json` | Custom model definitions and overrides |
+| `~/.harn/agent/sessions/` | Saved conversation sessions |
+| `.harn/` (project root) | Per-project settings and context |
 | `AGENTS.md` | Project-level instructions loaded into the system prompt |
 
 ### Useful environment variables
 
 | Variable | Description |
 |---|---|
-| `HARNIFY_CODING_AGENT_DIR` | Override the config directory |
-| `HARNIFY_CODING_AGENT_SESSION_DIR` | Override the session storage directory |
-| `HARNIFY_OFFLINE` | Set to `1` to disable startup network operations |
+| `HARN_CODING_AGENT_DIR` | Override the config directory |
+| `HARN_CODING_AGENT_SESSION_DIR` | Override the session storage directory |
+| `HARN_OFFLINE` | Set to `1` to disable startup network operations |
 
 ## Built-in Tools
 
@@ -179,13 +179,13 @@ Key files and directories:
 Restrict the active tool set with `--tools`:
 
 ```bash
-harnify --tools read,grep,find,ls -p "Review the code in src/"
+harn --tools read,grep,find,ls -p "Review the code in src/"
 ```
 
 ## CLI Reference
 
 ```
-harnify [options] [@files...] [messages...]
+harn [options] [@files...] [messages...]
 ```
 
 Common flags:
@@ -212,34 +212,34 @@ Common flags:
 | `--help`, `-h` | Show full help text |
 | `--version`, `-v` | Show version |
 
-Run `harnify --help` for the complete list of options, environment variables,
+Run `harn --help` for the complete list of options, environment variables,
 and examples.
 
 ## Monorepo Structure
 
-Harnify is organized as a uv workspace with four packages:
+Harn is organized as a uv workspace with four packages:
 
 ```
-harnify/
+harn/
   packages/
-    harnify_ai/             Unified multi-provider LLM API
-    harnify_agent/          Agent runtime with tool calling and state management
-    harnify_tui/            Terminal UI library with differential rendering
-    harnify_coding_agent/   Interactive coding agent CLI (the main entry point)
+    harn_ai/             Unified multi-provider LLM API
+    harn_agent/          Agent runtime with tool calling and state management
+    harn_tui/            Terminal UI library with differential rendering
+    harn_coding_agent/   Interactive coding agent CLI (the main entry point)
 ```
 
 | Package | Description |
 |---|---|
-| **harnify-ai** | Streaming LLM client supporting Anthropic, OpenAI, Google, Mistral, Bedrock, and more |
-| **harnify-agent** | Agent loop, tool dispatch, session persistence, and context management |
-| **harnify-tui** | Terminal rendering, input handling, markdown display, and image support |
-| **harnify-coding-agent** | CLI entry point, built-in tools (read/edit/write/bash), extensions, and skills |
+| **harn-ai** | Streaming LLM client supporting Anthropic, OpenAI, Google, Mistral, Bedrock, and more |
+| **harn-agent** | Agent loop, tool dispatch, session persistence, and context management |
+| **harn-tui** | Terminal rendering, input handling, markdown display, and image support |
+| **harn** | CLI entry point, built-in tools (read/edit/write/bash), extensions, and skills |
 
 ## Development
 
 ```bash
 git clone https://github.com/secemp9/harnify.git
-cd harnify
+cd harn
 uv sync
 ```
 
@@ -256,10 +256,10 @@ uv run ruff check .
 uv run ruff format .
 ```
 
-Run harnify from source:
+Run harn from source:
 
 ```bash
-uv run harnify
+uv run harn
 ```
 
 ## License

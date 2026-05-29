@@ -6,15 +6,15 @@ from typing import Any
 
 import pytest
 
-from harnify_ai.models import get_model
-from harnify_ai.providers.amazon_bedrock import (
+from harn_ai.models import get_model
+from harn_ai.providers.amazon_bedrock import (
     build_additional_model_request_fields,
     build_client_settings,
     build_system_prompt,
     convert_messages,
     stream_bedrock,
 )
-from harnify_ai.types import (
+from harn_ai.types import (
     AssistantMessage,
     Context,
     Model,

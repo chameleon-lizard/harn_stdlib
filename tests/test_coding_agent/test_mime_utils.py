@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-import harnify_coding_agent.utils.mime as mime_module
-from harnify_coding_agent.utils.mime import (
+import harn_coding_agent.utils.mime as mime_module
+from harn_coding_agent.utils.mime import (
     detect_supported_image_mime_type,
     detect_supported_image_mime_type_from_file,
 )

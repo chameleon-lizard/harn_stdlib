@@ -5,18 +5,18 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-import harnify_coding_agent.cli.config_selector as config_selector_module
-import harnify_coding_agent.cli.session_picker as session_picker_module
-from harnify_coding_agent.cli.config_selector import ConfigSelectorOptions, select_config
-from harnify_coding_agent.cli.session_picker import select_session
-from harnify_coding_agent.config import APP_NAME
-from harnify_coding_agent.core.session_cwd import SessionCwdIssue
-from harnify_coding_agent.core.package_manager import ConfiguredPackage, ResolvedPaths
-from harnify_coding_agent.core.settings_manager import SettingsError, SettingsManager
-from harnify_coding_agent.main import main, prompt_for_missing_session_cwd
-import harnify_coding_agent.package_manager_cli as package_manager_cli_module
-from harnify_coding_agent.package_manager_cli import handle_config_command, handle_package_command
-from harnify_coding_agent.utils.version_check import LatestHarnifyRelease
+import harn_coding_agent.cli.config_selector as config_selector_module
+import harn_coding_agent.cli.session_picker as session_picker_module
+from harn_coding_agent.cli.config_selector import ConfigSelectorOptions, select_config
+from harn_coding_agent.cli.session_picker import select_session
+from harn_coding_agent.config import APP_NAME
+from harn_coding_agent.core.session_cwd import SessionCwdIssue
+from harn_coding_agent.core.package_manager import ConfiguredPackage, ResolvedPaths
+from harn_coding_agent.core.settings_manager import SettingsError, SettingsManager
+from harn_coding_agent.main import main, prompt_for_missing_session_cwd
+import harn_coding_agent.package_manager_cli as package_manager_cli_module
+from harn_coding_agent.package_manager_cli import handle_config_command, handle_package_command
+from harn_coding_agent.utils.version_check import LatestHarnRelease
 
 
 class _FakeTerminal:
@@ -194,7 +194,7 @@ async def test_handle_config_command_uses_real_package_resolution(
         assert isinstance(options, dict)
         captured.append(dict(options))
 
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.select_config", fake_select_config)
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.select_config", fake_select_config)
 
     handled = await handle_config_command(["config"])
 
@@ -227,8 +227,8 @@ async def test_handle_config_command_reports_settings_warnings(
         called.append("config")
 
     monkeypatch.setattr("sys.stderr", stderr)
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: settings)
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.select_config", fake_select_config)
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: settings)
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.select_config", fake_select_config)
 
     handled = await handle_config_command(["config"])
 
@@ -255,7 +255,7 @@ async def test_main_routes_config_command_before_normal_arg_parsing(
     async def fake_select_config(_options: object) -> None:
         called.append("config")
 
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.select_config", fake_select_config)
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.select_config", fake_select_config)
 
     code = await main(["config"])
 
@@ -271,8 +271,8 @@ async def test_main_routes_package_command_before_normal_arg_parsing(monkeypatch
     async def fail_config_command(_args: list[str]) -> int | None:
         raise AssertionError("config command should not run")
 
-    monkeypatch.setattr("harnify_coding_agent.main.handle_package_command", fake_package_command)
-    monkeypatch.setattr("harnify_coding_agent.main.handle_config_command", fail_config_command)
+    monkeypatch.setattr("harn_coding_agent.main.handle_package_command", fake_package_command)
+    monkeypatch.setattr("harn_coding_agent.main.handle_config_command", fail_config_command)
 
     assert await main(["install", "demo"]) == 23
 
@@ -285,9 +285,9 @@ async def test_main_routes_package_command_boolean_contract(monkeypatch: pytest.
     async def fail_config_command(_args: list[str]) -> int | None:
         raise AssertionError("config command should not run")
 
-    monkeypatch.setattr("harnify_coding_agent.main.handle_package_command", fake_package_command)
-    monkeypatch.setattr("harnify_coding_agent.main.handle_config_command", fail_config_command)
-    monkeypatch.setattr("harnify_coding_agent.main._take_command_exit_code", lambda: 17)
+    monkeypatch.setattr("harn_coding_agent.main.handle_package_command", fake_package_command)
+    monkeypatch.setattr("harn_coding_agent.main.handle_config_command", fail_config_command)
+    monkeypatch.setattr("harn_coding_agent.main._take_command_exit_code", lambda: 17)
 
     assert await main(["install", "demo"]) == 17
 
@@ -329,7 +329,7 @@ async def test_handle_package_command_supports_extension_update_target(
     agent_dir.mkdir()
     monkeypatch.chdir(project)
     monkeypatch.setenv(f"{APP_NAME.upper()}_CODING_AGENT_DIR", str(agent_dir))
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: SettingsManager.inMemory())
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: SettingsManager.inMemory())
 
     calls: list[str | None] = []
     stdout = io.StringIO()
@@ -344,7 +344,7 @@ async def test_handle_package_command_supports_extension_update_target(
         async def update(self, source: str | None = None) -> None:
             calls.append(source)
 
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.DefaultPackageManager", FakePackageManager)
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.DefaultPackageManager", FakePackageManager)
 
     handled = await handle_package_command(["update", "--extension", "npm:demo"])
 
@@ -366,7 +366,7 @@ async def test_handle_package_command_list_matches_ts_sections_and_filtered_mark
     agent_dir.mkdir()
     monkeypatch.chdir(project)
     monkeypatch.setenv(f"{APP_NAME.upper()}_CODING_AGENT_DIR", str(agent_dir))
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: SettingsManager.inMemory())
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: SettingsManager.inMemory())
 
     stdout = io.StringIO()
     stderr = io.StringIO()
@@ -396,7 +396,7 @@ async def test_handle_package_command_list_matches_ts_sections_and_filtered_mark
                 ),
             ]
 
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.DefaultPackageManager", FakePackageManager)
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.DefaultPackageManager", FakePackageManager)
 
     handled = await handle_package_command(["list"])
 
@@ -431,7 +431,7 @@ async def test_handle_package_command_install_reports_settings_warning_progress_
     stderr = io.StringIO()
     monkeypatch.setattr("sys.stdout", stdout)
     monkeypatch.setattr("sys.stderr", stderr)
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: settings)
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: settings)
 
     class FakePackageManager:
         def __init__(self, _options: object) -> None:
@@ -446,7 +446,7 @@ async def test_handle_package_command_install_reports_settings_warning_progress_
             assert self._progress is not None
             self._progress(SimpleNamespace(type="start", message="Installing npm:demo..."))
 
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.DefaultPackageManager", FakePackageManager)
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.DefaultPackageManager", FakePackageManager)
 
     handled = await handle_package_command(["install", "npm:demo", "--local"])
 
@@ -467,7 +467,7 @@ async def test_handle_package_command_remove_reports_missing_match(
     agent_dir.mkdir()
     monkeypatch.chdir(project)
     monkeypatch.setenv(f"{APP_NAME.upper()}_CODING_AGENT_DIR", str(agent_dir))
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: SettingsManager.inMemory())
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: SettingsManager.inMemory())
 
     stdout = io.StringIO()
     stderr = io.StringIO()
@@ -486,7 +486,7 @@ async def test_handle_package_command_remove_reports_missing_match(
             assert options == {"local": False}
             return False
 
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.DefaultPackageManager", FakePackageManager)
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.DefaultPackageManager", FakePackageManager)
 
     handled = await handle_package_command(["remove", "npm:missing"])
 
@@ -507,10 +507,10 @@ async def test_handle_package_command_update_self_reports_already_up_to_date(
     agent_dir.mkdir()
     monkeypatch.chdir(project)
     monkeypatch.setenv(f"{APP_NAME.upper()}_CODING_AGENT_DIR", str(agent_dir))
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: SettingsManager.inMemory())
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: SettingsManager.inMemory())
     monkeypatch.setattr(
-        "harnify_coding_agent.package_manager_cli.get_latest_harnify_release",
-        lambda _version: _return_latest_release(LatestHarnifyRelease(version=package_manager_cli_module.VERSION)),
+        "harn_coding_agent.package_manager_cli.get_latest_harn_release",
+        lambda _version: _return_latest_release(LatestHarnRelease(version=package_manager_cli_module.VERSION)),
     )
 
     stdout = io.StringIO()
@@ -525,7 +525,7 @@ async def test_handle_package_command_update_self_reports_already_up_to_date(
         def setProgressCallback(self, _callback) -> None:
             return None
 
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.DefaultPackageManager", FakePackageManager)
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.DefaultPackageManager", FakePackageManager)
 
     handled = await handle_package_command(["update", "--self"])
 
@@ -546,17 +546,17 @@ async def test_handle_package_command_update_self_unavailable_sets_exit_code(
     agent_dir.mkdir()
     monkeypatch.chdir(project)
     monkeypatch.setenv(f"{APP_NAME.upper()}_CODING_AGENT_DIR", str(agent_dir))
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: SettingsManager.inMemory())
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: SettingsManager.inMemory())
     monkeypatch.setattr(
-        "harnify_coding_agent.package_manager_cli.get_latest_harnify_release",
+        "harn_coding_agent.package_manager_cli.get_latest_harn_release",
         lambda _version: _return_latest_release(None),
     )
     monkeypatch.setattr(
-        "harnify_coding_agent.package_manager_cli.get_self_update_command",
+        "harn_coding_agent.package_manager_cli.get_self_update_command",
         lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(
-        "harnify_coding_agent.package_manager_cli.get_self_update_unavailable_instruction",
+        "harn_coding_agent.package_manager_cli.get_self_update_unavailable_instruction",
         lambda *_args, **_kwargs: "Update it yourself manually.",
     )
 
@@ -572,7 +572,7 @@ async def test_handle_package_command_update_self_unavailable_sets_exit_code(
         def setProgressCallback(self, _callback) -> None:
             return None
 
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.DefaultPackageManager", FakePackageManager)
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.DefaultPackageManager", FakePackageManager)
 
     handled = await handle_package_command(["update", "--self"])
 
@@ -594,9 +594,9 @@ async def test_handle_package_command_update_all_reports_extension_and_self_succ
     agent_dir.mkdir()
     monkeypatch.chdir(project)
     monkeypatch.setenv(f"{APP_NAME.upper()}_CODING_AGENT_DIR", str(agent_dir))
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: SettingsManager.inMemory())
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: SettingsManager.inMemory())
     monkeypatch.setattr(
-        "harnify_coding_agent.package_manager_cli.get_latest_harnify_release",
+        "harn_coding_agent.package_manager_cli.get_latest_harn_release",
         lambda _version: _return_latest_release(None),
     )
 
@@ -618,24 +618,24 @@ async def test_handle_package_command_update_all_reports_extension_and_self_succ
         async def update(self, source: str | None = None) -> None:
             update_calls.append(source)
 
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.DefaultPackageManager", FakePackageManager)
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.DefaultPackageManager", FakePackageManager)
     monkeypatch.setattr(
-        "harnify_coding_agent.package_manager_cli.get_self_update_command",
-        lambda *_args, **_kwargs: SimpleNamespace(command="uv", args=("tool", "upgrade"), display="uv tool upgrade harnify", steps=None),
+        "harn_coding_agent.package_manager_cli.get_self_update_command",
+        lambda *_args, **_kwargs: SimpleNamespace(command="uv", args=("tool", "upgrade"), display="uv tool upgrade harn", steps=None),
     )
 
     async def fake_run_self_update(command) -> None:
         self_update_calls.append((command.command, command.display))
 
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli._run_self_update", fake_run_self_update)
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli._run_self_update", fake_run_self_update)
 
     handled = await handle_package_command(["update"])
 
     assert handled is True
     assert package_manager_cli_module._take_command_exit_code() == 0
     assert update_calls == [None]
-    assert self_update_calls == [("uv", "uv tool upgrade harnify")]
-    assert stdout.getvalue() == "Updated packages\nUpdated harnify\n"
+    assert self_update_calls == [("uv", "uv tool upgrade harn")]
+    assert stdout.getvalue() == "Updated packages\nUpdated harn\n"
     assert stderr.getvalue() == ""
 
 
@@ -650,9 +650,9 @@ async def test_handle_package_command_update_self_failure_prints_fallback(
     agent_dir.mkdir()
     monkeypatch.chdir(project)
     monkeypatch.setenv(f"{APP_NAME.upper()}_CODING_AGENT_DIR", str(agent_dir))
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: SettingsManager.inMemory())
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.SettingsManager.create", lambda *_args: SettingsManager.inMemory())
     monkeypatch.setattr(
-        "harnify_coding_agent.package_manager_cli.get_latest_harnify_release",
+        "harn_coding_agent.package_manager_cli.get_latest_harn_release",
         lambda _version: _return_latest_release(None),
     )
 
@@ -668,16 +668,16 @@ async def test_handle_package_command_update_self_failure_prints_fallback(
         def setProgressCallback(self, _callback) -> None:
             return None
 
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli.DefaultPackageManager", FakePackageManager)
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli.DefaultPackageManager", FakePackageManager)
     monkeypatch.setattr(
-        "harnify_coding_agent.package_manager_cli.get_self_update_command",
-        lambda *_args, **_kwargs: SimpleNamespace(command="uv", args=("tool", "upgrade"), display="uv tool upgrade harnify", steps=None),
+        "harn_coding_agent.package_manager_cli.get_self_update_command",
+        lambda *_args, **_kwargs: SimpleNamespace(command="uv", args=("tool", "upgrade"), display="uv tool upgrade harn", steps=None),
     )
 
     async def fake_run_self_update(_command) -> None:
         raise RuntimeError("boom")
 
-    monkeypatch.setattr("harnify_coding_agent.package_manager_cli._run_self_update", fake_run_self_update)
+    monkeypatch.setattr("harn_coding_agent.package_manager_cli._run_self_update", fake_run_self_update)
 
     handled = await handle_package_command(["update", "--self"])
 
@@ -685,7 +685,7 @@ async def test_handle_package_command_update_self_failure_prints_fallback(
     assert package_manager_cli_module._take_command_exit_code() == 1
     assert stdout.getvalue() == ""
     assert "Error: boom" in stderr.getvalue()
-    assert "If this keeps failing, run this command yourself: uv tool upgrade harnify" in stderr.getvalue()
+    assert "If this keeps failing, run this command yourself: uv tool upgrade harn" in stderr.getvalue()
 
 
 @pytest.mark.asyncio
@@ -697,7 +697,7 @@ async def test_prompt_for_missing_session_cwd_returns_fallback_and_sets_keybindi
     bound_keybindings: list[object] = []
     sentinel_keybindings = object()
 
-    monkeypatch.setattr("harnify_coding_agent.main.init_theme", lambda name, enable=False: init_calls.append((name, enable)))
+    monkeypatch.setattr("harn_coding_agent.main.init_theme", lambda name, enable=False: init_calls.append((name, enable)))
 
     result = await prompt_for_missing_session_cwd(
         SessionCwdIssue(sessionCwd="/missing/project", fallbackCwd="/tmp/project", sessionFile="/tmp/session.jsonl"),

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from harnify_tui.components.editor import segmentWithMarkers, wordWrapLine
-from harnify_tui.utils import visibleWidth
+from harn_tui.components.editor import segmentWithMarkers, wordWrapLine
+from harn_tui.utils import visibleWidth
 
 
 def test_word_wrap_line_wraps_at_word_boundaries() -> None:

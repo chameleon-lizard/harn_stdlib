@@ -18,7 +18,7 @@ build/
 
 # Session logs
 pi-session-*.html
-harnify-session-*.html
+harn-session-*.html
 
 # Beads / Dolt files (added by bd init)
 .dolt/

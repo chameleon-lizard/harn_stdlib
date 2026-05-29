@@ -4,28 +4,28 @@ import asyncio
 import re
 
 import pytest
-from harnify_ai.utils.oauth import OAuthDeviceCodeInfo
-from harnify_coding_agent.core.auth_storage import AuthStorage
-from harnify_coding_agent.core.keybindings import KeybindingsManager
-from harnify_coding_agent.core.model_registry import ModelRegistry
-from harnify_coding_agent.core.settings_manager import SettingsManager
-from harnify_coding_agent.modes.interactive.components.login_dialog import LoginDialogComponent
-import harnify_coding_agent.modes.interactive.components.login_dialog as login_dialog_module
-import harnify_coding_agent.modes.interactive.components.model_selector as model_selector_module
-from harnify_coding_agent.modes.interactive.components.model_selector import ModelSelectorComponent, ScopedModelItem
-from harnify_coding_agent.modes.interactive.components.oauth_selector import (
+from harn_ai.utils.oauth import OAuthDeviceCodeInfo
+from harn_coding_agent.core.auth_storage import AuthStorage
+from harn_coding_agent.core.keybindings import KeybindingsManager
+from harn_coding_agent.core.model_registry import ModelRegistry
+from harn_coding_agent.core.settings_manager import SettingsManager
+from harn_coding_agent.modes.interactive.components.login_dialog import LoginDialogComponent
+import harn_coding_agent.modes.interactive.components.login_dialog as login_dialog_module
+import harn_coding_agent.modes.interactive.components.model_selector as model_selector_module
+from harn_coding_agent.modes.interactive.components.model_selector import ModelSelectorComponent, ScopedModelItem
+from harn_coding_agent.modes.interactive.components.oauth_selector import (
     AuthSelectorProvider,
     OAuthSelectorComponent,
 )
-import harnify_coding_agent.modes.interactive.components.oauth_selector as oauth_selector_module
-from harnify_coding_agent.modes.interactive.components.scoped_models_selector import (
+import harn_coding_agent.modes.interactive.components.oauth_selector as oauth_selector_module
+from harn_coding_agent.modes.interactive.components.scoped_models_selector import (
     ModelsCallbacks,
     ModelsConfig,
     ScopedModelsSelectorComponent,
 )
-import harnify_coding_agent.modes.interactive.components.scoped_models_selector as scoped_models_selector_module
-from harnify_coding_agent.modes.interactive.theme.theme import init_theme
-from harnify_tui import setKeybindings
+import harn_coding_agent.modes.interactive.components.scoped_models_selector as scoped_models_selector_module
+from harn_coding_agent.modes.interactive.theme.theme import init_theme
+from harn_tui import setKeybindings
 
 _ANSI_RE = re.compile(r"\x1b(?:\[[0-9;]*m|\]8;;.*?\x07)", re.DOTALL)
 

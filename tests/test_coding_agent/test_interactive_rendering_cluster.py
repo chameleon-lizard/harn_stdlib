@@ -6,32 +6,32 @@ import re
 from types import SimpleNamespace
 
 import pytest
-from harnify_agent.types import AgentToolResult
-from harnify_ai.types import AssistantMessage, TextContent, ToolCall, Usage, UsageCost
-from harnify_coding_agent.core.extensions.types import ToolDefinition
-from harnify_coding_agent.core.tools.edit_diff import EditDiffResult
-from harnify_coding_agent.core.keybindings import KeybindingsManager
-from harnify_coding_agent.core.tools.truncate import TruncationResult
-from harnify_coding_agent.modes.interactive.components import (
+from harn_agent.types import AgentToolResult
+from harn_ai.types import AssistantMessage, TextContent, ToolCall, Usage, UsageCost
+from harn_coding_agent.core.extensions.types import ToolDefinition
+from harn_coding_agent.core.tools.edit_diff import EditDiffResult
+from harn_coding_agent.core.keybindings import KeybindingsManager
+from harn_coding_agent.core.tools.truncate import TruncationResult
+from harn_coding_agent.modes.interactive.components import (
     AssistantMessageComponent,
     BashExecutionComponent,
     ToolExecutionComponent,
     UserMessageComponent,
     truncateToVisualLines,
 )
-import harnify_coding_agent.modes.interactive.components.assistant_message as assistant_message_module
-import harnify_coding_agent.modes.interactive.components.bash_execution as bash_execution_module
-import harnify_coding_agent.modes.interactive.components.tool_execution as tool_execution_module
-import harnify_coding_agent.modes.interactive.components.user_message as user_message_module
-import harnify_coding_agent.modes.interactive.components.visual_truncate as visual_truncate_module
-from harnify_tui import Text, setKeybindings, visibleWidth
+import harn_coding_agent.modes.interactive.components.assistant_message as assistant_message_module
+import harn_coding_agent.modes.interactive.components.bash_execution as bash_execution_module
+import harn_coding_agent.modes.interactive.components.tool_execution as tool_execution_module
+import harn_coding_agent.modes.interactive.components.user_message as user_message_module
+import harn_coding_agent.modes.interactive.components.visual_truncate as visual_truncate_module
+from harn_tui import Text, setKeybindings, visibleWidth
 
 OSC133_ZONE_START = "\x1b]133;A\x07"
 OSC133_ZONE_END = "\x1b]133;B\x07"
 OSC133_ZONE_FINAL = "\x1b]133;C\x07"
 BG_RESET = "\x1b[49m"
 _ANSI_RE = re.compile(r"\x1b(?:\[[0-9;]*m|\]8;;.*?\x07)", re.DOTALL)
-interactive_theme_module = importlib.import_module("harnify_coding_agent.modes.interactive.theme.theme")
+interactive_theme_module = importlib.import_module("harn_coding_agent.modes.interactive.theme.theme")
 
 
 def _strip_ansi(text: str) -> str:
@@ -397,7 +397,7 @@ async def test_tool_execution_edit_result_dedupes_preview_diff(tmp_path, monkeyp
         return preview
 
     monkeypatch.setattr(
-        "harnify_coding_agent.core.tools.edit.compute_edits_diff",
+        "harn_coding_agent.core.tools.edit.compute_edits_diff",
         fake_compute_edits_diff,
     )
 

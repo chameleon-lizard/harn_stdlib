@@ -4,11 +4,11 @@ import asyncio
 
 import pytest
 
-import harnify_ai.utils.event_stream as event_stream_utils
-import harnify_ai.utils.json_parse as json_parse_utils
-from harnify_ai.types import validate_assistant_message_event
-from harnify_ai.utils.event_stream import AssistantMessageEventStream, EventStream
-from harnify_ai.utils.json_parse import parse_json_with_repair, parse_streaming_json
+import harn_ai.utils.event_stream as event_stream_utils
+import harn_ai.utils.json_parse as json_parse_utils
+from harn_ai.types import validate_assistant_message_event
+from harn_ai.utils.event_stream import AssistantMessageEventStream, EventStream
+from harn_ai.utils.json_parse import parse_json_with_repair, parse_streaming_json
 
 
 def _assistant_message_payload(stop_reason: str = "stop") -> dict[str, object]:

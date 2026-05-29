@@ -5,10 +5,10 @@ import json
 from pathlib import Path
 
 import pytest
-from harnify_ai.utils.oauth import registerOAuthProvider, resetOAuthProviders
-from harnify_ai.utils.oauth.types import OAuthCredentials
-from harnify_coding_agent.core.auth_storage import AuthStorage, FileAuthStorageBackend, InMemoryAuthStorageBackend
-from harnify_coding_agent.core.resolve_config_value import clearConfigValueCache
+from harn_ai.utils.oauth import registerOAuthProvider, resetOAuthProviders
+from harn_ai.utils.oauth.types import OAuthCredentials
+from harn_coding_agent.core.auth_storage import AuthStorage, FileAuthStorageBackend, InMemoryAuthStorageBackend
+from harn_coding_agent.core.resolve_config_value import clearConfigValueCache
 
 
 @pytest.fixture(autouse=True)
@@ -196,7 +196,7 @@ async def test_async_lock_compromise_raises_matching_error(tmp_path: Path, monke
 
     async def read_only(_current: str | None):
         await asyncio.sleep(0)
-        from harnify_coding_agent.core.auth_storage import LockResult
+        from harn_coding_agent.core.auth_storage import LockResult
 
         return LockResult(result="ok")
 
@@ -267,7 +267,7 @@ async def test_refresh_failure_returns_none_then_allows_later_retry(monkeypatch:
 
 @pytest.mark.asyncio
 async def test_public_exports_match_ts_surface() -> None:
-    from harnify_coding_agent.core import auth_storage
+    from harn_coding_agent.core import auth_storage
 
     assert auth_storage.__all__ == [
         "ApiKeyCredential",

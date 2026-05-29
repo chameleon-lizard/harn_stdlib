@@ -6,15 +6,15 @@ from typing import Any
 
 import pytest
 
-import harnify_ai.providers.google as google_provider
-from harnify_ai.providers.google import (
+import harn_ai.providers.google as google_provider
+from harn_ai.providers.google import (
     build_params,
     is_gemini3_flash_model,
     is_gemini3_pro_model,
     stream_google,
     stream_simple_google,
 )
-from harnify_ai.types import Context, Model, ModelCost, SimpleStreamOptions, ThinkingBudgets
+from harn_ai.types import Context, Model, ModelCost, SimpleStreamOptions, ThinkingBudgets
 
 
 @dataclass(slots=True)
@@ -222,7 +222,7 @@ async def test_stream_simple_google_uses_thinking_level_for_gemini3(monkeypatch:
         nonlocal captured_payload
         captured_payload = payload
 
-    monkeypatch.setattr("harnify_ai.providers.google.create_client", fake_create_client)
+    monkeypatch.setattr("harn_ai.providers.google.create_client", fake_create_client)
 
     result = await stream_simple_google(
         _make_model("gemini-3-flash-preview"),
@@ -257,7 +257,7 @@ async def test_stream_simple_google_uses_custom_budget_for_gemini25(monkeypatch:
         nonlocal captured_payload
         captured_payload = payload
 
-    monkeypatch.setattr("harnify_ai.providers.google.create_client", fake_create_client)
+    monkeypatch.setattr("harn_ai.providers.google.create_client", fake_create_client)
 
     result = await stream_simple_google(
         _make_model("gemini-2.5-flash"),

@@ -5,7 +5,7 @@ import textwrap
 from pathlib import Path
 
 import pytest
-from harnify_coding_agent.core.tools import (
+from harn_coding_agent.core.tools import (
     GREP_MAX_LINE_LENGTH,
     create_find_tool,
     create_find_tool_definition,
@@ -15,9 +15,9 @@ from harnify_coding_agent.core.tools import (
     create_ls_tool_definition,
     get_text_output,
 )
-from harnify_coding_agent.core.tools import find as find_module
-from harnify_coding_agent.core.tools import grep as grep_module
-from harnify_coding_agent.core.tools import ls as ls_module
+from harn_coding_agent.core.tools import find as find_module
+from harn_coding_agent.core.tools import grep as grep_module
+from harn_coding_agent.core.tools import ls as ls_module
 
 
 def _text(result: object) -> str:
@@ -40,7 +40,7 @@ def _patch_find_ensure_tool(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
             import os
             import sys
 
-            from harnify_coding_agent.core.tools.find import _glob_files
+            from harn_coding_agent.core.tools.find import _glob_files
 
 
             def main(argv: list[str]) -> int:
@@ -84,7 +84,7 @@ def _patch_find_ensure_tool(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
         assert silent is True
         return str(fd_script)
 
-    monkeypatch.setattr("harnify_coding_agent.core.tools.find.ensure_tool", fake_ensure_tool)
+    monkeypatch.setattr("harn_coding_agent.core.tools.find.ensure_tool", fake_ensure_tool)
 
 
 def test_find_tool_definition_surface_matches_ts(tmp_path: Path) -> None:

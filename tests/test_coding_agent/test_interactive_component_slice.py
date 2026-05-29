@@ -7,82 +7,82 @@ import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from harnify_coding_agent.core.keybindings import KeybindingsManager
-from harnify_coding_agent.core.session_manager import SessionInfo
-from harnify_coding_agent.modes.interactive.components.countdown_timer import CountdownTimer
-from harnify_coding_agent.modes.interactive.components.daxnuts import DaxnutsComponent
-from harnify_coding_agent.modes.interactive.components.dynamic_border import DynamicBorder
-from harnify_coding_agent.modes.interactive.components.earendil_announcement import (
+from harn_coding_agent.core.keybindings import KeybindingsManager
+from harn_coding_agent.core.session_manager import SessionInfo
+from harn_coding_agent.modes.interactive.components.countdown_timer import CountdownTimer
+from harn_coding_agent.modes.interactive.components.daxnuts import DaxnutsComponent
+from harn_coding_agent.modes.interactive.components.dynamic_border import DynamicBorder
+from harn_coding_agent.modes.interactive.components.earendil_announcement import (
     EarendilAnnouncementComponent,
 )
-from harnify_coding_agent.modes.interactive.components.extension_editor import (
+from harn_coding_agent.modes.interactive.components.extension_editor import (
     ExtensionEditorComponent,
 )
-from harnify_coding_agent.modes.interactive.components.extension_input import (
+from harn_coding_agent.modes.interactive.components.extension_input import (
     ExtensionInputComponent,
 )
-from harnify_coding_agent.modes.interactive.components.extension_selector import (
+from harn_coding_agent.modes.interactive.components.extension_selector import (
     ExtensionSelectorComponent,
 )
-from harnify_coding_agent.modes.interactive.components.keybinding_hints import (
+from harn_coding_agent.modes.interactive.components.keybinding_hints import (
     KeyTextFormatOptions,
     formatKeyText,
     keyDisplayText,
     keyText,
     rawKeyHint,
 )
-from harnify_coding_agent.modes.interactive.components.session_selector_search import (
+from harn_coding_agent.modes.interactive.components.session_selector_search import (
     filterAndSortSessions,
     hasSessionName,
     parseSearchQuery,
 )
-from harnify_coding_agent.modes.interactive.components.show_images_selector import ShowImagesSelectorComponent
-from harnify_coding_agent.modes.interactive.components.theme_selector import ThemeSelectorComponent
-from harnify_coding_agent.modes.interactive.components.thinking_selector import ThinkingSelectorComponent
-from harnify_coding_agent.modes.interactive.components.user_message_selector import (
+from harn_coding_agent.modes.interactive.components.show_images_selector import ShowImagesSelectorComponent
+from harn_coding_agent.modes.interactive.components.theme_selector import ThemeSelectorComponent
+from harn_coding_agent.modes.interactive.components.thinking_selector import ThinkingSelectorComponent
+from harn_coding_agent.modes.interactive.components.user_message_selector import (
     UserMessageItem,
     UserMessageSelectorComponent,
 )
-from harnify_tui import setKeybindings
+from harn_tui import setKeybindings
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
-interactive_theme_module = importlib.import_module("harnify_coding_agent.modes.interactive.theme.theme")
+interactive_theme_module = importlib.import_module("harn_coding_agent.modes.interactive.theme.theme")
 countdown_timer_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.countdown_timer"
+    "harn_coding_agent.modes.interactive.components.countdown_timer"
 )
-daxnuts_module = importlib.import_module("harnify_coding_agent.modes.interactive.components.daxnuts")
+daxnuts_module = importlib.import_module("harn_coding_agent.modes.interactive.components.daxnuts")
 dynamic_border_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.dynamic_border"
+    "harn_coding_agent.modes.interactive.components.dynamic_border"
 )
 earendil_announcement_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.earendil_announcement"
+    "harn_coding_agent.modes.interactive.components.earendil_announcement"
 )
 extension_editor_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.extension_editor"
+    "harn_coding_agent.modes.interactive.components.extension_editor"
 )
 extension_input_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.extension_input"
+    "harn_coding_agent.modes.interactive.components.extension_input"
 )
 extension_selector_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.extension_selector"
+    "harn_coding_agent.modes.interactive.components.extension_selector"
 )
 keybinding_hints_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.keybinding_hints"
+    "harn_coding_agent.modes.interactive.components.keybinding_hints"
 )
 session_selector_search_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.session_selector_search"
+    "harn_coding_agent.modes.interactive.components.session_selector_search"
 )
 show_images_selector_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.show_images_selector"
+    "harn_coding_agent.modes.interactive.components.show_images_selector"
 )
 theme_selector_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.theme_selector"
+    "harn_coding_agent.modes.interactive.components.theme_selector"
 )
 thinking_selector_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.thinking_selector"
+    "harn_coding_agent.modes.interactive.components.thinking_selector"
 )
 user_message_selector_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.user_message_selector"
+    "harn_coding_agent.modes.interactive.components.user_message_selector"
 )
 
 
@@ -395,7 +395,7 @@ def test_earendil_announcement_renders_banner_without_image(monkeypatch) -> None
 
     rendered = _strip_ansi("\n".join(component.render(80)))
 
-    assert "harnify has joined Earendil" in rendered
+    assert "harn has joined Earendil" in rendered
     assert "Read the blog post:" in rendered
     assert "https://mariozechner.at/posts/2026-04-08-ive-sold-out/" in rendered
 

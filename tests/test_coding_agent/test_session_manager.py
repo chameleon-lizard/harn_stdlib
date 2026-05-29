@@ -7,13 +7,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from harnify_coding_agent.core import session_cwd as session_cwd_module
-from harnify_coding_agent.core import session_manager as session_manager_module
-from harnify_coding_agent.core.session_cwd import (
+from harn_coding_agent.core import session_cwd as session_cwd_module
+from harn_coding_agent.core import session_manager as session_manager_module
+from harn_coding_agent.core.session_cwd import (
     MissingSessionCwdError,
     getMissingSessionCwdIssue,
 )
-from harnify_coding_agent.core.session_manager import (
+from harn_coding_agent.core.session_manager import (
     SessionInfo,
     SessionManager,
     buildSessionContext,
@@ -88,7 +88,7 @@ def test_missing_session_cwd_error_contains_paths(tmp_path: Path) -> None:
     session.sessionFile = str(tmp_path / "session.jsonl")
 
     with pytest.raises(MissingSessionCwdError) as excinfo:
-        from harnify_coding_agent.core.session_cwd import assertSessionCwdExists
+        from harn_coding_agent.core.session_cwd import assertSessionCwdExists
 
         assertSessionCwdExists(session, str(fallback_cwd))
 

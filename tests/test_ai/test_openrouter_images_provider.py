@@ -6,8 +6,8 @@ from typing import Any
 
 import pytest
 
-import harnify_ai.providers.images.openrouter as openrouter
-from harnify_ai.types import ImagesContext, ImagesModel, ImagesOptions, ModelCost
+import harn_ai.providers.images.openrouter as openrouter
+from harn_ai.types import ImagesContext, ImagesModel, ImagesOptions, ModelCost
 
 
 class _FakeWithRawResponse:

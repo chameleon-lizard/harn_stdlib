@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from harnify_ai.api_registry import clear_api_providers, get_api_providers
-from harnify_ai.models import get_model
-import harnify_ai.providers.register_builtins as register_builtins
-from harnify_ai.providers.register_builtins import LazyProviderModule, register_built_in_api_providers
-from harnify_ai.types import Context
-from harnify_ai.utils.event_stream import AssistantMessageEventStream
+from harn_ai.api_registry import clear_api_providers, get_api_providers
+from harn_ai.models import get_model
+import harn_ai.providers.register_builtins as register_builtins
+from harn_ai.providers.register_builtins import LazyProviderModule, register_built_in_api_providers
+from harn_ai.types import Context
+from harn_ai.utils.event_stream import AssistantMessageEventStream
 
 
 def _model():

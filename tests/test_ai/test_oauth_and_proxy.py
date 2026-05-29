@@ -8,13 +8,13 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-import harnify_ai
-import harnify_ai.oauth as oauth_alias
-import harnify_ai.utils.oauth as oauth_registry
-import harnify_ai.utils.oauth.types as oauth_types
-from harnify_ai.utils import node_http_proxy
-from harnify_ai.utils.oauth import anthropic, device_code, github_copilot, oauth_page, openai_codex
-from harnify_ai.utils.oauth.types import OAuthCredentials
+import harn_ai
+import harn_ai.oauth as oauth_alias
+import harn_ai.utils.oauth as oauth_registry
+import harn_ai.utils.oauth.types as oauth_types
+from harn_ai.utils import node_http_proxy
+from harn_ai.utils.oauth import anthropic, device_code, github_copilot, oauth_page, openai_codex
+from harn_ai.utils.oauth.types import OAuthCredentials
 
 
 def _encode_jwt(payload: dict[str, object]) -> str:
@@ -470,10 +470,10 @@ async def test_oauth_registry_refreshes_expired_custom_credentials() -> None:
 
 
 def test_package_exports_include_oauth_helpers_and_event_streams() -> None:
-    assert hasattr(harnify_ai, "OAuthPrompt")
-    assert hasattr(harnify_ai, "OAuthDeviceCodeInfo")
-    assert hasattr(harnify_ai, "AssistantMessageEventStream")
-    assert not hasattr(harnify_ai, "pollOAuthDeviceCodeFlow")
+    assert hasattr(harn_ai, "OAuthPrompt")
+    assert hasattr(harn_ai, "OAuthDeviceCodeInfo")
+    assert hasattr(harn_ai, "AssistantMessageEventStream")
+    assert not hasattr(harn_ai, "pollOAuthDeviceCodeFlow")
     assert hasattr(oauth_alias, "getOAuthProvider")
     assert hasattr(oauth_alias, "OAuthDeviceCodePollResult")
 

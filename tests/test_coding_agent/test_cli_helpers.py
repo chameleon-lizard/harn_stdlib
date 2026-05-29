@@ -4,26 +4,26 @@ import io
 from pathlib import Path
 
 import pytest
-from harnify_ai.types import Model
-import harnify_coding_agent.cli.file_processor as file_processor_module
-import harnify_coding_agent.cli.initial_message as initial_message_module
-import harnify_coding_agent.cli.list_models as list_models_module
-import harnify_coding_agent.main as main_module
-from harnify_coding_agent.cli.args import parse_args, print_help
-from harnify_coding_agent.cli.file_processor import process_file_arguments
-from harnify_coding_agent.cli.initial_message import build_initial_message
-from harnify_coding_agent.cli.list_models import list_models
-from harnify_coding_agent.config import (
+from harn_ai.types import Model
+import harn_coding_agent.cli.file_processor as file_processor_module
+import harn_coding_agent.cli.initial_message as initial_message_module
+import harn_coding_agent.cli.list_models as list_models_module
+import harn_coding_agent.main as main_module
+from harn_coding_agent.cli.args import parse_args, print_help
+from harn_coding_agent.cli.file_processor import process_file_arguments
+from harn_coding_agent.cli.initial_message import build_initial_message
+from harn_coding_agent.cli.list_models import list_models
+from harn_coding_agent.config import (
     APP_NAME,
     VERSION,
     get_bundled_interactive_asset_path,
     get_export_template_dir,
     get_themes_dir,
 )
-from harnify_coding_agent.core.extensions.types import ExtensionFlag
-from harnify_coding_agent.core.session_manager import SessionManager
-from harnify_coding_agent.core.settings_manager import SettingsManager
-from harnify_coding_agent.main import (
+from harn_coding_agent.core.extensions.types import ExtensionFlag
+from harn_coding_agent.core.session_manager import SessionManager
+from harn_coding_agent.core.settings_manager import SettingsManager
+from harn_coding_agent.main import (
     build_session_options,
     create_session_manager,
     main,
@@ -107,7 +107,7 @@ def test_print_help_includes_extension_flags() -> None:
 
 
 def test_args_module_exports_match_ts_surface() -> None:
-    from harnify_coding_agent.cli import args as args_module
+    from harn_coding_agent.cli import args as args_module
 
     assert args_module.__all__ == [
         "Args",
@@ -390,8 +390,8 @@ async def test_create_session_manager_resume_initializes_theme_and_stops_watcher
     settings = SettingsManager.inMemory({"theme": "light"})
     calls: list[tuple[str, object]] = []
 
-    monkeypatch.setattr("harnify_coding_agent.main.init_theme", lambda name, enable=False: calls.append(("init", (name, enable))))
-    monkeypatch.setattr("harnify_coding_agent.main.stop_theme_watcher", lambda: calls.append(("stop", None)))
+    monkeypatch.setattr("harn_coding_agent.main.init_theme", lambda name, enable=False: calls.append(("init", (name, enable))))
+    monkeypatch.setattr("harn_coding_agent.main.stop_theme_watcher", lambda: calls.append(("stop", None)))
 
     selected = await create_session_manager(
         parse_args(["--resume"]),
@@ -517,8 +517,8 @@ async def test_main_help_includes_runtime_extension_flags(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("sys.stdin", type("TTY", (), {"isatty": lambda self: True})())
 
-    async def extension_factory(harnify: object) -> None:
-        harnify.registerFlag(  # type: ignore[attr-defined]
+    async def extension_factory(harn: object) -> None:
+        harn.registerFlag(  # type: ignore[attr-defined]
             "demo-flag",
             {
                 "type": "string",

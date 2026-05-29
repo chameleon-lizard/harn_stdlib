@@ -6,18 +6,18 @@ import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from harnify_coding_agent.core.keybindings import KeybindingsManager
-from harnify_coding_agent.core.session_manager import SessionInfo
-from harnify_coding_agent.modes.interactive.components.session_selector import (
+from harn_coding_agent.core.keybindings import KeybindingsManager
+from harn_coding_agent.core.session_manager import SessionInfo
+from harn_coding_agent.modes.interactive.components.session_selector import (
     SessionList,
     SessionSelectorComponent,
 )
-from harnify_coding_agent.modes.interactive.theme.theme import init_theme
-from harnify_tui import setKeybindings
+from harn_coding_agent.modes.interactive.theme.theme import init_theme
+from harn_tui import setKeybindings
 
 _ANSI_RE = re.compile(r"\x1b(?:\[[0-9;]*m|\]8;;.*?\x07)", re.DOTALL)
 session_selector_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.session_selector"
+    "harn_coding_agent.modes.interactive.components.session_selector"
 )
 
 

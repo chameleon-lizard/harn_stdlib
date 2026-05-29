@@ -6,15 +6,15 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from harnify_agent import AgentTool, AgentToolResult
-from harnify_agent.harness.agent_harness import AgentHarness
-from harnify_agent.harness.env.local import NodeExecutionEnv
-from harnify_agent.harness.session.jsonl_storage import JsonlSessionStorage
-from harnify_agent.harness.session.memory_storage import InMemorySessionStorage
-from harnify_agent.harness.session.session import Session
-from harnify_agent.harness.types import PromptTemplate, Skill
-from harnify_ai.providers.faux import faux_assistant_message, faux_tool_call, register_faux_provider
-from harnify_ai.types import TextContent
+from harn_agent import AgentTool, AgentToolResult
+from harn_agent.harness.agent_harness import AgentHarness
+from harn_agent.harness.env.local import NodeExecutionEnv
+from harn_agent.harness.session.jsonl_storage import JsonlSessionStorage
+from harn_agent.harness.session.memory_storage import InMemorySessionStorage
+from harn_agent.harness.session.session import Session
+from harn_agent.harness.types import PromptTemplate, Skill
+from harn_ai.providers.faux import faux_assistant_message, faux_tool_call, register_faux_provider
+from harn_ai.types import TextContent
 
 TOOL_SCHEMA = {
     "type": "object",

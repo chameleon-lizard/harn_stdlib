@@ -6,8 +6,8 @@ from typing import Any
 
 import pytest
 
-import harnify_ai.providers.mistral as mistral_provider
-from harnify_ai.types import AssistantMessage, Context, Model, ModelCost, SimpleStreamOptions, Tool, ToolResultMessage, Usage, UsageCost
+import harn_ai.providers.mistral as mistral_provider
+from harn_ai.types import AssistantMessage, Context, Model, ModelCost, SimpleStreamOptions, Tool, ToolResultMessage, Usage, UsageCost
 
 
 @dataclass(slots=True)

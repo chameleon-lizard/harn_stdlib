@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from harnify_tui import editor_component as editor_component_module
-from harnify_tui import kill_ring as kill_ring_module
-from harnify_tui.kill_ring import KillRing
-from harnify_tui.undo_stack import UndoStack
-from harnify_tui.utils import getSegmenter
+from harn_tui import editor_component as editor_component_module
+from harn_tui import kill_ring as kill_ring_module
+from harn_tui.kill_ring import KillRing
+from harn_tui.undo_stack import UndoStack
+from harn_tui.utils import getSegmenter
 
 
 def test_segmenter_keeps_combining_marks_and_emoji_atomic() -> None:

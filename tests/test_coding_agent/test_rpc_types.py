@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import get_args
 
-from harnify_ai.types import ModelCost
-from harnify_coding_agent.core.bash_executor import BashResult
-from harnify_coding_agent.core.source_info import SourceInfo
-from harnify_coding_agent.modes.rpc.rpc_types import (
+from harn_ai.types import ModelCost
+from harn_coding_agent.core.bash_executor import BashResult
+from harn_coding_agent.core.source_info import SourceInfo
+from harn_coding_agent.modes.rpc.rpc_types import (
     RpcAbortCommand,
     RpcBashResponse,
     RpcCommandType,

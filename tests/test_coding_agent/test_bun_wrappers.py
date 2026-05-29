@@ -3,8 +3,8 @@ from __future__ import annotations
 import importlib
 import sys
 
-from harnify_coding_agent.bun import cli as bun_cli
-from harnify_coding_agent.bun import register_bedrock, restore_sandbox_env
+from harn_coding_agent.bun import cli as bun_cli
+from harn_coding_agent.bun import register_bedrock, restore_sandbox_env
 
 
 def test_restore_sandbox_env_recovers_proc_environ_when_environment_is_empty(monkeypatch) -> None:
@@ -55,7 +55,7 @@ def test_bun_cli_main_runs_wrapper_steps_before_delegating(monkeypatch) -> None:
     monkeypatch.setattr(bun_cli, "_load_cli_main", lambda: fake_cli_main)
     assert bun_cli.main(["--demo"]) == 23
     assert seen == {
-        "title": "harnify",
+        "title": "harn",
         "warnings": True,
         "restored": True,
         "registered": True,

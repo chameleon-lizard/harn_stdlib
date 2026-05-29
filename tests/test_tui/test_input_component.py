@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import harnify_tui.components.input as input_module
-from harnify_tui.components.input import Input
-from harnify_tui.utils import visibleWidth
+import harn_tui.components.input as input_module
+from harn_tui.components.input import Input
+from harn_tui.utils import visibleWidth
 
 
 def _type_text(input_component: Input, text: str) -> None:

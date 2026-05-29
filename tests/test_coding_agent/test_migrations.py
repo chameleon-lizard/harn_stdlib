@@ -4,9 +4,9 @@ import json
 from pathlib import Path
 
 import pytest
-import harnify_coding_agent.migrations as migrations_module
-from harnify_coding_agent.config import APP_NAME
-from harnify_coding_agent.migrations import (
+import harn_coding_agent.migrations as migrations_module
+from harn_coding_agent.config import APP_NAME
+from harn_coding_agent.migrations import (
     migrate_auth_to_auth_json,
     migrate_commands_to_prompts,
     migrate_sessions_from_agent_root,
@@ -78,7 +78,7 @@ def test_run_migrations_collects_deprecation_warnings(tmp_path: Path, monkeypatc
     monkeypatch.setenv(f"{APP_NAME.upper()}_CODING_AGENT_DIR", str(tmp_path / "agent"))
     agent_dir = tmp_path / "agent"
     (agent_dir / "hooks").mkdir(parents=True)
-    project_config = tmp_path / ".harnify" / "tools"
+    project_config = tmp_path / ".harn" / "tools"
     project_config.mkdir(parents=True)
     (project_config / "custom.sh").write_text("echo hi", encoding="utf-8")
 

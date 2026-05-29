@@ -4,10 +4,10 @@ import asyncio
 from pathlib import Path
 
 import pytest
-from harnify_agent import AbortController
-from harnify_agent.harness.env.local import NodeExecutionEnv
-from harnify_agent.harness.types import FileError, getOrThrow
-from harnify_agent.harness.utils.shell_output import execute_shell_with_capture, sanitize_binary_output
+from harn_agent import AbortController
+from harn_agent.harness.env.local import NodeExecutionEnv
+from harn_agent.harness.types import FileError, getOrThrow
+from harn_agent.harness.utils.shell_output import execute_shell_with_capture, sanitize_binary_output
 
 
 @pytest.mark.asyncio

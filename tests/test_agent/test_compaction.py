@@ -4,13 +4,13 @@ import time
 from typing import Any
 
 import pytest
-from harnify_agent.harness.compaction.branch_summarization import (
+from harn_agent.harness.compaction.branch_summarization import (
     BRANCH_SUMMARY_PREAMBLE,
     collect_entries_for_branch_summary,
     generate_branch_summary,
     prepare_branch_entries,
 )
-from harnify_agent.harness.compaction.compaction import (
+from harn_agent.harness.compaction.compaction import (
     DEFAULT_COMPACTION_SETTINGS,
     calculate_context_tokens,
     compact,
@@ -24,17 +24,17 @@ from harnify_agent.harness.compaction.compaction import (
     serialize_conversation,
     should_compact,
 )
-from harnify_agent.harness.session.memory_storage import InMemorySessionStorage
-from harnify_agent.harness.session.session import Session, build_session_context
-from harnify_agent.harness.types import (
+from harn_agent.harness.session.memory_storage import InMemorySessionStorage
+from harn_agent.harness.session.session import Session, build_session_context
+from harn_agent.harness.types import (
     CompactionPreparation,
     CompactionSettings,
     FileOperations,
     GenerateBranchSummaryOptions,
     get_or_throw,
 )
-from harnify_ai.providers.faux import faux_assistant_message, register_faux_provider
-from harnify_ai.types import AssistantMessage, Model, TextContent, ToolCall, ToolResultMessage, Usage, UserMessage
+from harn_ai.providers.faux import faux_assistant_message, register_faux_provider
+from harn_ai.types import AssistantMessage, Model, TextContent, ToolCall, ToolResultMessage, Usage, UserMessage
 
 
 def create_id() -> str:

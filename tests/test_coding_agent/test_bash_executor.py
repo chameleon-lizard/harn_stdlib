@@ -3,8 +3,8 @@ from __future__ import annotations
 import os
 
 import pytest
-from harnify_coding_agent.core import bash_executor
-from harnify_coding_agent.core.tools import truncate as truncate_module
+from harn_coding_agent.core import bash_executor
+from harn_coding_agent.core.tools import truncate as truncate_module
 
 
 @pytest.mark.asyncio

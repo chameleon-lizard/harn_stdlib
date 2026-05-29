@@ -7,15 +7,15 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from harnify_agent.harness.session import uuid as session_uuid
-from harnify_agent.harness.session.jsonl_repo import JsonlSessionRepo
-from harnify_agent.harness.session.jsonl_storage import JsonlSessionStorage, load_jsonl_session_metadata
-from harnify_agent.harness.session.memory_repo import InMemorySessionRepo
-from harnify_agent.harness.session.memory_storage import InMemorySessionStorage
-from harnify_agent.harness.session.repo_utils import create_timestamp
-from harnify_agent.harness.session.session import Session, build_session_context
-from harnify_agent.harness.types import FileError, FileInfo, SessionError, err, ok
-from harnify_ai.types import TextContent
+from harn_agent.harness.session import uuid as session_uuid
+from harn_agent.harness.session.jsonl_repo import JsonlSessionRepo
+from harn_agent.harness.session.jsonl_storage import JsonlSessionStorage, load_jsonl_session_metadata
+from harn_agent.harness.session.memory_repo import InMemorySessionRepo
+from harn_agent.harness.session.memory_storage import InMemorySessionStorage
+from harn_agent.harness.session.repo_utils import create_timestamp
+from harn_agent.harness.session.session import Session, build_session_context
+from harn_agent.harness.types import FileError, FileInfo, SessionError, err, ok
+from harn_ai.types import TextContent
 
 
 class PathExecutionEnv:

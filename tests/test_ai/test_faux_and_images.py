@@ -4,15 +4,15 @@ from types import SimpleNamespace
 
 import pytest
 
-import harnify_ai.providers.faux as faux_provider
-import harnify_ai.utils.oauth.pkce as pkce_module
-from harnify_ai.image_models import get_image_model, get_image_providers
-from harnify_ai.images import generate_images
-from harnify_ai.providers.faux import faux_assistant_message, faux_text, faux_thinking, register_faux_provider
-from harnify_ai.providers.images import register_builtins as image_register_builtins
-from harnify_ai.stream import complete_simple
-from harnify_ai.types import AssistantImages, Context, Tool
-from harnify_ai.utils.oauth.pkce import generate_pkce
+import harn_ai.providers.faux as faux_provider
+import harn_ai.utils.oauth.pkce as pkce_module
+from harn_ai.image_models import get_image_model, get_image_providers
+from harn_ai.images import generate_images
+from harn_ai.providers.faux import faux_assistant_message, faux_text, faux_thinking, register_faux_provider
+from harn_ai.providers.images import register_builtins as image_register_builtins
+from harn_ai.stream import complete_simple
+from harn_ai.types import AssistantImages, Context, Tool
+from harn_ai.utils.oauth.pkce import generate_pkce
 
 
 @pytest.mark.asyncio

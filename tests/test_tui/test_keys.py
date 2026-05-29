@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from harnify_tui import keys as keys_module
-from harnify_tui.keys import (
+from harn_tui import keys as keys_module
+from harn_tui.keys import (
     Key,
     decodeKittyPrintable,
     decodePrintableKey,

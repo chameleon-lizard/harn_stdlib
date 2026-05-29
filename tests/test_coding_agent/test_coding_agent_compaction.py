@@ -4,16 +4,16 @@ import time
 from typing import Any
 
 import pytest
-from harnify_ai.providers.faux import faux_assistant_message, register_faux_provider
-from harnify_ai.types import AssistantMessage, Model, TextContent, ToolCall, ToolResultMessage, Usage, UserMessage
-from harnify_coding_agent.core.compaction import branch_summarization
-from harnify_coding_agent.core.compaction.branch_summarization import (
+from harn_ai.providers.faux import faux_assistant_message, register_faux_provider
+from harn_ai.types import AssistantMessage, Model, TextContent, ToolCall, ToolResultMessage, Usage, UserMessage
+from harn_coding_agent.core.compaction import branch_summarization
+from harn_coding_agent.core.compaction.branch_summarization import (
     GenerateBranchSummaryOptions,
     collect_entries_for_branch_summary,
     generate_branch_summary,
     prepare_branch_entries,
 )
-from harnify_coding_agent.core.compaction.compaction import (
+from harn_coding_agent.core.compaction.compaction import (
     DEFAULT_COMPACTION_SETTINGS,
     CompactionPreparation,
     CompactionSettings,
@@ -29,8 +29,8 @@ from harnify_coding_agent.core.compaction.compaction import (
     prepare_compaction,
     should_compact,
 )
-from harnify_coding_agent.core.compaction.utils import serialize_conversation
-from harnify_coding_agent.core.session_manager import SessionManager, build_session_context
+from harn_coding_agent.core.compaction.utils import serialize_conversation
+from harn_coding_agent.core.session_manager import SessionManager, build_session_context
 
 
 def create_id() -> str:
@@ -721,7 +721,7 @@ def test_get_message_from_entry_passes_raw_fields_without_python_coercion(monkey
 
 
 def test_compaction_module_exports_match_ts_surface() -> None:
-    from harnify_coding_agent.core.compaction import compaction
+    from harn_coding_agent.core.compaction import compaction
 
     assert compaction.__all__ == [
         "CompactionDetails",
@@ -745,7 +745,7 @@ def test_compaction_module_exports_match_ts_surface() -> None:
 
 
 def test_compaction_utils_module_exports_match_ts_surface() -> None:
-    from harnify_coding_agent.core.compaction import utils
+    from harn_coding_agent.core.compaction import utils
 
     assert utils.__all__ == [
         "FileOperations",
@@ -759,7 +759,7 @@ def test_compaction_utils_module_exports_match_ts_surface() -> None:
 
 
 def test_compaction_package_wrapper_reexports_ts_public_surface() -> None:
-    from harnify_coding_agent.core import compaction as compaction_pkg
+    from harn_coding_agent.core import compaction as compaction_pkg
 
     assert callable(compaction_pkg.collectEntriesForBranchSummary)
     assert callable(compaction_pkg.calculateContextTokens)
@@ -773,7 +773,7 @@ def test_compaction_package_wrapper_reexports_ts_public_surface() -> None:
 
 
 def test_compaction_get_message_from_entry_passes_raw_fields(monkeypatch: pytest.MonkeyPatch) -> None:
-    from harnify_coding_agent.core.compaction import compaction
+    from harn_coding_agent.core.compaction import compaction
 
     captured: dict[str, tuple[object, ...]] = {}
 

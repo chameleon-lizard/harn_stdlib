@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import pytest
 
-from harnify_ai.providers import cloudflare as cloudflare_provider
-from harnify_ai.providers.cloudflare import is_cloudflare_provider, resolve_cloudflare_base_url
-from harnify_ai.providers import github_copilot_headers as copilot_headers_provider
-from harnify_ai.providers.github_copilot_headers import (
+from harn_ai.providers import cloudflare as cloudflare_provider
+from harn_ai.providers.cloudflare import is_cloudflare_provider, resolve_cloudflare_base_url
+from harn_ai.providers import github_copilot_headers as copilot_headers_provider
+from harn_ai.providers.github_copilot_headers import (
     build_copilot_dynamic_headers,
     has_copilot_vision_input,
     infer_copilot_initiator,
 )
-from harnify_ai.types import Context, Model, ModelCost
+from harn_ai.types import Context, Model, ModelCost
 
 
 def _model(provider: str, base_url: str) -> Model:

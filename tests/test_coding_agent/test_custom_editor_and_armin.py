@@ -3,13 +3,13 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from harnify_coding_agent.core.keybindings import KeybindingsManager
-from harnify_coding_agent.modes.interactive.components import armin as armin_module
-from harnify_coding_agent.modes.interactive.components.armin import DISPLAY_HEIGHT, ArminComponent
-import harnify_coding_agent.modes.interactive.components.custom_editor as custom_editor_module
-from harnify_coding_agent.modes.interactive.components.custom_editor import CustomEditor
-from harnify_coding_agent.modes.interactive.theme.theme import get_editor_theme, init_theme
-from harnify_tui import setKeybindings
+from harn_coding_agent.core.keybindings import KeybindingsManager
+from harn_coding_agent.modes.interactive.components import armin as armin_module
+from harn_coding_agent.modes.interactive.components.armin import DISPLAY_HEIGHT, ArminComponent
+import harn_coding_agent.modes.interactive.components.custom_editor as custom_editor_module
+from harn_coding_agent.modes.interactive.components.custom_editor import CustomEditor
+from harn_coding_agent.modes.interactive.theme.theme import get_editor_theme, init_theme
+from harn_tui import setKeybindings
 
 _ANSI_RE = re.compile(r"\x1b(?:\[[0-9;]*m|\]8;;.*?\x07)", re.DOTALL)
 

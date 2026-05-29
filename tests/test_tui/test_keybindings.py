@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from harnify_tui import keybindings as keybindings_module
-from harnify_tui.keybindings import (
+from harn_tui import keybindings as keybindings_module
+from harn_tui.keybindings import (
     TUI_KEYBINDINGS,
     KeybindingConflict,
     KeybindingsManager,

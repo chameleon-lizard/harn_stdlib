@@ -4,15 +4,15 @@ import time
 from pathlib import Path
 
 import pytest
-from harnify_ai.types import AssistantMessage, Model, SimpleStreamOptions, TextContent
-from harnify_ai.utils.event_stream import AssistantMessageEventStream
-from harnify_coding_agent.core.auth_storage import AuthStorage
-from harnify_coding_agent.core.model_registry import ModelRegistry
-from harnify_coding_agent.core.resource_loader import DefaultResourceLoader
-from harnify_coding_agent.core import sdk as sdk_module
-from harnify_coding_agent.core.sdk import create_agent_session
-from harnify_coding_agent.core.session_manager import SessionManager
-from harnify_coding_agent.core.settings_manager import SettingsManager
+from harn_ai.types import AssistantMessage, Model, SimpleStreamOptions, TextContent
+from harn_ai.utils.event_stream import AssistantMessageEventStream
+from harn_coding_agent.core.auth_storage import AuthStorage
+from harn_coding_agent.core.model_registry import ModelRegistry
+from harn_coding_agent.core.resource_loader import DefaultResourceLoader
+from harn_coding_agent.core import sdk as sdk_module
+from harn_coding_agent.core.sdk import create_agent_session
+from harn_coding_agent.core.session_manager import SessionManager
+from harn_coding_agent.core.settings_manager import SettingsManager
 
 
 def _built_in_model(provider: str = "anthropic") -> Model:
@@ -222,8 +222,8 @@ async def test_create_agent_session_respects_no_tools_all_and_explicit_allowlist
             None,
             None,
             {
-                "HTTP-Referer": "https://harnify.dev",
-                "X-OpenRouter-Title": "harnify",
+                "HTTP-Referer": "https://harn.dev",
+                "X-OpenRouter-Title": "harn",
                 "X-OpenRouter-Categories": "cli-agent",
             },
         ),
@@ -242,8 +242,8 @@ async def test_create_agent_session_respects_no_tools_all_and_explicit_allowlist
             None,
             None,
             {
-                "HTTP-Referer": "https://harnify.dev",
-                "X-OpenRouter-Title": "harnify",
+                "HTTP-Referer": "https://harn.dev",
+                "X-OpenRouter-Title": "harn",
                 "X-OpenRouter-Categories": "cli-agent",
             },
         ),
@@ -383,7 +383,7 @@ async def test_create_agent_session_applies_dynamic_provider_overrides(tmp_path:
 
     top_level = await build_session(
         [
-            lambda harnify: harnify.registerProvider("anthropic", {"baseUrl": "http://localhost:8080/top-level"}),
+            lambda harn: harn.registerProvider("anthropic", {"baseUrl": "http://localhost:8080/top-level"}),
         ]
     )
     try:
@@ -394,9 +394,9 @@ async def test_create_agent_session_applies_dynamic_provider_overrides(tmp_path:
 
     session_start = await build_session(
         [
-            lambda harnify: harnify.on(
+            lambda harn: harn.on(
                 "session_start",
-                lambda _event: harnify.registerProvider("anthropic", {"baseUrl": "http://localhost:8080/session-start"}),
+                lambda _event: harn.registerProvider("anthropic", {"baseUrl": "http://localhost:8080/session-start"}),
             ),
         ]
     )
@@ -409,4 +409,4 @@ async def test_create_agent_session_applies_dynamic_provider_overrides(tmp_path:
 
 
 class ExtensionFactoryLike:
-    def __call__(self, harnify: object) -> object: ...
+    def __call__(self, harn: object) -> object: ...

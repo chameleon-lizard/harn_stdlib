@@ -7,18 +7,18 @@ import httpx
 import pytest
 from pydantic import BaseModel
 
-import harnify_ai.env_api_keys as env_api_keys
-import harnify_ai.session_resources as session_resources_module
-import harnify_ai.utils.hash as hash_module
-import harnify_ai.utils.headers as headers_module
-import harnify_ai.utils.validation as validation_utils
-from harnify_ai.session_resources import cleanup_session_resources, register_session_resource_cleanup
-from harnify_ai.types import AssistantMessage, Tool, ToolCall, Usage, UsageCost
-from harnify_ai.utils.hash import short_hash
-from harnify_ai.utils.headers import headers_to_record
-from harnify_ai.utils.overflow import get_overflow_patterns, is_context_overflow
-from harnify_ai.utils.sanitize_unicode import sanitize_surrogates
-from harnify_ai.utils.validation import validate_tool_arguments, validate_tool_call
+import harn_ai.env_api_keys as env_api_keys
+import harn_ai.session_resources as session_resources_module
+import harn_ai.utils.hash as hash_module
+import harn_ai.utils.headers as headers_module
+import harn_ai.utils.validation as validation_utils
+from harn_ai.session_resources import cleanup_session_resources, register_session_resource_cleanup
+from harn_ai.types import AssistantMessage, Tool, ToolCall, Usage, UsageCost
+from harn_ai.utils.hash import short_hash
+from harn_ai.utils.headers import headers_to_record
+from harn_ai.utils.overflow import get_overflow_patterns, is_context_overflow
+from harn_ai.utils.sanitize_unicode import sanitize_surrogates
+from harn_ai.utils.validation import validate_tool_arguments, validate_tool_call
 
 
 def _assistant_message(

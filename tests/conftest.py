@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for the harnify workspace test matrix."""
+"""Shared pytest fixtures for the harn workspace test matrix."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from harnify_agent.harness.env.local import NodeExecutionEnv
-from harnify_agent.harness.session.jsonl_repo import JsonlSessionRepo
-from harnify_ai.providers.faux import FauxProviderRegistration, register_faux_provider
+from harn_agent.harness.env.local import NodeExecutionEnv
+from harn_agent.harness.session.jsonl_repo import JsonlSessionRepo
+from harn_ai.providers.faux import FauxProviderRegistration, register_faux_provider
 
 
 @dataclass(slots=True)

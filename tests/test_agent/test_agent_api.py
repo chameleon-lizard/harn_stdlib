@@ -4,9 +4,9 @@ import asyncio
 import time
 
 import pytest
-from harnify_agent import Agent
-from harnify_ai.providers.faux import faux_assistant_message, faux_text, faux_thinking, register_faux_provider
-from harnify_ai.types import (
+from harn_agent import Agent
+from harn_ai.providers.faux import faux_assistant_message, faux_text, faux_thinking, register_faux_provider
+from harn_ai.types import (
     AssistantMessage,
     DoneEvent,
     ErrorEvent,
@@ -14,7 +14,7 @@ from harnify_ai.types import (
     StartEvent,
     TextContent,
 )
-from harnify_ai.utils.event_stream import AssistantMessageEventStream
+from harn_ai.utils.event_stream import AssistantMessageEventStream
 
 ZERO_USAGE = {
     "input": 0,

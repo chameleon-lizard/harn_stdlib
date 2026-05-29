@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import get_args
 
-from harnify_ai import (
+from harn_ai import (
     AnthropicEffort,
     AnthropicOptions,
     AnthropicThinkingDisplay,
@@ -20,7 +20,7 @@ from harnify_ai import (
 )
 
 
-def test_harnify_ai_exports_provider_option_types() -> None:
+def test_harn_ai_exports_provider_option_types() -> None:
     assert AnthropicOptions(apiKey="test", thinkingEnabled=True)["thinkingEnabled"] is True
     assert BedrockOptions(region="us-east-1", bearerToken="token")["region"] == "us-east-1"
     assert AzureOpenAIResponsesOptions(azureDeploymentName="dep")["azureDeploymentName"] == "dep"

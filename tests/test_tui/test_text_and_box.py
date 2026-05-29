@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import harnify_tui.components.box as box_module
-from harnify_tui.components.box import Box
-from harnify_tui.components.text import Text
-from harnify_tui.utils import visibleWidth
+import harn_tui.components.box as box_module
+from harn_tui.components.box import Box
+from harn_tui.components.text import Text
+from harn_tui.utils import visibleWidth
 
 
 def test_text_wraps_and_pads_lines_to_width() -> None:

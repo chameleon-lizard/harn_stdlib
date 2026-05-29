@@ -6,8 +6,8 @@ from typing import Any
 
 import pytest
 
-import harnify_ai.providers.google_vertex as google_vertex
-from harnify_ai.types import Context, Model, ModelCost, SimpleStreamOptions
+import harn_ai.providers.google_vertex as google_vertex
+from harn_ai.types import Context, Model, ModelCost, SimpleStreamOptions
 
 
 @dataclass(slots=True)

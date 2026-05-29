@@ -5,10 +5,10 @@ import time
 from typing import Any
 
 import pytest
-from harnify_agent import AbortController, Agent, AgentTool, AgentToolResult
-from harnify_agent.agent_loop import run_agent_loop, run_agent_loop_continue
-from harnify_agent.types import AgentContext, AgentEvent, AgentLoopConfig, AgentMessage
-from harnify_ai.types import (
+from harn_agent import AbortController, Agent, AgentTool, AgentToolResult
+from harn_agent.agent_loop import run_agent_loop, run_agent_loop_continue
+from harn_agent.types import AgentContext, AgentEvent, AgentLoopConfig, AgentMessage
+from harn_ai.types import (
     AssistantMessage,
     DoneEvent,
     ErrorEvent,
@@ -18,7 +18,7 @@ from harnify_ai.types import (
     ToolCall,
     UserMessage,
 )
-from harnify_ai.utils.event_stream import AssistantMessageEventStream
+from harn_ai.utils.event_stream import AssistantMessageEventStream
 
 TOOL_SCHEMA = {
     "type": "object",

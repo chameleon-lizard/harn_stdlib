@@ -4,11 +4,11 @@ requires-python = ">=3.12"
 
 [manifest]
 members = [
-    "harnify",
-    "harnify-agent",
-    "harnify-ai",
-    "harnify-coding-agent",
-    "harnify-tui",
+    "harn",
+    "harn-agent",
+    "harn-ai",
+    "harn-tui",
+    "harn-workspace",
 ]
 
 [[package]]
@@ -436,31 +436,53 @@ wheels = [
 ]
 
 [[package]]
-name = "harnify"
+name = "harn"
 version = "0.1.0"
-source = { virtual = "." }
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
+source = { editable = "packages/harn_coding_agent" }
+dependencies = [
+    { name = "aiofiles" },
+    { name = "click" },
+    { name = "diff-match-patch" },
+    { name = "filelock" },
+    { name = "harn-agent" },
+    { name = "harn-ai" },
+    { name = "harn-tui" },
+    { name = "jsonlines" },
+    { name = "pathspec" },
+    { name = "psutil" },
+    { name = "pygments" },
+    { name = "python-frontmatter" },
+    { name = "rich" },
+    { name = "ruamel-yaml" },
+    { name = "wcmatch" },
 ]
 
 [package.metadata]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=9.0.3" },
-    { name = "pytest-asyncio", specifier = ">=1.4.0" },
+requires-dist = [
+    { name = "aiofiles", specifier = ">=24.1" },
+    { name = "click", specifier = ">=8.1" },
+    { name = "diff-match-patch", specifier = ">=20230430" },
+    { name = "filelock", specifier = ">=3.16" },
+    { name = "harn-agent", editable = "packages/harn_agent" },
+    { name = "harn-ai", editable = "packages/harn_ai" },
+    { name = "harn-tui", editable = "packages/harn_tui" },
+    { name = "jsonlines", specifier = ">=4.0" },
+    { name = "pathspec", specifier = ">=0.12" },
+    { name = "psutil", specifier = ">=6.1" },
+    { name = "pygments", specifier = ">=2.18" },
+    { name = "python-frontmatter", specifier = ">=1.1" },
+    { name = "rich", specifier = ">=13.9" },
+    { name = "ruamel-yaml", specifier = ">=0.18" },
+    { name = "wcmatch", specifier = ">=10.0" },
 ]
 
 [[package]]
-name = "harnify-agent"
+name = "harn-agent"
 version = "0.1.0"
-source = { editable = "packages/harnify_agent" }
+source = { editable = "packages/harn_agent" }
 dependencies = [
     { name = "aiofiles" },
-    { name = "harnify-ai" },
+    { name = "harn-ai" },
     { name = "httpx" },
     { name = "jsonlines" },
     { name = "pathspec" },
@@ -471,7 +493,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "aiofiles", specifier = ">=24.1" },
-    { name = "harnify-ai", editable = "packages/harnify_ai" },
+    { name = "harn-ai", editable = "packages/harn_ai" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "jsonlines", specifier = ">=4.0" },
     { name = "pathspec", specifier = ">=0.12" },
@@ -480,9 +502,9 @@ requires-dist = [
 ]
 
 [[package]]
-name = "harnify-ai"
+name = "harn-ai"
 version = "0.1.0"
-source = { editable = "packages/harnify_ai" }
+source = { editable = "packages/harn_ai" }
 dependencies = [
     { name = "anthropic" },
     { name = "boto3" },
@@ -513,50 +535,9 @@ requires-dist = [
 ]
 
 [[package]]
-name = "harnify-coding-agent"
+name = "harn-tui"
 version = "0.1.0"
-source = { editable = "packages/harnify_coding_agent" }
-dependencies = [
-    { name = "aiofiles" },
-    { name = "click" },
-    { name = "diff-match-patch" },
-    { name = "filelock" },
-    { name = "harnify-agent" },
-    { name = "harnify-ai" },
-    { name = "harnify-tui" },
-    { name = "jsonlines" },
-    { name = "pathspec" },
-    { name = "psutil" },
-    { name = "pygments" },
-    { name = "python-frontmatter" },
-    { name = "rich" },
-    { name = "ruamel-yaml" },
-    { name = "wcmatch" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiofiles", specifier = ">=24.1" },
-    { name = "click", specifier = ">=8.1" },
-    { name = "diff-match-patch", specifier = ">=20230430" },
-    { name = "filelock", specifier = ">=3.16" },
-    { name = "harnify-agent", editable = "packages/harnify_agent" },
-    { name = "harnify-ai", editable = "packages/harnify_ai" },
-    { name = "harnify-tui", editable = "packages/harnify_tui" },
-    { name = "jsonlines", specifier = ">=4.0" },
-    { name = "pathspec", specifier = ">=0.12" },
-    { name = "psutil", specifier = ">=6.1" },
-    { name = "pygments", specifier = ">=2.18" },
-    { name = "python-frontmatter", specifier = ">=1.1" },
-    { name = "rich", specifier = ">=13.9" },
-    { name = "ruamel-yaml", specifier = ">=0.18" },
-    { name = "wcmatch", specifier = ">=10.0" },
-]
-
-[[package]]
-name = "harnify-tui"
-version = "0.1.0"
-source = { editable = "packages/harnify_tui" }
+source = { editable = "packages/harn_tui" }
 dependencies = [
     { name = "blessed" },
     { name = "markdown-it-py" },
@@ -574,6 +555,25 @@ requires-dist = [
     { name = "rich", specifier = ">=13.9" },
     { name = "term-image", specifier = ">=0.7" },
     { name = "wcwidth", specifier = ">=0.2" },
+]
+
+[[package]]
+name = "harn-workspace"
+version = "0.1.0"
+source = { virtual = "." }
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest-asyncio", specifier = ">=1.4.0" },
 ]
 
 [[package]]

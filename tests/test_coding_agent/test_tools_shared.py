@@ -7,11 +7,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from harnify_agent.types import AgentToolResult
-from harnify_ai.types import ImageContent, TextContent
-from harnify_coding_agent.core import tools as tools_module
-from harnify_coding_agent.core.extensions.types import ToolDefinition
-from harnify_coding_agent.core.tools import (
+from harn_agent.types import AgentToolResult
+from harn_ai.types import ImageContent, TextContent
+from harn_coding_agent.core import tools as tools_module
+from harn_coding_agent.core.extensions.types import ToolDefinition
+from harn_coding_agent.core.tools import (
     OutputAccumulator,
     OutputAccumulatorOptions,
     all_tool_names,
@@ -34,14 +34,14 @@ from harnify_coding_agent.core.tools import (
     with_file_mutation_queue,
     wrap_tool_definition,
 )
-from harnify_coding_agent.core.tools import file_mutation_queue as file_mutation_queue_module
-from harnify_coding_agent.core.tools import output_accumulator as output_accumulator_module
-from harnify_coding_agent.core.tools import path_utils as path_utils_module
-from harnify_coding_agent.core.tools import render_utils as render_utils_module
-from harnify_coding_agent.core.tools import tool_definition_wrapper as tool_definition_wrapper_module
-from harnify_coding_agent.core.tools import truncate as truncate_module
-from harnify_coding_agent.utils import ansi as ansi_module
-import harnify_coding_agent.utils.paths as paths_module
+from harn_coding_agent.core.tools import file_mutation_queue as file_mutation_queue_module
+from harn_coding_agent.core.tools import output_accumulator as output_accumulator_module
+from harn_coding_agent.core.tools import path_utils as path_utils_module
+from harn_coding_agent.core.tools import render_utils as render_utils_module
+from harn_coding_agent.core.tools import tool_definition_wrapper as tool_definition_wrapper_module
+from harn_coding_agent.core.tools import truncate as truncate_module
+from harn_coding_agent.utils import ansi as ansi_module
+import harn_coding_agent.utils.paths as paths_module
 
 
 def test_truncate_head_honors_line_and_byte_limits() -> None:
@@ -119,15 +119,15 @@ def test_resolve_read_path_handles_curly_quote_and_nfd_variants(tmp_path: Path) 
 
 def test_get_text_output_strips_ansi_and_renders_hidden_images(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "harnify_coding_agent.core.tools.render_utils.getCapabilities",
+        "harn_coding_agent.core.tools.render_utils.getCapabilities",
         lambda: SimpleNamespace(images=False),
     )
     monkeypatch.setattr(
-        "harnify_coding_agent.core.tools.render_utils.imageFallback",
+        "harn_coding_agent.core.tools.render_utils.imageFallback",
         lambda mime, dims: f"[image {mime}]",
     )
     monkeypatch.setattr(
-        "harnify_coding_agent.core.tools.render_utils.getImageDimensions",
+        "harn_coding_agent.core.tools.render_utils.getImageDimensions",
         lambda data, mime: None,
     )
 
@@ -155,7 +155,7 @@ def test_render_utils_module_exports_match_ts_surface() -> None:
 
 def test_ansi_module_matches_ts_surface_and_type_error() -> None:
     assert ansi_module.__all__ == ["stripAnsi"]
-    assert ansi_module.strip_ansi("\x1b]8;;https://harnify.dev\x07link\x1b]8;;\x07 \x1b[31mred\x1b[0m") == "link red"
+    assert ansi_module.strip_ansi("\x1b]8;;https://harn.dev\x07link\x1b]8;;\x07 \x1b[31mred\x1b[0m") == "link red"
     with pytest.raises(TypeError, match=r"Expected a `string`, got `number`"):
         ansi_module.strip_ansi(123)  # type: ignore[arg-type]
 
@@ -166,7 +166,7 @@ async def test_output_accumulator_persists_full_output_when_truncated(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "harnify_coding_agent.core.tools.output_accumulator.default_temp_file_path",
+        "harn_coding_agent.core.tools.output_accumulator.default_temp_file_path",
         lambda prefix: str(tmp_path / f"{prefix}.log"),
     )
     accumulator = OutputAccumulator(OutputAccumulatorOptions(maxLines=2, maxBytes=12, tempFilePrefix="shared"))

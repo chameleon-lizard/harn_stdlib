@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from harnify_tui import fuzzy as fuzzy_module
-from harnify_tui.fuzzy import fuzzyFilter, fuzzyMatch
+from harn_tui import fuzzy as fuzzy_module
+from harn_tui.fuzzy import fuzzyFilter, fuzzyMatch
 
 
 def test_fuzzy_match_empty_query_matches_everything() -> None:

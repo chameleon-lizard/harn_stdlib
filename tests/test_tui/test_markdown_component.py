@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 import pytest
-from harnify_tui import DefaultTextStyle, Markdown, MarkdownTheme, resetCapabilitiesCache, setCapabilities, visibleWidth
+from harn_tui import DefaultTextStyle, Markdown, MarkdownTheme, resetCapabilitiesCache, setCapabilities, visibleWidth
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 OSC8_RE = re.compile(r"\x1b\]8;;[^\x1b]*\x1b\\")

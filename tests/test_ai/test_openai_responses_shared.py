@@ -4,13 +4,13 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from harnify_ai.models import get_model
-import harnify_ai.providers.openai_responses_shared as shared
-from harnify_ai.providers.openai_responses_shared import (
+from harn_ai.models import get_model
+import harn_ai.providers.openai_responses_shared as shared
+from harn_ai.providers.openai_responses_shared import (
     convert_responses_messages,
     process_responses_stream,
 )
-from harnify_ai.types import AssistantMessage, Context, Model, Usage, UsageCost
+from harn_ai.types import AssistantMessage, Context, Model, Usage, UsageCost
 
 
 def _responses_model() -> Model:

@@ -4,8 +4,8 @@ import subprocess
 
 import pytest
 
-from harnify_coding_agent.core import resolve_config_value as module
-from harnify_coding_agent.utils.shell import ShellConfig
+from harn_coding_agent.core import resolve_config_value as module
+from harn_coding_agent.utils.shell import ShellConfig
 
 
 def setup_function() -> None:

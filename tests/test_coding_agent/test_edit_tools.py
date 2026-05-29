@@ -6,16 +6,16 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from harnify_coding_agent.core.tools import (
+from harn_coding_agent.core.tools import (
     compute_edits_diff,
     create_edit_tool,
     create_edit_tool_definition,
     create_write_tool,
 )
-from harnify_coding_agent.core.tools import edit as edit_module
-from harnify_coding_agent.core.tools import edit_diff as edit_diff_module
-from harnify_coding_agent.core.tools.edit_diff import generate_diff_string, generate_unified_patch, strip_bom
-from harnify_tui import Box
+from harn_coding_agent.core.tools import edit as edit_module
+from harn_coding_agent.core.tools import edit_diff as edit_diff_module
+from harn_coding_agent.core.tools.edit_diff import generate_diff_string, generate_unified_patch, strip_bom
+from harn_tui import Box
 
 
 def _read(path: Path) -> str:

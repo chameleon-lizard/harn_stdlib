@@ -3,11 +3,11 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 
-import harnify_tui.components.cancellable_loader as cancellable_loader_module
-import harnify_tui.components.image as image_module
-import harnify_tui.components.loader as loader_module
-import harnify_tui.components.settings_list as settings_list_module
-from harnify_tui import (
+import harn_tui.components.cancellable_loader as cancellable_loader_module
+import harn_tui.components.image as image_module
+import harn_tui.components.loader as loader_module
+import harn_tui.components.settings_list as settings_list_module
+from harn_tui import (
     CancellableLoader,
     Image,
     ImageDimensions,

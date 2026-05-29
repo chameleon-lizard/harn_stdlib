@@ -5,16 +5,16 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-import harnify_tui.components.editor as editor_module
+import harn_tui.components.editor as editor_module
 import pytest
-from harnify_tui.autocomplete import (
+from harn_tui.autocomplete import (
     AutocompleteItem,
     AutocompleteSuggestions,
     CombinedAutocompleteProvider,
     SlashCommand,
 )
-from harnify_tui.components.editor import Editor, EditorTheme
-from harnify_tui.components.select_list import SelectListTheme
+from harn_tui.components.editor import Editor, EditorTheme
+from harn_tui.components.select_list import SelectListTheme
 
 
 def _identity(text: str) -> str:

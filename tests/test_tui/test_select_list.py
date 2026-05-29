@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from harnify_tui.components.select_list import (
+from harn_tui.components.select_list import (
     SelectItem,
     SelectList,
     SelectListLayoutOptions,
     SelectListTheme,
 )
-from harnify_tui.utils import visibleWidth
+from harn_tui.utils import visibleWidth
 
 TEST_THEME = SelectListTheme(
     selectedPrefix=lambda text: text,

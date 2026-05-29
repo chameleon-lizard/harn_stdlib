@@ -6,10 +6,10 @@ from collections.abc import AsyncIterator
 import httpx
 import pytest
 
-import harnify_ai.providers.openai_responses as openai_responses
-from harnify_ai.models import get_model
-from harnify_ai.providers.openai_responses import build_params, stream_openai_responses
-from harnify_ai.types import Context, Model, ModelCost, Usage, UsageCost
+import harn_ai.providers.openai_responses as openai_responses
+from harn_ai.models import get_model
+from harn_ai.providers.openai_responses import build_params, stream_openai_responses
+from harn_ai.types import Context, Model, ModelCost, Usage, UsageCost
 
 
 def _openai_model() -> Model:

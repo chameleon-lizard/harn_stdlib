@@ -3,7 +3,7 @@ from __future__ import annotations
 from io import BytesIO
 
 import pytest
-import harnify_coding_agent.utils.clipboard_native as clipboard_native_module
+import harn_coding_agent.utils.clipboard_native as clipboard_native_module
 
 
 class _FakePyperclip:

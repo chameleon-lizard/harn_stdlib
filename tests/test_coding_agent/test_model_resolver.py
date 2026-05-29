@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import pytest
-from harnify_ai.types import Model
-from harnify_coding_agent.core.model_resolver import (
+from harn_ai.types import Model
+from harn_coding_agent.core.model_resolver import (
     defaultModelPerProvider,
     findInitialModel,
     parseModelPattern,
@@ -229,7 +229,7 @@ async def test_restore_model_from_session_returns_no_fallback_message_when_no_mo
 
 
 def test_model_resolver_exports_match_ts_surface() -> None:
-    from harnify_coding_agent.core import model_resolver
+    from harn_coding_agent.core import model_resolver
 
     assert model_resolver.__all__ == [
         "InitialModelResult",

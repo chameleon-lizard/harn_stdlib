@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import harnify_ai.providers.google_shared as google_shared_provider
-from harnify_ai.providers.google_shared import convert_messages, convert_tools
-from harnify_ai.types import Context, Model, ModelCost, Tool
+import harn_ai.providers.google_shared as google_shared_provider
+from harn_ai.providers.google_shared import convert_messages, convert_tools
+from harn_ai.types import Context, Model, ModelCost, Tool
 
 
 def _make_tool(parameters: dict[str, object]) -> Tool:

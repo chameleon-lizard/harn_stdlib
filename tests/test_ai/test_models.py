@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from harnify_ai.models import (
+from harn_ai.models import (
     calculate_cost,
     clamp_thinking_level,
     get_model,
@@ -9,7 +9,7 @@ from harnify_ai.models import (
     get_supported_thinking_levels,
     models_are_equal,
 )
-from harnify_ai.types import Usage, UsageCost
+from harn_ai.types import Usage, UsageCost
 
 
 def test_generated_model_registry_loads_real_catalog_entries() -> None:

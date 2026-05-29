@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from harnify_coding_agent.core.export_html import (
+from harn_coding_agent.core.export_html import (
     ansi_lines_to_html,
     ansi_to_html,
     create_tool_html_renderer,
@@ -18,13 +18,13 @@ from harnify_coding_agent.core.export_html import (
     get_theme_export_colors,
     trim_rendered_result_lines,
 )
-from harnify_coding_agent.core.session_manager import SessionManager
+from harn_coding_agent.core.session_manager import SessionManager
 
 
 def test_export_html_module_exports_match_ts_surface() -> None:
     import importlib
 
-    module = importlib.import_module("harnify_coding_agent.core.export_html")
+    module = importlib.import_module("harn_coding_agent.core.export_html")
     assert module.__all__ == [
         "ExportOptions",
         "ToolHtmlRenderer",
@@ -36,7 +36,7 @@ def test_export_html_module_exports_match_ts_surface() -> None:
 def test_tool_renderer_module_exports_match_ts_surface() -> None:
     import importlib
 
-    module = importlib.import_module("harnify_coding_agent.core.export_html.tool_renderer")
+    module = importlib.import_module("harn_coding_agent.core.export_html.tool_renderer")
     assert module.__all__ == [
         "ToolHtmlRenderer",
         "ToolHtmlRendererDeps",
@@ -66,7 +66,7 @@ def test_ansi_to_html_handles_extended_colors_and_blank_lines() -> None:
 def test_ansi_to_html_module_exports_match_ts_surface() -> None:
     import importlib
 
-    module = importlib.import_module("harnify_coding_agent.core.export_html.ansi_to_html")
+    module = importlib.import_module("harn_coding_agent.core.export_html.ansi_to_html")
     assert module.__all__ == [
         "ansiLinesToHtml",
         "ansiToHtml",
@@ -201,7 +201,7 @@ async def test_export_session_to_html_writes_html_and_payload(tmp_path: Path) ->
     payload = _extract_session_payload(html)
 
     assert Path(output_path).exists()
-    assert Path(output_path).name.startswith("harnify-session-")
+    assert Path(output_path).name.startswith("harn-session-")
     assert "<!DOCTYPE html>" in html
     assert "--accent: #8abeb7;" in html
     assert payload["systemPrompt"] == "system rules"

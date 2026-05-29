@@ -6,14 +6,14 @@ import re
 from types import SimpleNamespace
 
 import pytest
-from harnify_agent.harness.messages import BranchSummaryMessage, CompactionSummaryMessage, CustomMessage
-from harnify_agent.types import AgentState
-from harnify_ai.types import Model, ModelCost, TextContent
-from harnify_coding_agent.core.agent_session import ParsedSkillBlock
-from harnify_coding_agent.core.keybindings import KeybindingsManager
-from harnify_coding_agent.core.tools import create_read_tool_definition
-import harnify_coding_agent.modes.interactive.components as interactive_components_package
-from harnify_coding_agent.modes.interactive.components import (
+from harn_agent.harness.messages import BranchSummaryMessage, CompactionSummaryMessage, CustomMessage
+from harn_agent.types import AgentState
+from harn_ai.types import Model, ModelCost, TextContent
+from harn_coding_agent.core.agent_session import ParsedSkillBlock
+from harn_coding_agent.core.keybindings import KeybindingsManager
+from harn_coding_agent.core.tools import create_read_tool_definition
+import harn_coding_agent.modes.interactive.components as interactive_components_package
+from harn_coding_agent.modes.interactive.components import (
     BorderedLoader,
     BranchSummaryMessageComponent,
     CompactionSummaryMessageComponent,
@@ -23,22 +23,22 @@ from harnify_coding_agent.modes.interactive.components import (
     ToolExecutionComponent,
     renderDiff,
 )
-from harnify_tui import Text, setKeybindings, visibleWidth
+from harn_tui import Text, setKeybindings, visibleWidth
 
 _ANSI_RE = re.compile(r"\x1b(?:\[[0-9;]*m|\]8;;.*?\x07)", re.DOTALL)
-interactive_theme_module = importlib.import_module("harnify_coding_agent.modes.interactive.theme.theme")
-bordered_loader_module = importlib.import_module("harnify_coding_agent.modes.interactive.components.bordered_loader")
+interactive_theme_module = importlib.import_module("harn_coding_agent.modes.interactive.theme.theme")
+bordered_loader_module = importlib.import_module("harn_coding_agent.modes.interactive.components.bordered_loader")
 branch_summary_message_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.branch_summary_message"
+    "harn_coding_agent.modes.interactive.components.branch_summary_message"
 )
 compaction_summary_message_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.compaction_summary_message"
+    "harn_coding_agent.modes.interactive.components.compaction_summary_message"
 )
 custom_message_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.custom_message"
+    "harn_coding_agent.modes.interactive.components.custom_message"
 )
-diff_module = importlib.import_module("harnify_coding_agent.modes.interactive.components.diff")
-footer_module = importlib.import_module("harnify_coding_agent.modes.interactive.components.footer")
+diff_module = importlib.import_module("harn_coding_agent.modes.interactive.components.diff")
+footer_module = importlib.import_module("harn_coding_agent.modes.interactive.components.footer")
 
 
 def _strip_ansi(text: str) -> str:
@@ -303,7 +303,7 @@ def test_footer_component_respects_width_for_wide_model_provider_names() -> None
 @pytest.mark.asyncio
 async def test_tool_execution_converts_non_png_images_for_kitty(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.components.tool_execution.getCapabilities",
+        "harn_coding_agent.modes.interactive.components.tool_execution.getCapabilities",
         lambda: SimpleNamespace(images="kitty"),
     )
 
@@ -313,7 +313,7 @@ async def test_tool_execution_converts_non_png_images_for_kitty(monkeypatch: pyt
         return SimpleNamespace(data="png-data", mimeType="image/png")
 
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.components.tool_execution.convert_to_png",
+        "harn_coding_agent.modes.interactive.components.tool_execution.convert_to_png",
         fake_convert_to_png,
     )
 

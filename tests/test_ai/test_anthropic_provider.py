@@ -5,9 +5,9 @@ from collections.abc import AsyncIterator
 import pytest
 from anthropic import omit
 
-import harnify_ai.providers.anthropic as anthropic_provider
-from harnify_ai.models import get_model
-from harnify_ai.providers.anthropic import (
+import harn_ai.providers.anthropic as anthropic_provider
+from harn_ai.models import get_model
+from harn_ai.providers.anthropic import (
     convert_tools,
     create_client,
     from_claude_code_name,
@@ -17,7 +17,7 @@ from harnify_ai.providers.anthropic import (
     stream_simple_anthropic,
     to_claude_code_name,
 )
-from harnify_ai.types import Context, Model, ModelCost, SimpleStreamOptions, Tool
+from harn_ai.types import Context, Model, ModelCost, SimpleStreamOptions, Tool
 
 
 class _FakeResponse:

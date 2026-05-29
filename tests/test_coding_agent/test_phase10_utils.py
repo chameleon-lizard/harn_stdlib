@@ -6,22 +6,22 @@ import threading
 from pathlib import Path
 
 import pytest
-from harnify_agent.agent import AbortController
-import harnify_coding_agent.utils.changelog as changelog_module
-import harnify_coding_agent.utils.child_process as child_process_module
-import harnify_coding_agent.utils.fs_watch as fs_watch_module
-import harnify_coding_agent.utils.frontmatter as frontmatter_module
-import harnify_coding_agent.utils.git as git_module
-import harnify_coding_agent.utils.html as html_module
-import harnify_coding_agent.utils.shell as shell_module
-from harnify_coding_agent.utils.changelog import ChangelogEntry, compare_versions, get_new_entries, parse_changelog
-from harnify_coding_agent.utils.child_process import spawn_process, spawn_process_sync, wait_for_child_process
-from harnify_coding_agent.utils.frontmatter import parse_frontmatter, strip_frontmatter
-from harnify_coding_agent.utils.fs_watch import close_watcher, watch_with_error_handler
-from harnify_coding_agent.utils.git import parse_git_url
-from harnify_coding_agent.utils.html import decode_html_entity, decode_html_entity_at
-from harnify_coding_agent.utils.shell import get_shell_env
-from harnify_coding_agent.utils.sleep import sleep
+from harn_agent.agent import AbortController
+import harn_coding_agent.utils.changelog as changelog_module
+import harn_coding_agent.utils.child_process as child_process_module
+import harn_coding_agent.utils.fs_watch as fs_watch_module
+import harn_coding_agent.utils.frontmatter as frontmatter_module
+import harn_coding_agent.utils.git as git_module
+import harn_coding_agent.utils.html as html_module
+import harn_coding_agent.utils.shell as shell_module
+from harn_coding_agent.utils.changelog import ChangelogEntry, compare_versions, get_new_entries, parse_changelog
+from harn_coding_agent.utils.child_process import spawn_process, spawn_process_sync, wait_for_child_process
+from harn_coding_agent.utils.frontmatter import parse_frontmatter, strip_frontmatter
+from harn_coding_agent.utils.fs_watch import close_watcher, watch_with_error_handler
+from harn_coding_agent.utils.git import parse_git_url
+from harn_coding_agent.utils.html import decode_html_entity, decode_html_entity_at
+from harn_coding_agent.utils.shell import get_shell_env
+from harn_coding_agent.utils.sleep import sleep
 from ruamel.yaml import YAMLError
 
 
@@ -174,14 +174,14 @@ def test_get_shell_env_prepends_bin_dir_without_duplicating_and_preserves_path_k
 ) -> None:
     monkeypatch.delenv("PATH", raising=False)
     monkeypatch.setenv("path", "/usr/bin")
-    monkeypatch.setattr("harnify_coding_agent.config.get_bin_dir", lambda: "/tmp/harnify-bin")
+    monkeypatch.setattr("harn_coding_agent.config.get_bin_dir", lambda: "/tmp/harn-bin")
 
     env = get_shell_env()
-    assert env["path"] == "/tmp/harnify-bin:/usr/bin"
+    assert env["path"] == "/tmp/harn-bin:/usr/bin"
 
-    monkeypatch.setenv("path", "/tmp/harnify-bin:/usr/bin")
+    monkeypatch.setenv("path", "/tmp/harn-bin:/usr/bin")
     env_with_existing_bin = get_shell_env()
-    assert env_with_existing_bin["path"] == "/tmp/harnify-bin:/usr/bin"
+    assert env_with_existing_bin["path"] == "/tmp/harn-bin:/usr/bin"
 
 
 def test_shell_module_exports_match_ts_surface() -> None:

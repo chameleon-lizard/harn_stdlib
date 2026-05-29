@@ -6,8 +6,8 @@ from io import BytesIO
 from pathlib import Path
 
 import pytest
-from harnify_coding_agent.core.tools import create_grep_tool, get_text_output
-from harnify_coding_agent.utils import tools_manager
+from harn_coding_agent.core.tools import create_grep_tool, get_text_output
+from harn_coding_agent.utils import tools_manager
 
 
 def test_tools_manager_module_exports_match_ts_surface() -> None:
@@ -41,13 +41,13 @@ async def test_ensure_tool_short_circuits_for_offline_and_downloads_when_availab
         return str(tmp_path / tool)
 
     monkeypatch.setattr(tools_manager, "download_tool", fake_download_tool)
-    monkeypatch.setenv("HARNIFY_OFFLINE", "1")
+    monkeypatch.setenv("HARN_OFFLINE", "1")
 
     assert await tools_manager.ensure_tool("rg", tools_dir=str(tmp_path), printer=messages.append) is None
     assert messages == ["ripgrep not found. Offline mode enabled, skipping download."]
 
     messages.clear()
-    monkeypatch.delenv("HARNIFY_OFFLINE", raising=False)
+    monkeypatch.delenv("HARN_OFFLINE", raising=False)
     path = await tools_manager.ensure_tool("rg", tools_dir=str(tmp_path), printer=messages.append)
     assert path == str(tmp_path / "rg")
     assert messages == ["ripgrep not found. Downloading...", f"ripgrep installed to {tmp_path / 'rg'}"]
@@ -100,7 +100,7 @@ async def test_grep_tool_uses_ensure_tool(monkeypatch: pytest.MonkeyPatch, tmp_p
         calls.append((tool, silent))
         return str(real_rg)
 
-    monkeypatch.setattr("harnify_coding_agent.core.tools.grep.ensure_tool", fake_ensure_tool)
+    monkeypatch.setattr("harn_coding_agent.core.tools.grep.ensure_tool", fake_ensure_tool)
 
     tool = create_grep_tool(str(tmp_path))
     result = await tool.execute("grep-ensure", {"pattern": "match", "path": str(test_file)}, None, None)

@@ -1,14 +1,14 @@
 [project]
-name = "harnify"
+name = "harn-workspace"
 version = "0.1.0"
 requires-python = ">=3.12"
 
 [tool.uv.workspace]
 members = [
-    "packages/harnify_ai",
-    "packages/harnify_agent",
-    "packages/harnify_coding_agent",
-    "packages/harnify_tui",
+    "packages/harn_ai",
+    "packages/harn_agent",
+    "packages/harn_coding_agent",
+    "packages/harn_tui",
 ]
 
 [tool.ruff]

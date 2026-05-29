@@ -5,9 +5,9 @@ from pathlib import Path
 import time
 from typing import Any
 
-from harnify_tui import tui as tui_module
-from harnify_tui.terminal_image import deleteKittyImage, encodeKitty
-from harnify_tui.tui import TUI
+from harn_tui import tui as tui_module
+from harn_tui.terminal_image import deleteKittyImage, encodeKitty
+from harn_tui.tui import TUI
 
 
 @dataclass
@@ -241,7 +241,7 @@ def test_tui_resolve_overlay_layout_matches_ts_nullish_and_invalid_fallbacks() -
 def test_tui_debug_redraw_log_matches_ts_hook(monkeypatch: Any, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("HARNIFY_DEBUG_REDRAW", "1")
-    log_dir = tmp_path / ".harnify" / "agent"
+    log_dir = tmp_path / ".harn" / "agent"
     log_dir.mkdir(parents=True)
 
     terminal = FakeTerminal()
@@ -251,7 +251,7 @@ def test_tui_debug_redraw_log_matches_ts_hook(monkeypatch: Any, tmp_path: Path) 
     tui.start()
     wait_for_tui_idle(tui)
 
-    log_text = (log_dir / "harnify-debug.log").read_text(encoding="utf-8")
+    log_text = (log_dir / "harn-debug.log").read_text(encoding="utf-8")
     assert "fullRender: first render" in log_text
 
 

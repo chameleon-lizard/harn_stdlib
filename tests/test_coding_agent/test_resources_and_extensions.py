@@ -5,22 +5,22 @@ import json
 from pathlib import Path
 
 import pytest
-from harnify_agent.types import AgentToolResult
-from harnify_coding_agent.config import CONFIG_DIR_NAME, ENV_AGENT_DIR, get_themes_dir
-from harnify_coding_agent.core.extensions.loader import create_extension_runtime, discover_and_load_extensions
-from harnify_coding_agent.core.extensions.runner import ExtensionRunner
-from harnify_coding_agent.core.extensions.wrapper import wrap_registered_tools
-from harnify_coding_agent.core.messages import BashExecutionMessage, bashExecutionToText, convertToLlm
-from harnify_coding_agent.core.prompt_templates import (
+from harn_agent.types import AgentToolResult
+from harn_coding_agent.config import CONFIG_DIR_NAME, ENV_AGENT_DIR, get_themes_dir
+from harn_coding_agent.core.extensions.loader import create_extension_runtime, discover_and_load_extensions
+from harn_coding_agent.core.extensions.runner import ExtensionRunner
+from harn_coding_agent.core.extensions.wrapper import wrap_registered_tools
+from harn_coding_agent.core.messages import BashExecutionMessage, bashExecutionToText, convertToLlm
+from harn_coding_agent.core.prompt_templates import (
     expand_prompt_template,
     load_prompt_templates,
     parse_command_args,
     substitute_args,
 )
-from harnify_coding_agent.core.resource_loader import DefaultResourceLoader, load_project_context_files
-from harnify_coding_agent.core.skills import Skill, format_skills_for_prompt, load_skills
-from harnify_coding_agent.core.source_info import create_synthetic_source_info
-from harnify_coding_agent.core.system_prompt import build_system_prompt
+from harn_coding_agent.core.resource_loader import DefaultResourceLoader, load_project_context_files
+from harn_coding_agent.core.skills import Skill, format_skills_for_prompt, load_skills
+from harn_coding_agent.core.source_info import create_synthetic_source_info
+from harn_coding_agent.core.system_prompt import build_system_prompt
 
 
 def _write_valid_theme(path: Path, *, name: str) -> None:
@@ -30,7 +30,7 @@ def _write_valid_theme(path: Path, *, name: str) -> None:
 
 
 def test_core_messages_reexport_harness_behaviour() -> None:
-    from harnify_coding_agent.core import messages
+    from harn_coding_agent.core import messages
 
     message = BashExecutionMessage(
         command="echo hi",
@@ -97,7 +97,7 @@ def test_prompt_templates_load_defaults_and_expand(tmp_path: Path) -> None:
     typed = next(template for template in templates if template.name == "typed")
     assert typed.description == 7
     assert typed.argumentHint is True
-    from harnify_coding_agent.core import prompt_templates as prompt_templates_module
+    from harn_coding_agent.core import prompt_templates as prompt_templates_module
 
     assert prompt_templates_module.__all__ == [
         "LoadPromptTemplatesOptions",
@@ -152,7 +152,7 @@ def test_skills_load_with_collisions_and_prompt_formatting(tmp_path: Path) -> No
     assert "<location>" in prompt
     assert result.skills[0].sourceInfo.scope == "user"
     assert result.skills[1].sourceInfo.scope == "project"
-    from harnify_coding_agent.core import skills as skills_module
+    from harn_coding_agent.core import skills as skills_module
 
     assert skills_module.__all__ == [
         "SkillFrontmatter",
@@ -218,9 +218,9 @@ async def test_extensions_and_resource_loader_compose_session_start_resources(
 
     (extension_dir / "index.py").write_text(
         (
-            "from harnify_ai.types import TextContent\n"
-            "from harnify_agent.types import AgentToolResult\n"
-            "from harnify_coding_agent.core.extensions.types import ToolDefinition\n"
+            "from harn_ai.types import TextContent\n"
+            "from harn_agent.types import AgentToolResult\n"
+            "from harn_coding_agent.core.extensions.types import ToolDefinition\n"
             "async def default(api):\n"
             "    async def execute(tool_call_id, params, signal, on_update, ctx):\n"
             "        return AgentToolResult(\n"
@@ -383,15 +383,15 @@ def test_build_system_prompt_uses_context_and_skills(tmp_path: Path) -> None:
 
 
 def test_build_system_prompt_default_surface_and_docs_paths() -> None:
-    from harnify_coding_agent.config import get_docs_path, get_examples_path, get_readme_path
-    from harnify_coding_agent.core import system_prompt as system_prompt_module
+    from harn_coding_agent.config import get_docs_path, get_examples_path, get_readme_path
+    from harn_coding_agent.core import system_prompt as system_prompt_module
 
     assert system_prompt_module.__all__ == ["BuildSystemPromptOptions", "buildSystemPrompt"]
 
     prompt = build_system_prompt({"cwd": "/tmp/project"})
 
     assert prompt.startswith(
-        "You are an expert coding assistant operating inside harnify, a coding agent harness. "
+        "You are an expert coding assistant operating inside harn, a coding agent harness. "
         "You help users by reading files, executing commands, editing code, and writing new files."
     )
     assert f"- Main documentation: {get_readme_path()}" in prompt
@@ -434,7 +434,7 @@ async def test_resource_loader_exports_and_nullish_prompt_overrides_match_ts(tmp
     )
     await loader.reload()
 
-    from harnify_coding_agent.core import resource_loader as resource_loader_module
+    from harn_coding_agent.core import resource_loader as resource_loader_module
 
     assert resource_loader_module.__all__ == [
         "DefaultResourceLoader",

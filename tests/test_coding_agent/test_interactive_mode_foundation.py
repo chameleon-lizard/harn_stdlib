@@ -15,24 +15,24 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from harnify_ai.types import Model
-from harnify_coding_agent.core.bash_executor import BashResult
-from harnify_coding_agent.core.agent_session_runtime import SessionImportFileNotFoundError
-from harnify_coding_agent.core.keybindings import KeybindingsManager
-from harnify_coding_agent.core.session_cwd import MissingSessionCwdError, SessionCwdIssue
-from harnify_coding_agent.config import APP_NAME, APP_TITLE
-import harnify_coding_agent.modes.interactive.interactive_mode as interactive_mode_module
-from harnify_coding_agent.modes.interactive.interactive_mode import (
+from harn_ai.types import Model
+from harn_coding_agent.core.bash_executor import BashResult
+from harn_coding_agent.core.agent_session_runtime import SessionImportFileNotFoundError
+from harn_coding_agent.core.keybindings import KeybindingsManager
+from harn_coding_agent.core.session_cwd import MissingSessionCwdError, SessionCwdIssue
+from harn_coding_agent.config import APP_NAME, APP_TITLE
+import harn_coding_agent.modes.interactive.interactive_mode as interactive_mode_module
+from harn_coding_agent.modes.interactive.interactive_mode import (
     ANTHROPIC_SUBSCRIPTION_AUTH_WARNING,
     InteractiveMode,
 )
-from harnify_coding_agent.modes.interactive.components.assistant_message import AssistantMessageComponent
-from harnify_coding_agent.modes.interactive.components.tool_execution import ToolExecutionComponent
-from harnify_coding_agent.modes.interactive.components.user_message import UserMessageComponent
-from harnify_coding_agent.modes.interactive.theme.theme import init_theme
-from harnify_coding_agent.utils.changelog import ChangelogEntry
-from harnify_coding_agent.utils.version_check import LatestHarnifyRelease
-from harnify_tui import Container, Spacer, Text, setKeybindings
+from harn_coding_agent.modes.interactive.components.assistant_message import AssistantMessageComponent
+from harn_coding_agent.modes.interactive.components.tool_execution import ToolExecutionComponent
+from harn_coding_agent.modes.interactive.components.user_message import UserMessageComponent
+from harn_coding_agent.modes.interactive.theme.theme import init_theme
+from harn_coding_agent.utils.changelog import ChangelogEntry
+from harn_coding_agent.utils.version_check import LatestHarnRelease
+from harn_tui import Container, Spacer, Text, setKeybindings
 
 _ANSI_RE = re.compile(r"\x1b(?:\[[0-9;]*m|\]8;;.*?\x07)", re.DOTALL)
 
@@ -804,7 +804,7 @@ async def test_update_terminal_title_and_reload_command_binding() -> None:
 async def test_command_context_new_session_preserves_object_shaped_runtime_result() -> None:
     rendered: list[bool] = []
     request_renders: list[bool | None] = []
-    result_object = SimpleNamespace(cancelled=False, sessionPath="/tmp/new.harnify.jsonl")
+    result_object = SimpleNamespace(cancelled=False, sessionPath="/tmp/new.harn.jsonl")
 
     mode = InteractiveMode(
         ui=SimpleNamespace(requestRender=lambda force=None: request_renders.append(force)),
@@ -831,33 +831,33 @@ async def test_rebind_current_session_shows_loaded_resources_and_diagnostics() -
     )
     skill = SimpleNamespace(
         name="beads",
-        filePath="/tmp/project/.harnify/skills/beads/SKILL.md",
+        filePath="/tmp/project/.harn/skills/beads/SKILL.md",
         sourceInfo=source_info(
-            "/tmp/project/.harnify/skills/beads/SKILL.md",
-            "/tmp/project/.harnify/skills",
+            "/tmp/project/.harn/skills/beads/SKILL.md",
+            "/tmp/project/.harn/skills",
         ),
     )
     prompt = SimpleNamespace(
         name="review",
-        filePath="/tmp/project/.harnify/prompts/review.md",
+        filePath="/tmp/project/.harn/prompts/review.md",
         sourceInfo=source_info(
-            "/tmp/project/.harnify/prompts/review.md",
-            "/tmp/project/.harnify/prompts",
+            "/tmp/project/.harn/prompts/review.md",
+            "/tmp/project/.harn/prompts",
         ),
     )
     extension = SimpleNamespace(
-        path="/tmp/project/.harnify/extensions/example.py",
+        path="/tmp/project/.harn/extensions/example.py",
         sourceInfo=source_info(
-            "/tmp/project/.harnify/extensions/example.py",
-            "/tmp/project/.harnify/extensions",
+            "/tmp/project/.harn/extensions/example.py",
+            "/tmp/project/.harn/extensions",
         ),
     )
     theme = SimpleNamespace(
         name="custom",
-        sourcePath="/tmp/project/.harnify/themes/custom.json",
+        sourcePath="/tmp/project/.harn/themes/custom.json",
         sourceInfo=source_info(
-            "/tmp/project/.harnify/themes/custom.json",
-            "/tmp/project/.harnify/themes",
+            "/tmp/project/.harn/themes/custom.json",
+            "/tmp/project/.harn/themes",
         ),
     )
     resource_loader = SimpleNamespace(
@@ -941,7 +941,7 @@ async def test_show_extension_selector_and_confirm_use_editor_container_lifecycl
             self.disposed = True
 
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.ExtensionSelectorComponent",
+        "harn_coding_agent.modes.interactive.interactive_mode.ExtensionSelectorComponent",
         FakeExtensionSelectorComponent,
     )
 
@@ -992,7 +992,7 @@ async def test_show_extension_input_uses_editor_container_lifecycle(monkeypatch:
             self.disposed = True
 
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.ExtensionInputComponent",
+        "harn_coding_agent.modes.interactive.interactive_mode.ExtensionInputComponent",
         FakeExtensionInputComponent,
     )
 
@@ -1067,7 +1067,7 @@ async def test_show_extension_editor_uses_editor_container_lifecycle(monkeypatch
             self.disposed = True
 
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.ExtensionEditorComponent",
+        "harn_coding_agent.modes.interactive.interactive_mode.ExtensionEditorComponent",
         FakeExtensionEditorComponent,
     )
 
@@ -1976,7 +1976,7 @@ async def test_run_seeds_initial_messages_and_starts_ui(monkeypatch: pytest.Monk
         return None
 
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.check_for_new_harnify_version",
+        "harn_coding_agent.modes.interactive.interactive_mode.check_for_new_harn_version",
         fake_version_check,
     )
     monkeypatch.setattr(interactive_mode_module, "ensureTool", _noop_async)
@@ -2199,11 +2199,11 @@ async def test_init_matches_ts_startup_header_and_render_order(monkeypatch: pyte
 async def test_run_shows_version_notification_from_background_check(monkeypatch: pytest.MonkeyPatch) -> None:
     ui = FakeUi()
 
-    async def fake_version_check(_version: str) -> LatestHarnifyRelease | None:
-        return LatestHarnifyRelease(version="9.9.9", note="*New bits*")
+    async def fake_version_check(_version: str) -> LatestHarnRelease | None:
+        return LatestHarnRelease(version="9.9.9", note="*New bits*")
 
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.check_for_new_harnify_version",
+        "harn_coding_agent.modes.interactive.interactive_mode.check_for_new_harn_version",
         fake_version_check,
     )
     monkeypatch.setattr(interactive_mode_module, "ensureTool", _noop_async)
@@ -2303,11 +2303,11 @@ def test_get_changelog_for_display_returns_new_entries_and_updates_last_seen(
     )
     mode.reportInstallTelemetry = lambda version: telemetry_reports.append(version)  # type: ignore[method-assign]
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.get_changelog_path",
+        "harn_coding_agent.modes.interactive.interactive_mode.get_changelog_path",
         lambda: "/tmp/CHANGELOG.md",
     )
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.parse_changelog",
+        "harn_coding_agent.modes.interactive.interactive_mode.parse_changelog",
         lambda _path: [
             ChangelogEntry(major=1, minor=1, patch=0, content="## 1.1.0\n- Added"),
             ChangelogEntry(major=1, minor=0, patch=0, content="## 1.0.0\n- Old"),
@@ -2326,7 +2326,7 @@ def test_get_changelog_for_display_skips_resumed_sessions(monkeypatch: pytest.Mo
         session=SimpleNamespace(state=SimpleNamespace(messages=[{"role": "user"}])),
     )
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.parse_changelog",
+        "harn_coding_agent.modes.interactive.interactive_mode.parse_changelog",
         lambda _path: called.append("parse") or [],
     )
 
@@ -2358,11 +2358,11 @@ def test_show_startup_notices_condenses_changelog() -> None:
 def test_handle_changelog_command_renders_full_changelog(monkeypatch: pytest.MonkeyPatch) -> None:
     mode = InteractiveMode(ui=FakeUi(), chatContainer=Container())
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.get_changelog_path",
+        "harn_coding_agent.modes.interactive.interactive_mode.get_changelog_path",
         lambda: "/tmp/CHANGELOG.md",
     )
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.parse_changelog",
+        "harn_coding_agent.modes.interactive.interactive_mode.parse_changelog",
         lambda _path: [
             ChangelogEntry(major=1, minor=1, patch=0, content="## 1.1.0\n- Added"),
             ChangelogEntry(major=1, minor=0, patch=0, content="## 1.0.0\n- Old"),
@@ -2392,7 +2392,7 @@ async def test_check_for_package_updates_returns_display_names(monkeypatch: pyte
             ]
 
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.DefaultPackageManager",
+        "harn_coding_agent.modes.interactive.interactive_mode.DefaultPackageManager",
         FakePackageManager,
     )
 
@@ -3734,11 +3734,11 @@ async def test_open_external_editor_ignores_launch_failure_and_restores_ui(
     monkeypatch.setenv("EDITOR", "missing-editor")
     monkeypatch.delenv("VISUAL", raising=False)
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.tempfile.gettempdir",
+        "harn_coding_agent.modes.interactive.interactive_mode.tempfile.gettempdir",
         lambda: str(tmp_path),
     )
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.subprocess.run",
+        "harn_coding_agent.modes.interactive.interactive_mode.subprocess.run",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(FileNotFoundError("missing-editor")),
     )
 
@@ -3772,7 +3772,7 @@ def test_handle_debug_command_writes_log_and_renders_status(
 
     debug_log_path = tmp_path / "debug.log"
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.get_debug_log_path",
+        "harn_coding_agent.modes.interactive.interactive_mode.get_debug_log_path",
         lambda: str(debug_log_path),
     )
     monkeypatch.setattr(interactive_mode_module, "datetime", _FixedDateTime)
@@ -4013,21 +4013,21 @@ async def test_handle_clipboard_image_paste_writes_temp_file_and_inserts_path(
     mode = InteractiveMode(defaultEditor=editor, editor=editor, ui=ui)
 
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.read_clipboard_image",
+        "harn_coding_agent.modes.interactive.interactive_mode.read_clipboard_image",
         lambda: asyncio.sleep(0, result=SimpleNamespace(bytes=b"\x89PNG\r\n\x1a\n", mimeType="image/png")),
     )
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.tempfile.gettempdir",
+        "harn_coding_agent.modes.interactive.interactive_mode.tempfile.gettempdir",
         lambda: str(tmp_path),
     )
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.uuid4",
+        "harn_coding_agent.modes.interactive.interactive_mode.uuid4",
         lambda: "fixed-id",
     )
 
     await mode.handleClipboardImagePaste()
 
-    expected_path = tmp_path / "harnify-clipboard-fixed-id.png"
+    expected_path = tmp_path / "harn-clipboard-fixed-id.png"
     assert expected_path.read_bytes() == b"\x89PNG\r\n\x1a\n"
     assert editor.inserted == [str(expected_path)]
     assert ui.render_calls == [None]
@@ -4057,11 +4057,11 @@ def test_show_settings_selector_builds_live_settings_callbacks(monkeypatch: pyte
             captured["callbacks"] = callbacks
 
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.SettingsSelectorComponent",
+        "harn_coding_agent.modes.interactive.interactive_mode.SettingsSelectorComponent",
         FakeSettingsSelectorComponent,
     )
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.configureHttpDispatcher",
+        "harn_coding_agent.modes.interactive.interactive_mode.configureHttpDispatcher",
         lambda timeout_ms: settings_calls.append(("configureHttpDispatcher", timeout_ms)),
     )
     monkeypatch.setattr(
@@ -4211,11 +4211,11 @@ async def test_show_models_selector_updates_session_scope_and_persists(monkeypat
         return resolved
 
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.ScopedModelsSelectorComponent",
+        "harn_coding_agent.modes.interactive.interactive_mode.ScopedModelsSelectorComponent",
         FakeScopedModelsSelectorComponent,
     )
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.resolveModelScope",
+        "harn_coding_agent.modes.interactive.interactive_mode.resolveModelScope",
         fake_resolve_model_scope,
     )
 
@@ -4267,7 +4267,7 @@ async def test_show_models_selector_uses_full_registry_list_when_session_is_scop
             captured["callbacks"] = callbacks
 
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.ScopedModelsSelectorComponent",
+        "harn_coding_agent.modes.interactive.interactive_mode.ScopedModelsSelectorComponent",
         FakeScopedModelsSelectorComponent,
     )
 
@@ -4312,7 +4312,7 @@ async def test_show_session_selector_shutdown_callback_matches_ts_immediate_shut
             captured["on_shutdown"] = on_shutdown
 
     monkeypatch.setattr(
-        "harnify_coding_agent.modes.interactive.interactive_mode.SessionSelectorComponent",
+        "harn_coding_agent.modes.interactive.interactive_mode.SessionSelectorComponent",
         FakeSessionSelectorComponent,
     )
 
@@ -4332,7 +4332,7 @@ async def test_handle_resume_session_accepts_object_shaped_runtime_result() -> N
     rendered: list[bool] = []
 
     async def switch_session(session_path: str, options: dict[str, Any] | None = None) -> Any:
-        assert session_path == "/tmp/session.harnify.jsonl"
+        assert session_path == "/tmp/session.harn.jsonl"
         assert options == {"withSession": None}
         return SimpleNamespace(cancelled=False)
 
@@ -4343,7 +4343,7 @@ async def test_handle_resume_session_accepts_object_shaped_runtime_result() -> N
     mode.renderCurrentSessionState = lambda: rendered.append(True)  # type: ignore[method-assign]
     mode.showStatus = statuses.append  # type: ignore[method-assign]
 
-    result = await mode.handleResumeSession("/tmp/session.harnify.jsonl")
+    result = await mode.handleResumeSession("/tmp/session.harn.jsonl")
 
     assert getattr(result, "cancelled", None) is False
     assert rendered == [True]
@@ -4366,13 +4366,13 @@ async def test_handle_resume_session_accepts_object_shaped_options() -> None:
     mode.showStatus = lambda _message: None  # type: ignore[method-assign]
 
     await mode.handleResumeSession(
-        "/tmp/session.harnify.jsonl",
+        "/tmp/session.harn.jsonl",
         SimpleNamespace(withSession=SimpleNamespace(id="session-2")),
     )
 
     assert calls == [
         (
-            "/tmp/session.harnify.jsonl",
+            "/tmp/session.harn.jsonl",
             {"withSession": SimpleNamespace(id="session-2")},
         )
     ]

@@ -4,17 +4,17 @@ import os
 import sys
 from pathlib import Path
 
-import harnify_coding_agent as root_package
-from harnify_coding_agent import cli as cli_package
-from harnify_coding_agent import config
-from harnify_coding_agent.core import auth_guidance
-import harnify_coding_agent.package_manager_cli as package_manager_cli_module
+import harn_coding_agent as root_package
+from harn_coding_agent import cli as cli_package
+from harn_coding_agent import config
+from harn_coding_agent.core import auth_guidance
+import harn_coding_agent.package_manager_cli as package_manager_cli_module
 
 
 def test_config_metadata_defaults_match_package_configuration() -> None:
-    assert config.PACKAGE_NAME == "harnify-coding-agent"
-    assert config.APP_NAME == "harnify"
-    assert config.APP_TITLE == "harnify"
+    assert config.PACKAGE_NAME == "harn"
+    assert config.APP_NAME == "harn"
+    assert config.APP_TITLE == "harn"
     assert config.VERSION == "0.1.0"
     assert config.isBunBinary is False
     assert config.isBunRuntime is False
@@ -62,15 +62,15 @@ def test_config_metadata_defaults_match_package_configuration() -> None:
 
 def test_detect_install_method_handles_python_layouts() -> None:
     assert config._detect_install_method(
-        "/home/test/.local/share/pipx/venvs/harnify-coding-agent/lib/python3.12/site-packages/harnify_coding_agent",
-        "/home/test/.local/share/pipx/venvs/harnify-coding-agent/bin/python",
+        "/home/test/.local/share/pipx/venvs/harn/lib/python3.12/site-packages/harn_coding_agent",
+        "/home/test/.local/share/pipx/venvs/harn/bin/python",
     ) == "pipx"
     assert config._detect_install_method(
-        "/home/test/.local/share/uv/tools/harnify-coding-agent/lib/python3.12/site-packages/harnify_coding_agent",
-        "/home/test/.local/share/uv/tools/harnify-coding-agent/bin/python",
+        "/home/test/.local/share/uv/tools/harn/lib/python3.12/site-packages/harn_coding_agent",
+        "/home/test/.local/share/uv/tools/harn/bin/python",
     ) == "uv-tool"
     assert config._detect_install_method(
-        "/usr/lib/python3/dist-packages/harnify_coding_agent",
+        "/usr/lib/python3/dist-packages/harn_coding_agent",
         "/usr/bin/python3",
     ) == "pip"
 
@@ -91,19 +91,19 @@ def test_self_update_commands_match_python_install_methods(monkeypatch) -> None:
     monkeypatch.setattr(config, "detect_install_method", lambda: "pipx")
     pipx_command = config.get_self_update_command(config.PACKAGE_NAME)
     assert pipx_command is not None
-    assert pipx_command.display == "pipx upgrade harnify-coding-agent"
+    assert pipx_command.display == "pipx upgrade harn"
 
     monkeypatch.setattr(config, "detect_install_method", lambda: "uv-tool")
     uv_command = config.get_self_update_command(config.PACKAGE_NAME)
     assert uv_command is not None
-    assert uv_command.display == "uv tool upgrade harnify-coding-agent"
+    assert uv_command.display == "uv tool upgrade harn"
 
     monkeypatch.setattr(config, "detect_install_method", lambda: "pip")
     pip_command = config.get_self_update_command(config.PACKAGE_NAME, python_command=["python", "-m", "pip"])
     assert pip_command is not None
-    assert pip_command.display == "python -m pip install --upgrade harnify-coding-agent"
+    assert pip_command.display == "python -m pip install --upgrade harn"
     assert config.get_update_instruction(config.PACKAGE_NAME) == (
-        f"Run: {sys.executable} -m pip install --upgrade harnify-coding-agent"
+        f"Run: {sys.executable} -m pip install --upgrade harn"
     )
 
 
@@ -113,11 +113,11 @@ def test_self_update_command_requires_writable_install_path(monkeypatch) -> None
 
     assert config.get_self_update_command(config.PACKAGE_NAME) is None
     assert config.get_update_instruction(config.PACKAGE_NAME) == (
-        f"Run: {sys.executable} -m pip install --upgrade harnify-coding-agent"
+        f"Run: {sys.executable} -m pip install --upgrade harn"
     )
     assert config.get_self_update_unavailable_instruction(config.PACKAGE_NAME) == (
         "This installation is managed by a pip install, but the install path is not writable. "
-        f"Update it yourself with: {sys.executable} -m pip install --upgrade harnify-coding-agent"
+        f"Update it yourself with: {sys.executable} -m pip install --upgrade harn"
     )
 
 
@@ -134,19 +134,19 @@ def test_cli_package_entrypoint_wraps_async_main(monkeypatch) -> None:
 
     async def fake_invoke(argv: list[str]) -> int:
         seen["argv"] = argv
-        seen["env"] = os.environ.get("HARNIFY_CODING_AGENT")
+        seen["env"] = os.environ.get("HARN_CODING_AGENT")
         return 17
 
     monkeypatch.setattr(cli_package, "_invoke_main", fake_invoke)
     monkeypatch.setattr(cli_package, "_set_process_title", lambda title: seen.setdefault("title", title))
     monkeypatch.setattr(cli_package, "_suppress_runtime_warnings", lambda: seen.setdefault("warnings", True))
     monkeypatch.setattr(cli_package, "configureHttpDispatcher", lambda: seen.setdefault("dispatcher", True))
-    monkeypatch.delenv("HARNIFY_CODING_AGENT", raising=False)
+    monkeypatch.delenv("HARN_CODING_AGENT", raising=False)
 
     assert cli_package.main(["--demo"]) == 17
     assert seen["argv"] == ["--demo"]
     assert seen["env"] == "true"
-    assert seen["title"] == "harnify"
+    assert seen["title"] == "harn"
     assert seen["warnings"] is True
     assert seen["dispatcher"] is True
     assert cli_package.__all__ == ["main"]
@@ -479,7 +479,7 @@ def test_root_package_exports_match_ts_surface() -> None:
 
 
 def test_http_dispatcher_configuration_validates_and_records_timeout() -> None:
-    from harnify_coding_agent.core import http_dispatcher
+    from harn_coding_agent.core import http_dispatcher
 
     http_dispatcher.configureHttpDispatcher(60_000)
     assert http_dispatcher._get_configured_http_idle_timeout_ms() == 60_000

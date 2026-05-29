@@ -7,8 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-import harnify_tui.autocomplete as autocomplete
-from harnify_tui.autocomplete import CombinedAutocompleteProvider, SlashCommand
+import harn_tui.autocomplete as autocomplete
+from harn_tui.autocomplete import CombinedAutocompleteProvider, SlashCommand
 
 
 async def get_suggestions(

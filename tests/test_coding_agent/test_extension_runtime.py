@@ -3,15 +3,15 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from harnify_agent.types import AgentToolResult
-from harnify_ai.types import TextContent
-from harnify_coding_agent.core import exec as exec_module
-from harnify_coding_agent.core import extensions as extension_package
-from harnify_coding_agent.core.event_bus import createEventBus
-from harnify_coding_agent.core.extensions.loader import create_extension_runtime, load_extension_from_factory
-from harnify_coding_agent.core.extensions.runner import ExtensionRunner
-from harnify_coding_agent.core.extensions import types as extension_types
-from harnify_coding_agent.core.extensions.types import ToolDefinition
+from harn_agent.types import AgentToolResult
+from harn_ai.types import TextContent
+from harn_coding_agent.core import exec as exec_module
+from harn_coding_agent.core import extensions as extension_package
+from harn_coding_agent.core.event_bus import createEventBus
+from harn_coding_agent.core.extensions.loader import create_extension_runtime, load_extension_from_factory
+from harn_coding_agent.core.extensions.runner import ExtensionRunner
+from harn_coding_agent.core.extensions import types as extension_types
+from harn_coding_agent.core.extensions.types import ToolDefinition
 
 
 def test_extension_types_exports_include_ts_surface_restorations() -> None:
@@ -218,7 +218,7 @@ async def test_extension_api_exec_uses_shared_exec_result_and_per_call_cwd(monke
         exec_calls.append((command, list(args), cwd, dict(options or {})))
         return exec_result
 
-    monkeypatch.setattr("harnify_coding_agent.core.extensions.loader.exec_command", fake_exec_command)
+    monkeypatch.setattr("harn_coding_agent.core.extensions.loader.exec_command", fake_exec_command)
 
     async def factory(api: Any) -> None:
         seen_results.append(await api.exec("demo", ["--flag"], {"cwd": "/override"}))

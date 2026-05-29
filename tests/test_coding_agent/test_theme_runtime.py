@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
-interactive_theme_module = importlib.import_module("harnify_coding_agent.modes.interactive.theme.theme")
+interactive_theme_module = importlib.import_module("harn_coding_agent.modes.interactive.theme.theme")
 
 
 def test_load_theme_falls_back_to_256color_when_truecolor_is_unavailable(monkeypatch) -> None:

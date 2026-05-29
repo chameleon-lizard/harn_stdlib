@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from harnify_tui.components.truncated_text import TruncatedText
-from harnify_tui.utils import visibleWidth
+from harn_tui.components.truncated_text import TruncatedText
+from harn_tui.utils import visibleWidth
 
 RED = "\x1b[31m"
 BLUE = "\x1b[34m"

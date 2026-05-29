@@ -8,7 +8,7 @@ import re
 from types import SimpleNamespace
 
 import pytest
-from harnify_coding_agent.core.tools import (
+from harn_coding_agent.core.tools import (
     create_bash_tool,
     create_bash_tool_definition,
     create_local_bash_operations,
@@ -18,10 +18,10 @@ from harnify_coding_agent.core.tools import (
     create_write_tool_definition,
     get_text_output,
 )
-from harnify_coding_agent.core.tools import bash as bash_module
-from harnify_coding_agent.core.tools import read as read_module
-from harnify_coding_agent.core.tools import write as write_module
-from harnify_tui import Text
+from harn_coding_agent.core.tools import bash as bash_module
+from harn_coding_agent.core.tools import read as read_module
+from harn_coding_agent.core.tools import write as write_module
+from harn_tui import Text
 
 TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
@@ -162,7 +162,7 @@ async def test_read_tool_omits_image_when_auto_resize_cannot_make_it_safe(
     async def fake_resize(_img, _options=None):
         return None
 
-    monkeypatch.setattr("harnify_coding_agent.core.tools.read.resize_image", fake_resize)
+    monkeypatch.setattr("harn_coding_agent.core.tools.read.resize_image", fake_resize)
     image_file = tmp_path / "image.png"
     image_file.write_bytes(base64.b64decode(TINY_PNG_BASE64))
 
@@ -378,7 +378,7 @@ async def test_create_local_bash_operations_preserves_explicit_empty_env(
     def fail_if_called() -> dict[str, str]:
         raise AssertionError("get_shell_env should not be used when env={} is explicitly provided")
 
-    monkeypatch.setattr("harnify_coding_agent.core.tools.bash.get_shell_env", fail_if_called)
+    monkeypatch.setattr("harn_coding_agent.core.tools.bash.get_shell_env", fail_if_called)
 
     operations = create_local_bash_operations()
     chunks: list[bytes] = []

@@ -11,20 +11,20 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from harnify_coding_agent.core.bash_executor import execute_bash_with_operations
-from harnify_coding_agent.core.event_bus import createEventBus
-from harnify_coding_agent.core.exec import exec_command
-from harnify_coding_agent.core.keybindings import KeybindingsManager, migrateKeybindingsConfig
-from harnify_coding_agent.core.output_guard import (
+from harn_coding_agent.core.bash_executor import execute_bash_with_operations
+from harn_coding_agent.core.event_bus import createEventBus
+from harn_coding_agent.core.exec import exec_command
+from harn_coding_agent.core.keybindings import KeybindingsManager, migrateKeybindingsConfig
+from harn_coding_agent.core.output_guard import (
     flushRawStdout,
     isStdoutTakenOver,
     restoreStdout,
     takeOverStdout,
     writeRawStdout,
 )
-from harnify_coding_agent.core import source_info as source_info_module
-from harnify_coding_agent.core import slash_commands as slash_commands_module
-from harnify_coding_agent.core.tools.truncate import DEFAULT_MAX_BYTES
+from harn_coding_agent.core import source_info as source_info_module
+from harn_coding_agent.core import slash_commands as slash_commands_module
+from harn_coding_agent.core.tools.truncate import DEFAULT_MAX_BYTES
 
 
 class _AbortSignal:
@@ -104,7 +104,7 @@ def test_source_info_surface_and_copy_semantics_match_ts() -> None:
 
 
 def test_install_telemetry_surface_and_env_precedence(monkeypatch: pytest.MonkeyPatch) -> None:
-    from harnify_coding_agent.core import telemetry as telemetry_module
+    from harn_coding_agent.core import telemetry as telemetry_module
 
     class _Settings:
         def __init__(self, enabled: bool) -> None:
@@ -115,14 +115,14 @@ def test_install_telemetry_surface_and_env_precedence(monkeypatch: pytest.Monkey
 
     assert telemetry_module.__all__ == ["isInstallTelemetryEnabled"]
 
-    monkeypatch.setenv("HARNIFY_TELEMETRY", "yes")
+    monkeypatch.setenv("HARN_TELEMETRY", "yes")
     assert telemetry_module.isInstallTelemetryEnabled(_Settings(False)) is True
     assert telemetry_module.isInstallTelemetryEnabled(_Settings(True), "0") is False
     assert telemetry_module.isInstallTelemetryEnabled(_Settings(True), None) is True
 
 
 def test_timings_surface_matches_ts() -> None:
-    from harnify_coding_agent.core import timings as timings_module
+    from harn_coding_agent.core import timings as timings_module
 
     assert timings_module.__all__ == ["resetTimings", "time", "printTimings"]
 
@@ -192,7 +192,7 @@ def test_event_bus_async_handler_does_not_block_without_running_loop() -> None:
 
 
 def test_event_bus_module_exports_match_ts_surface() -> None:
-    from harnify_coding_agent.core import event_bus
+    from harn_coding_agent.core import event_bus
 
     assert event_bus.__all__ == [
         "EventBus",
@@ -202,7 +202,7 @@ def test_event_bus_module_exports_match_ts_surface() -> None:
 
 
 def test_core_package_exports_match_ts_surface() -> None:
-    import harnify_coding_agent.core as core_package
+    import harn_coding_agent.core as core_package
 
     assert core_package.__all__ == [
         "AgentEndEvent",
@@ -345,7 +345,7 @@ async def test_exec_command_returns_code_1_for_spawn_errors(tmp_path: Path) -> N
 def test_exec_module_exports_match_ts_surface() -> None:
     import importlib
 
-    exec_module = importlib.import_module("harnify_coding_agent.core.exec")
+    exec_module = importlib.import_module("harn_coding_agent.core.exec")
     assert exec_module.__all__ == [
         "ExecOptions",
         "ExecResult",
@@ -427,7 +427,7 @@ async def test_output_guard_redirects_stdout_but_preserves_raw_stdout(monkeypatc
 
 
 def test_output_guard_exports_match_ts_surface() -> None:
-    from harnify_coding_agent.core import output_guard
+    from harn_coding_agent.core import output_guard
 
     assert output_guard.__all__ == [
         "flushRawStdout",
@@ -484,7 +484,7 @@ def test_migrate_keybindings_config_prefers_namespaced_entries() -> None:
 
 
 def test_keybindings_module_exports_match_ts_surface() -> None:
-    from harnify_coding_agent.core import keybindings
+    from harn_coding_agent.core import keybindings
 
     assert keybindings.__all__ == [
         "AppKeybinding",

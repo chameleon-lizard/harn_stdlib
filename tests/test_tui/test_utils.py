@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from collections import OrderedDict
 
-from harnify_tui import utils as utils_module
-from harnify_tui.utils import (
+from harn_tui import utils as utils_module
+from harn_tui.utils import (
     normalizeTerminalOutput,
     sliceByColumn,
     truncateToWidth,

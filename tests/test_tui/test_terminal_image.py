@@ -4,8 +4,8 @@ import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from harnify_tui import terminal_image as terminal_image_module
-from harnify_tui.terminal_image import (
+from harn_tui import terminal_image as terminal_image_module
+from harn_tui.terminal_image import (
     CellDimensions,
     ImageDimensions,
     ImageRenderOptions,

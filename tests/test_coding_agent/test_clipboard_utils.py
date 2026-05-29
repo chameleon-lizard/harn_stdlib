@@ -3,7 +3,7 @@ from __future__ import annotations
 import types
 
 import pytest
-from harnify_coding_agent.utils import clipboard as clipboard_utils
+from harn_coding_agent.utils import clipboard as clipboard_utils
 
 
 class _NativeClipboard:

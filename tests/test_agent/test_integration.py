@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from harnify_agent import AgentTool, AgentToolResult
-from harnify_agent.harness.agent_harness import AgentHarness
-from harnify_ai.providers.faux import faux_assistant_message, faux_tool_call
-from harnify_ai.types import TextContent
+from harn_agent import AgentTool, AgentToolResult
+from harn_agent.harness.agent_harness import AgentHarness
+from harn_ai.providers.faux import faux_assistant_message, faux_tool_call
+from harn_ai.types import TextContent
 
 TOOL_SCHEMA = {
     "type": "object",

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from harnify_coding_agent.core.compaction import CompactionResult
-from harnify_coding_agent.core.extensions import types as extension_types
+from harn_coding_agent.core.compaction import CompactionResult
+from harn_coding_agent.core.extensions import types as extension_types
 
 
 def test_extension_types_export_event_and_result_surface() -> None:

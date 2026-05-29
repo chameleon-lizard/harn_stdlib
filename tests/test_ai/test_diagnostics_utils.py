@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import harnify_ai.utils.diagnostics as diagnostics_module
+import harn_ai.utils.diagnostics as diagnostics_module
 from types import SimpleNamespace
 
-from harnify_ai.utils.diagnostics import (
+from harn_ai.utils.diagnostics import (
     append_assistant_message_diagnostic,
     create_assistant_message_diagnostic,
     extract_diagnostic_error,

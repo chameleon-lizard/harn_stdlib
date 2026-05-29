@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
-from harnify_tui import terminal as terminal_module
-from harnify_tui.terminal import ProcessTerminal
+from harn_tui import terminal as terminal_module
+from harn_tui.terminal import ProcessTerminal
 
 
 @dataclass

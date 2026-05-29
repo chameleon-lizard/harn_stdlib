@@ -6,15 +6,15 @@ from collections.abc import AsyncIterator
 import pytest
 import httpx
 
-from harnify_ai.models import get_model
-from harnify_ai.providers.openai_completions import (
+from harn_ai.models import get_model
+from harn_ai.providers.openai_completions import (
     build_params,
     convert_messages,
     create_client,
     get_compat,
     stream_openai_completions,
 )
-from harnify_ai.types import AssistantMessage, Context, Model, ModelCost, ToolResultMessage, Usage, UsageCost
+from harn_ai.types import AssistantMessage, Context, Model, ModelCost, ToolResultMessage, Usage, UsageCost
 
 
 def _openai_model() -> Model:

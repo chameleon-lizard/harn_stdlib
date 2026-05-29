@@ -3,8 +3,8 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from harnify_tui import stdin_buffer as stdin_buffer_module
-from harnify_tui.stdin_buffer import StdinBuffer
+from harn_tui import stdin_buffer as stdin_buffer_module
+from harn_tui.stdin_buffer import StdinBuffer
 
 
 @pytest.fixture

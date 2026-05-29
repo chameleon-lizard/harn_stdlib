@@ -4,7 +4,7 @@ from io import BytesIO
 from pathlib import Path
 
 import pytest
-from harnify_coding_agent.utils import clipboard_image as clipboard_image_utils
+from harn_coding_agent.utils import clipboard_image as clipboard_image_utils
 from PIL import Image
 
 

@@ -4,8 +4,8 @@ import asyncio
 
 import httpx
 import pytest
-from harnify_ai.providers import azure_openai_responses as azure_provider
-from harnify_ai.types import Context, Model, ModelCost
+from harn_ai.providers import azure_openai_responses as azure_provider
+from harn_ai.types import Context, Model, ModelCost
 
 
 def _azure_model() -> Model:

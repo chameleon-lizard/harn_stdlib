@@ -6,29 +6,29 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from harnify_coding_agent.core.agent_session_runtime import (
+from harn_coding_agent.core.agent_session_runtime import (
     AgentSessionRuntimeDiagnostic,
     AgentSessionServices,
     CreateAgentSessionRuntimeResult,
     SessionImportFileNotFoundError,
     createAgentSessionRuntime,
 )
-from harnify_coding_agent.core.agent_session_services import (
+from harn_coding_agent.core.agent_session_services import (
     createAgentSessionFromServices,
     createAgentSessionServices,
 )
-from harnify_coding_agent.core.auth_storage import AuthStorage
-from harnify_coding_agent.core.extensions.loader import create_extension_runtime
-from harnify_coding_agent.core.extensions.types import (
+from harn_coding_agent.core.auth_storage import AuthStorage
+from harn_coding_agent.core.extensions.loader import create_extension_runtime
+from harn_coding_agent.core.extensions.types import (
     Extension,
     ExtensionFlag,
     LoadExtensionsResult,
     PendingProviderRegistration,
 )
-from harnify_coding_agent.core.resource_loader import DefaultResourceLoaderOptions
-from harnify_coding_agent.core.session_manager import SessionManager
-from harnify_coding_agent.core.settings_manager import SettingsManager
-from harnify_coding_agent.core.source_info import create_synthetic_source_info
+from harn_coding_agent.core.resource_loader import DefaultResourceLoaderOptions
+from harn_coding_agent.core.session_manager import SessionManager
+from harn_coding_agent.core.settings_manager import SettingsManager
+from harn_coding_agent.core.source_info import create_synthetic_source_info
 
 
 @dataclass(slots=True)
@@ -191,7 +191,7 @@ async def test_create_agent_session_services_applies_pending_providers_and_flags
 ) -> None:
     registry = _StubModelRegistry()
     monkeypatch.setattr(
-        "harnify_coding_agent.core.agent_session_services.DefaultResourceLoader",
+        "harn_coding_agent.core.agent_session_services.DefaultResourceLoader",
         _StubResourceLoader,
     )
 
@@ -225,7 +225,7 @@ async def test_create_agent_session_from_services_delegates_to_sdk_callable(
         return {"session": "ok", "extensionsResult": None}
 
     monkeypatch.setattr(
-        "harnify_coding_agent.core.agent_session_services.create_agent_session",
+        "harn_coding_agent.core.agent_session_services.create_agent_session",
         fake_create_agent_session,
     )
     services = AgentSessionServices(
@@ -253,7 +253,7 @@ async def test_create_agent_session_from_services_delegates_to_sdk_callable(
     assert captured["noTools"] == "builtin"
     assert captured["tools"] == ["read"]
 
-    import harnify_coding_agent.core.agent_session_services as services_module
+    import harn_coding_agent.core.agent_session_services as services_module
 
     assert services_module.__all__ == [
         "AgentSessionRuntimeDiagnostic",
@@ -482,7 +482,7 @@ async def test_agent_session_runtime_only_cancels_on_literal_true(tmp_path: Path
 
 
 def test_agent_session_runtime_module_exports_match_ts_surface() -> None:
-    import harnify_coding_agent.core.agent_session_runtime as runtime_module
+    import harn_coding_agent.core.agent_session_runtime as runtime_module
 
     assert runtime_module.__all__ == [
         "AgentSessionRuntime",

@@ -6,8 +6,8 @@ from typing import Any
 
 import httpx
 import pytest
-from harnify_agent import AbortController, Agent, ProxyStreamOptions, process_proxy_event, stream_proxy
-from harnify_ai.types import AssistantMessage, Context, Model, Usage
+from harn_agent import AbortController, Agent, ProxyStreamOptions, process_proxy_event, stream_proxy
+from harn_ai.types import AssistantMessage, Context, Model, Usage
 
 
 def _model() -> Model:
@@ -204,15 +204,15 @@ async def test_stream_proxy_reports_abort_cleanly(monkeypatch: pytest.MonkeyPatc
 
 
 def test_root_exports_include_phase3_proxy_and_loop_surface() -> None:
-    import harnify_agent
+    import harn_agent
 
-    assert callable(harnify_agent.stream_proxy)
-    assert callable(harnify_agent.run_agent_loop)
-    assert callable(harnify_agent.run_agent_loop_continue)
-    assert harnify_agent.ProxyStreamOptions is ProxyStreamOptions
-    assert callable(harnify_agent.collectEntriesForBranchSummary)
-    assert callable(harnify_agent.compact)
-    assert callable(harnify_agent.load_prompt_templates)
-    assert harnify_agent.JsonlSessionRepo.__name__ == "JsonlSessionRepo"
-    assert callable(harnify_agent.execute_shell_with_capture)
-    assert callable(harnify_agent.truncate_tail)
+    assert callable(harn_agent.stream_proxy)
+    assert callable(harn_agent.run_agent_loop)
+    assert callable(harn_agent.run_agent_loop_continue)
+    assert harn_agent.ProxyStreamOptions is ProxyStreamOptions
+    assert callable(harn_agent.collectEntriesForBranchSummary)
+    assert callable(harn_agent.compact)
+    assert callable(harn_agent.load_prompt_templates)
+    assert harn_agent.JsonlSessionRepo.__name__ == "JsonlSessionRepo"
+    assert callable(harn_agent.execute_shell_with_capture)
+    assert callable(harn_agent.truncate_tail)

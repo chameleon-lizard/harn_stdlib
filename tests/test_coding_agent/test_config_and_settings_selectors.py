@@ -3,23 +3,23 @@ from __future__ import annotations
 import importlib
 from pathlib import Path
 
-from harnify_coding_agent.core.keybindings import KeybindingsManager
-from harnify_coding_agent.core.package_manager import ResolvedPaths, ResolvedResource
-from harnify_coding_agent.core.settings_manager import SettingsManager
-from harnify_coding_agent.modes.interactive.components.config_selector import ConfigSelectorComponent
-from harnify_coding_agent.modes.interactive.components.settings_selector import (
+from harn_coding_agent.core.keybindings import KeybindingsManager
+from harn_coding_agent.core.package_manager import ResolvedPaths, ResolvedResource
+from harn_coding_agent.core.settings_manager import SettingsManager
+from harn_coding_agent.modes.interactive.components.config_selector import ConfigSelectorComponent
+from harn_coding_agent.modes.interactive.components.settings_selector import (
     SettingsCallbacks,
     SettingsConfig,
     SettingsSelectorComponent,
 )
-from harnify_coding_agent.modes.interactive.theme.theme import init_theme
-from harnify_tui import setCapabilities, setKeybindings
+from harn_coding_agent.modes.interactive.theme.theme import init_theme
+from harn_tui import setCapabilities, setKeybindings
 
 config_selector_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.config_selector"
+    "harn_coding_agent.modes.interactive.components.config_selector"
 )
 settings_selector_module = importlib.import_module(
-    "harnify_coding_agent.modes.interactive.components.settings_selector"
+    "harn_coding_agent.modes.interactive.components.settings_selector"
 )
 
 

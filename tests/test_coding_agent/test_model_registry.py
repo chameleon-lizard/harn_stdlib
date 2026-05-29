@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import NotRequired, get_origin, get_type_hints
 
 import pytest
-from harnify_coding_agent.core.auth_storage import AuthStorage
-from harnify_coding_agent.core.model_registry import ModelRegistry
+from harn_coding_agent.core.auth_storage import AuthStorage
+from harn_coding_agent.core.model_registry import ModelRegistry
 
 
 def _write_models_json(path: Path, providers: dict[str, object]) -> None:
@@ -150,7 +150,7 @@ def test_empty_headers_override_is_accepted(tmp_path: Path) -> None:
 
 
 def test_model_registry_module_exports_match_ts_surface() -> None:
-    from harnify_coding_agent.core import model_registry
+    from harn_coding_agent.core import model_registry
 
     assert model_registry.__all__ == [
         "ModelRegistry",
@@ -161,7 +161,7 @@ def test_model_registry_module_exports_match_ts_surface() -> None:
 
 
 def test_provider_config_input_model_shape_matches_ts_required_keys() -> None:
-    from harnify_coding_agent.core import model_registry
+    from harn_coding_agent.core import model_registry
 
     hints = get_type_hints(model_registry._ProviderModelInput, include_extras=True)
 

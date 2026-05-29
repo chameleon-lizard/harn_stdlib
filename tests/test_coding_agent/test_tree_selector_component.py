@@ -4,14 +4,14 @@ import importlib
 import re
 import time
 
-from harnify_coding_agent.core.keybindings import KeybindingsManager
-from harnify_coding_agent.core.session_manager import SessionTreeNode
-from harnify_coding_agent.modes.interactive.components.tree_selector import TreeSelectorComponent
-from harnify_coding_agent.modes.interactive.theme.theme import init_theme
-from harnify_tui import setKeybindings
+from harn_coding_agent.core.keybindings import KeybindingsManager
+from harn_coding_agent.core.session_manager import SessionTreeNode
+from harn_coding_agent.modes.interactive.components.tree_selector import TreeSelectorComponent
+from harn_coding_agent.modes.interactive.theme.theme import init_theme
+from harn_tui import setKeybindings
 
 _ANSI_RE = re.compile(r"\x1b(?:\[[0-9;]*m|\]8;;.*?\x07)", re.DOTALL)
-tree_selector_module = importlib.import_module("harnify_coding_agent.modes.interactive.components.tree_selector")
+tree_selector_module = importlib.import_module("harn_coding_agent.modes.interactive.components.tree_selector")
 
 
 def _strip_ansi(text: str) -> str:

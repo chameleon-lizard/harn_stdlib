@@ -2,7 +2,7 @@
 
 Harn is an AI coding assistant for the terminal. It is a Python port of
 [earendil-pi](https://github.com/earendil-works/pi-mono), a TypeScript-based
-agent harness, rebuilt from the ground up with a native Python stack. Harnify
+agent harness, rebuilt from the ground up with a native Python stack. Harn
 ships a custom TUI, supports 30+ LLM providers out of the box, and gives models
 access to your filesystem through read, edit, write, bash, grep, find, and ls
 tools.
@@ -20,7 +20,7 @@ rest.
 ### With uv (recommended)
 
 ```bash
-git clone https://github.com/secemp9/harnify.git
+git clone https://github.com/secemp9/harn.git
 cd harn
 uv sync
 ```
@@ -35,7 +35,7 @@ uv run harn
 ### With pip
 
 ```bash
-git clone https://github.com/secemp9/harnify.git
+git clone https://github.com/secemp9/harn.git
 cd harn
 python -m venv .venv
 source .venv/bin/activate
@@ -48,7 +48,7 @@ pip install -e packages/harn_ai \
 ### With pipx (isolated install)
 
 ```bash
-git clone https://github.com/secemp9/harnify.git
+git clone https://github.com/secemp9/harn.git
 cd harn
 pipx install --editable packages/harn_coding_agent \
     --pip-args="-e packages/harn_ai -e packages/harn_agent -e packages/harn_tui"
@@ -238,7 +238,7 @@ harn/
 ## Development
 
 ```bash
-git clone https://github.com/secemp9/harnify.git
+git clone https://github.com/secemp9/harn.git
 cd harn
 uv sync
 ```

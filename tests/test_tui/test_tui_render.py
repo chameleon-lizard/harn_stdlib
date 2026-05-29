@@ -240,7 +240,7 @@ def test_tui_resolve_overlay_layout_matches_ts_nullish_and_invalid_fallbacks() -
 
 def test_tui_debug_redraw_log_matches_ts_hook(monkeypatch: Any, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv("HARNIFY_DEBUG_REDRAW", "1")
+    monkeypatch.setenv("HARN_DEBUG_REDRAW", "1")
     log_dir = tmp_path / ".harn" / "agent"
     log_dir.mkdir(parents=True)
 
@@ -256,7 +256,7 @@ def test_tui_debug_redraw_log_matches_ts_hook(monkeypatch: Any, tmp_path: Path) 
 
 
 def test_tui_debug_buffer_dump_matches_ts_hook(monkeypatch: Any) -> None:
-    monkeypatch.setenv("HARNIFY_TUI_DEBUG", "1")
+    monkeypatch.setenv("HARN_TUI_DEBUG", "1")
     debug_dir = Path("/tmp/tui")
     before = set(debug_dir.glob("render-*.log")) if debug_dir.exists() else set()
 

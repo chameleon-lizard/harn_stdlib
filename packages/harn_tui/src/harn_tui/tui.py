@@ -250,8 +250,8 @@ class TUI(Container):
         self.lastRenderAt = 0.0
         self.cursorRow = 0
         self.hardwareCursorRow = 0
-        self.showHardwareCursor = os.environ.get("HARNIFY_HARDWARE_CURSOR") == "1"
-        self.clearOnShrink = os.environ.get("HARNIFY_CLEAR_ON_SHRINK") == "1"
+        self.showHardwareCursor = os.environ.get("HARN_HARDWARE_CURSOR") == "1"
+        self.clearOnShrink = os.environ.get("HARN_CLEAR_ON_SHRINK") == "1"
         self.maxLinesRendered = 0
         self.previousViewportTop = 0
         self.fullRedrawCount = 0
@@ -733,7 +733,7 @@ class TUI(Container):
         cursor_pos = self.extractCursorPosition(new_lines, height)
         new_lines = self.applyLineResets(new_lines)
 
-        debug_redraw = os.environ.get("HARNIFY_DEBUG_REDRAW") == "1"
+        debug_redraw = os.environ.get("HARN_DEBUG_REDRAW") == "1"
 
         def log_redraw(reason: str) -> None:
             if not debug_redraw:
@@ -926,7 +926,7 @@ class TUI(Container):
 
         buffer += "\x1b[?2026l"
 
-        if os.environ.get("HARNIFY_TUI_DEBUG") == "1":
+        if os.environ.get("HARN_TUI_DEBUG") == "1":
             debug_dir = Path("/tmp/tui")
             debug_dir.mkdir(parents=True, exist_ok=True)
             debug_path = debug_dir / f"render-{int(time.time() * 1000)}-{secrets.token_hex(6)}.log"

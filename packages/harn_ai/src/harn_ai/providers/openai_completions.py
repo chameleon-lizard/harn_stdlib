@@ -191,7 +191,7 @@ def has_tool_history(messages: list[Any]) -> bool:
 def resolve_cache_retention(cache_retention: CacheRetention | None = None) -> CacheRetention:
     if cache_retention:
         return cache_retention
-    return "long" if os.environ.get("HARNIFY_CACHE_RETENTION") == "long" else "short"
+    return "long" if os.environ.get("HARN_CACHE_RETENTION") == "long" else "short"
 
 
 def stream_openai_completions(

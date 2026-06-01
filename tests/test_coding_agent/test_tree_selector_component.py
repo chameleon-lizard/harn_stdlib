@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import re
 import time
+from pathlib import Path
 
 from harn_coding_agent.core.keybindings import KeybindingsManager
 from harn_coding_agent.core.session_manager import SessionTreeNode
@@ -48,7 +49,7 @@ def _build_tool_tree() -> list[SessionTreeNode]:
                                     "id": "call-1",
                                     "name": "read",
                                     "arguments": {
-                                        "path": "/home/secemp9/demo.txt",
+                                        "path": str(Path.home() / "demo.txt"),
                                         "offset": 1,
                                         "limit": 3,
                                     },

@@ -20,8 +20,16 @@ build/
 pi-session-*.html
 harn-session-*.html
 
+# TLDR cache
+.tldr/
+.tldrignore
+
+# Reference source (not shipped)
+important_repository_of_the_dependencies_source_code_to_read_better_than_online_docs/
+
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db
 .beads-credential-key
-.beads/proxieddb/
+.beads/
+

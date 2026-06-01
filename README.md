@@ -289,11 +289,11 @@ uv run harn
 
 ## Roadmap
 
-- Port Pi extensions from the upstream ecosystem to Python (extensions live
+- [ ] Port Pi extensions from the upstream ecosystem to Python (extensions live
   outside the pi-mono monorepo at various `earendil-works/*` repos and
   community packages)
-- Publish individual extension packages to PyPI as `harn-ext-*`
-- Track upstream earendil-pi releases and keep harn at feature parity
+- [ ] Publish individual extension packages to PyPI as `harn-ext-*`
+- [ ] Track upstream earendil-pi releases and keep harn at feature parity
 
 ## License
 

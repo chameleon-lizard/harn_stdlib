@@ -1,5 +1,5 @@
 <p align="center">
-  <img alt="Harn logo" src="assets/logo.png" width="128">
+  <img alt="Harn logo" src="https://raw.githubusercontent.com/secemp9/harn/master/assets/logo.png" width="128">
 </p>
 
 # Harn

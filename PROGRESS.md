@@ -30,8 +30,7 @@
 - `python3 -m harn --list-tools`
 - `python3 -m harn --version`
 - `python3 -m unittest discover -s agent_eval_tests`
+- `RUN_OPENROUTER_EVAL=1 OPENROUTER_API_KEY=... python3 -m unittest discover -s agent_eval_tests -v`
 
-Live OpenRouter verification is documented in `agent_eval_tests/DOCUMENTATION.md`
-and should be run with `RUN_OPENROUTER_EVAL=1` plus an environment-provided
-`OPENROUTER_API_KEY`.
-
+Live OpenRouter verification passed on `deepseek-v4-flash` with the API key
+provided through the environment.

@@ -8,8 +8,13 @@ provider SDKs, TUI libraries, and pytest. The current implementation keeps the
 core useful surface as a compact terminal coding agent:
 
 - one Python package, `harn`;
+- one compatibility package, `harn_stdlib`, that re-exports `harn`;
 - no runtime dependencies in `pyproject.toml`;
 - direct source execution with `python -m harn`;
+- matched alias execution with `python -m harn_stdlib`;
+- matched console entry points `harn` and `harn-stdlib`;
+- legacy setuptools metadata in `setup.cfg` so both scripts are created by
+  pip/setuptools environments;
 - OpenRouter chat-completions calls through `urllib.request`;
 - default model `deepseek-v4-flash`;
 - API key loaded from `OPENROUTER_API_KEY`;
@@ -22,6 +27,14 @@ core useful surface as a compact terminal coding agent:
 The CLI builds a prompt from positional text, stdin, `@file` attachments, and
 `--prompt-file` attachments. It creates an `OpenRouterClient`, builds a system
 prompt, and runs an agent loop.
+
+The CLI also accepts original-Harn compatibility flags where a stdlib
+OpenRouter runtime can support them. Examples include `--print`, `--provider`,
+`--thinking`, `--tools/-t`, `--no-tools/-nt`, `--no-builtin-tools/-nbt`,
+`--list-models`, `--mode text|json`, `--offline`, and
+`--no-context-files/-nc`. State/session/TUI/resource flags are parsed so old
+commands fail less abruptly, but those subsystems are intentionally not
+implemented in the stdlib rewrite.
 
 The agent loop sends messages to OpenRouter. If the model returns tool calls,
 Harn executes them locally and appends tool results to the conversation. The
@@ -47,11 +60,19 @@ upward from the configured cwd.
 
 `harn/cli.py` provides argument parsing and terminal output.
 
+`setup.cfg` mirrors the console script metadata for package installers that
+still consult setuptools configuration.
+
+`harn_stdlib/` is a thin alias package. It contains no agent implementation and
+imports from `harn`, so `harn` and `harn-stdlib` cannot drift in behavior.
+
 ## Test surface
 
 `agent_eval_tests/test_static_stdlib.py` checks that the project declares no
 runtime dependencies, imports no known external packages from the previous
-implementation, and that the CLI lists tools.
+implementation, that `harn` and `harn_stdlib` expose the same public API, and
+that both module entry points print matching tools and version outputs. It also
+checks that representative original-Harn flags parse in stdlib mode.
 
 `agent_eval_tests/test_prompt_eval.py` is a live eval suite. It is skipped by
 default and runs only when `RUN_OPENROUTER_EVAL=1` and `OPENROUTER_API_KEY` are
@@ -72,4 +93,3 @@ compatible with the requirement to use pure Python and stdlib only.
 Secrets are read from environment variables. No API key is stored in source,
 docs, tests, or git history for this branch. Tool access is cwd-scoped by
 default.
-

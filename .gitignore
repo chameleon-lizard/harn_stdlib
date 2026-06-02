@@ -5,5 +5,5 @@ __pycache__/
 venv/
 .env
 .harn/
+harn.egg-info/
 agent_eval_tests/.tmp/
-

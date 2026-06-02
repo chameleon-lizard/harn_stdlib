@@ -84,3 +84,33 @@ class OpenRouterClient:
         if not data.get("choices"):
             raise OpenRouterError(f"OpenRouter response has no choices: {data}")
         return data
+
+    def list_models(self) -> list[dict[str, Any]]:
+        """Return OpenRouter model metadata."""
+
+        url = self.base_url.rstrip("/") + "/models"
+        headers = {
+            "Accept": "application/json",
+            "HTTP-Referer": self.referer,
+            "X-Title": self.title,
+        }
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        request = urllib.request.Request(url, headers=headers, method="GET")
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                response_body = response.read().decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise OpenRouterError(f"OpenRouter HTTP {exc.code}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise OpenRouterError(f"OpenRouter request failed: {exc.reason}") from exc
+
+        try:
+            data = json.loads(response_body)
+        except json.JSONDecodeError as exc:
+            raise OpenRouterError(f"OpenRouter returned invalid JSON: {response_body[:500]}") from exc
+        models = data.get("data")
+        if not isinstance(models, list):
+            raise OpenRouterError(f"OpenRouter model response has no data list: {data}")
+        return [model for model in models if isinstance(model, dict)]

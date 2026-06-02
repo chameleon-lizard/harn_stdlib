@@ -13,6 +13,15 @@ No build step is required for source execution.
 git clone https://github.com/secemp9/harn.git
 cd harn
 python -m harn --version
+python -m harn_stdlib --version
+```
+
+Source install check:
+
+```bash
+python -m pip install --no-deps .
+harn --version
+harn-stdlib --version
 ```
 
 Optional editable/package installation depends on the user's packaging tool,
@@ -39,9 +48,11 @@ CLI options of operational interest:
 
 ```bash
 python -m harn --help
+python -m harn_stdlib --help
 python -m harn --cwd /repo -p "Inspect this project"
 python -m harn --no-tools -p "Answer without tools"
 python -m harn --allow-outside-cwd -p "Read a specific external file"
+python -m harn --provider openai --model gpt-4o -p "Use OpenRouter provider prefixing"
 ```
 
 ## Health checks
@@ -51,6 +62,8 @@ Local import and CLI health:
 ```bash
 python -m harn --version
 python -m harn --list-tools
+python -m harn_stdlib --version
+python -m harn_stdlib --list-tools
 python -m unittest discover -s agent_eval_tests
 ```
 
@@ -60,8 +73,9 @@ Live OpenRouter health:
 RUN_OPENROUTER_EVAL=1 OPENROUTER_API_KEY="sk-or-v1-..." python -m unittest discover -s agent_eval_tests
 ```
 
-Expected static result: six tests run, three live tests skipped when
-`RUN_OPENROUTER_EVAL` is not set.
+Expected static result: eleven tests run, four live tests skipped when
+`RUN_OPENROUTER_EVAL` is not set. The static suite includes parity checks for
+`harn` and `harn_stdlib`, plus representative original-Harn CLI flag checks.
 
 ## Logs
 
@@ -145,4 +159,3 @@ git log --oneline
 git switch --detach <known-good-commit>
 python -m harn --version
 ```
-

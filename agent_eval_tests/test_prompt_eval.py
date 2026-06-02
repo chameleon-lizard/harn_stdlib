@@ -23,11 +23,17 @@ def _require_live() -> None:
         raise unittest.SkipTest("set OPENROUTER_API_KEY to run live OpenRouter evals")
 
 
-def _run_harn(args: list[str], *, cwd: Path = ROOT, timeout: int = 180) -> subprocess.CompletedProcess[str]:
+def _run_harn(
+    args: list[str],
+    *,
+    cwd: Path = ROOT,
+    module: str = "harn",
+    timeout: int = 180,
+) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env.setdefault("HARN_MODEL", MODEL)
     return subprocess.run(
-        [sys.executable, "-m", "harn", *args],
+        [sys.executable, "-m", module, *args],
         cwd=cwd,
         env=env,
         text=True,
@@ -39,6 +45,25 @@ def _run_harn(args: list[str], *, cwd: Path = ROOT, timeout: int = 180) -> subpr
 
 
 class LivePromptEvalTests(unittest.TestCase):
+    def test_harn_stdlib_alias_live_call_matches_runtime(self) -> None:
+        _require_live()
+        completed = _run_harn(
+            [
+                "--no-tools",
+                "--model",
+                MODEL,
+                "--max-steps",
+                "1",
+                "--max-tokens",
+                "80",
+                "--prompt",
+                "Reply with exactly HARN_STDLIB_ALIAS_OK",
+            ],
+            module="harn_stdlib",
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("HARN_STDLIB_ALIAS_OK", completed.stdout)
+
     def test_agents_prompt_is_understood(self) -> None:
         _require_live()
         prompt = PROMPT_DIR / "AGENTS.md"
@@ -115,4 +140,3 @@ class LivePromptEvalTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

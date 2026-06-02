@@ -4,9 +4,12 @@ version = "0.2.0"
 requires-python = ">=3.9"
 description = "Stdlib-only OpenRouter coding agent for the terminal"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 dependencies = []
 
 [project.scripts]
 harn = "harn.cli:main"
+harn-stdlib = "harn.cli:main"
 
+[tool.setuptools.packages.find]
+include = ["harn", "harn_stdlib"]

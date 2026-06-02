@@ -25,3 +25,13 @@ designed to run from source with:
 python -m harn -p "List this repository"
 ```
 
+The matching stdlib alias runs the same CLI:
+
+```bash
+python -m harn_stdlib -p "List this repository"
+```
+
+The CLI accepts common original-Harn flags such as `--print`, `--provider`,
+`--thinking`, `--tools/-t`, `--no-tools/-nt`, `--list-models`, `--offline`, and
+`--no-context-files/-nc`. Unsupported stateful subsystems are parsed for
+compatibility but are not implemented in this dependency-free runtime.

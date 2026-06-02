@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -67,15 +68,49 @@ def _parse_tools(raw: str | None) -> set[str] | None:
     return values
 
 
+def _text_or_file(value: str) -> str:
+    path = Path(value)
+    if path.is_file():
+        return _load_text_file(path)
+    return value
+
+
+def _resolve_model(provider: str | None, model: str) -> str:
+    if provider and provider != "openrouter" and "/" not in model:
+        return f"{provider}/{model}"
+    return model
+
+
+def _print_models(client: OpenRouterClient, search: str | None) -> int:
+    needle = (search or "").lower()
+    models = client.list_models()
+    rows: list[str] = []
+    for model in models:
+        model_id = str(model.get("id", ""))
+        name = str(model.get("name", ""))
+        haystack = f"{model_id} {name}".lower()
+        if needle and needle not in haystack:
+            continue
+        rows.append(model_id if not name or name == model_id else f"{model_id}\t{name}")
+    print("\n".join(sorted(rows)))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="harn", description="Stdlib-only OpenRouter coding agent.")
     parser.add_argument("message", nargs="*", help="Prompt text. Tokens like @file are attached as text.")
-    parser.add_argument("-p", "--prompt", help="Prompt text.")
+    parser.add_argument("-p", "--print", dest="print_mode", action="store_true", help="Process prompt and exit.")
+    parser.add_argument("--prompt", help="Prompt text.")
     parser.add_argument("--prompt-file", action="append", help="Attach a prompt file. Can be used more than once.")
+    parser.add_argument("--provider", help="Provider prefix for OpenRouter model IDs.")
+    parser.add_argument("--system-prompt", help="Additional system prompt text.")
     parser.add_argument("--system-prompt-file", help="Additional system prompt file.")
+    parser.add_argument("--append-system-prompt", action="append", default=[], help="Append system text or file.")
     parser.add_argument("--agents-file", help="Explicit AGENTS.md path to load instead of auto-discovery.")
+    parser.add_argument("--no-context-files", "-nc", action="store_true", help="Disable AGENTS.md discovery.")
     parser.add_argument("--cwd", default=".", help="Working directory for tools.")
     parser.add_argument("--model", default=DEFAULT_MODEL, help=f"OpenRouter model. Default: {DEFAULT_MODEL}")
+    parser.add_argument("--models", help="Accepted for original Harn compatibility; unused in stdlib mode.")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help="OpenRouter-compatible API base URL.")
     parser.add_argument("--api-key-env", default=DEFAULT_API_KEY_ENV, help="Environment variable containing the API key.")
     parser.add_argument("--api-key", help="API key. Prefer the environment variable so it is not saved in shell history.")
@@ -83,11 +118,32 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--temperature", type=float, default=0.2, help="Model temperature.")
     parser.add_argument("--max-tokens", type=int, help="Optional response token cap.")
     parser.add_argument("--max-steps", type=int, default=DEFAULT_MAX_STEPS, help="Maximum model/tool loop steps.")
-    parser.add_argument("--tools", type=_parse_tools, default=set(DEFAULT_TOOLS), help="Comma-separated tools or 'all'.")
-    parser.add_argument("--no-tools", action="store_true", help="Disable tool calls.")
+    parser.add_argument("--tools", "-t", type=_parse_tools, default=set(DEFAULT_TOOLS), help="Comma-separated tools or 'all'.")
+    parser.add_argument("--no-tools", "-nt", action="store_true", help="Disable tool calls.")
+    parser.add_argument("--no-builtin-tools", "-nbt", action="store_true", help="Disable built-in tools.")
     parser.add_argument("--allow-outside-cwd", action="store_true", help="Allow tools to access paths outside cwd.")
     parser.add_argument("--list-tools", action="store_true", help="List available tools and exit.")
-    parser.add_argument("--version", action="store_true", help="Print version and exit.")
+    parser.add_argument("--list-models", nargs="?", const="", help="List OpenRouter models and exit.")
+    parser.add_argument("--thinking", choices=["off", "minimal", "low", "medium", "high", "xhigh"], help="Accepted compatibility option.")
+    parser.add_argument("--mode", choices=["text", "json", "rpc"], default="text", help="Output mode.")
+    parser.add_argument("--continue", "-c", dest="continue_session", action="store_true", help="Accepted compatibility option.")
+    parser.add_argument("--resume", "-r", action="store_true", help="Accepted compatibility option.")
+    parser.add_argument("--session", help="Accepted compatibility option.")
+    parser.add_argument("--fork", help="Accepted compatibility option.")
+    parser.add_argument("--session-dir", help="Accepted compatibility option.")
+    parser.add_argument("--no-session", action="store_true", help="Accepted compatibility option.")
+    parser.add_argument("--export", nargs="*", help="Session export is not available in stdlib mode.")
+    parser.add_argument("--extension", "-e", action="append", default=[], help="Accepted compatibility option.")
+    parser.add_argument("--no-extensions", "-ne", action="store_true", help="Accepted compatibility option.")
+    parser.add_argument("--skill", action="append", default=[], help="Accepted compatibility option.")
+    parser.add_argument("--no-skills", "-ns", action="store_true", help="Accepted compatibility option.")
+    parser.add_argument("--prompt-template", action="append", default=[], help="Accepted compatibility option.")
+    parser.add_argument("--no-prompt-templates", "-np", action="store_true", help="Accepted compatibility option.")
+    parser.add_argument("--theme", action="append", default=[], help="Accepted compatibility option.")
+    parser.add_argument("--no-themes", action="store_true", help="Accepted compatibility option.")
+    parser.add_argument("--verbose", action="store_true", help="Accepted compatibility option.")
+    parser.add_argument("--offline", action="store_true", help="Accepted compatibility option.")
+    parser.add_argument("--version", "-v", action="store_true", help="Print version and exit.")
     return parser
 
 
@@ -101,24 +157,49 @@ def main(argv: list[str] | None = None) -> int:
     if args.list_tools:
         print("\n".join(DEFAULT_TOOLS))
         return 0
+    if args.mode == "rpc":
+        print("harn: rpc mode is not available in the stdlib runtime", file=sys.stderr)
+        return 1
+    if args.export is not None:
+        print("harn: session export is not available in the stdlib runtime", file=sys.stderr)
+        return 1
 
     prompt = _collect_prompt(args)
-    if not prompt:
+    if not prompt and args.list_models is None:
         parser.error("provide a prompt, --prompt-file, @file, or stdin")
 
     cwd = Path(args.cwd).resolve()
-    extra_system_prompt = ""
+    extra_system_prompt_parts: list[str] = []
+    if args.system_prompt:
+        extra_system_prompt_parts.append(args.system_prompt)
     if args.system_prompt_file:
-        extra_system_prompt = _load_text_file(Path(args.system_prompt_file))
-    agents_file = Path(args.agents_file).resolve() if args.agents_file else None
+        extra_system_prompt_parts.append(_load_text_file(Path(args.system_prompt_file)))
+    for item in args.append_system_prompt:
+        extra_system_prompt_parts.append(_text_or_file(item))
+    if args.thinking:
+        extra_system_prompt_parts.append(f"Requested thinking level: {args.thinking}.")
+    extra_system_prompt = "\n\n".join(extra_system_prompt_parts)
+
+    if args.no_context_files:
+        agents_file = Path("/__harn_no_context_files__")
+    else:
+        agents_file = Path(args.agents_file).resolve() if args.agents_file else None
     api_key = args.api_key or os.environ.get(args.api_key_env, "")
+    model = _resolve_model(args.provider, args.model)
 
     client = OpenRouterClient(
         api_key=api_key,
-        model=args.model,
+        model=model,
         base_url=args.base_url,
         timeout=args.timeout,
     )
+    if args.list_models is not None:
+        try:
+            return _print_models(client, args.list_models)
+        except OpenRouterError as exc:
+            print(f"harn: {exc}", file=sys.stderr)
+            return 1
+
     agent = Agent(
         client,
         cwd=cwd,
@@ -127,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
         max_steps=args.max_steps,
         temperature=args.temperature,
         max_tokens=args.max_tokens,
-        no_tools=args.no_tools,
+        no_tools=args.no_tools or args.no_builtin_tools,
         system_prompt=extra_system_prompt,
         agents_file=agents_file,
     )
@@ -138,6 +219,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"harn: {exc}", file=sys.stderr)
         return 1
 
-    print(result.content)
+    if args.mode == "json":
+        print(json.dumps({"content": result.content, "steps": result.steps, "tool_calls": result.tool_calls}, ensure_ascii=False))
+    else:
+        print(result.content)
     return 0
 
+
+run = main
+
+__all__ = ["build_parser", "main", "run"]

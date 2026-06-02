@@ -18,12 +18,18 @@
 - Added original-Harn CLI compatibility parsing for common flags including
   `--print`, `--provider`, `--thinking`, `--tools`, `--list-models`,
   `--offline`, and `--no-context-files`.
+- Fixed the agent loop so an empty model reply without tool calls no longer
+  silently counts as a successful final answer.
 - Added static stdlib tests in `agent_eval_tests/`.
 - Added parity tests proving `harn` and `harn_stdlib` public API/module outputs
   match.
 - Added parser/help tests for representative original-Harn compatibility flags.
+- Added a static regression test for empty no-tool model replies.
 - Added optional live prompt evals using copied `AGENTS.md` and `DesignDoc.md`.
 - Added an optional live `harn_stdlib` alias eval.
+- Ran a dual DesignDoc implementation eval for `harn` and `harn_stdlib`; the
+  setup was identical, but results were not equivalent. See
+  `agent_eval_tests/design_doc_dual_eval_report.md`.
 - Added module documentation in `harn/DOCUMENTATION.md` and
   `agent_eval_tests/DOCUMENTATION.md`.
 
@@ -46,6 +52,10 @@
 - `python3 -m harn --help`
 - `python3 -m venv /tmp/harn-stdlib-venv && /tmp/harn-stdlib-venv/bin/python -m pip install --no-deps . && /tmp/harn-stdlib-venv/bin/harn --version && /tmp/harn-stdlib-venv/bin/harn-stdlib --version`
 - `python3 -m unittest discover -s agent_eval_tests`
+- Dual DesignDoc eval:
+  - `harn`: 46/46 generated project tests passed, clean worktree.
+  - `harn_stdlib`: 45/45 generated project tests passed, but agent hit
+    `max_steps=40` and left a dirty worktree.
 - `OPENROUTER_API_KEY=... python3 -m harn_stdlib --no-tools --model deepseek-v4-flash --max-steps 1 --max-tokens 80 --prompt 'Reply with exactly HARN_STDLIB_ALIAS_OK'`
 - `RUN_OPENROUTER_EVAL=1 OPENROUTER_API_KEY=... python3 -m unittest discover -s agent_eval_tests -v`
 

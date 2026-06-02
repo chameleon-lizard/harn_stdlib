@@ -73,7 +73,7 @@ Live OpenRouter health:
 RUN_OPENROUTER_EVAL=1 OPENROUTER_API_KEY="sk-or-v1-..." python -m unittest discover -s agent_eval_tests
 ```
 
-Expected static result: eleven tests run, four live tests skipped when
+Expected static result: twelve tests run, four live tests skipped when
 `RUN_OPENROUTER_EVAL` is not set. The static suite includes parity checks for
 `harn` and `harn_stdlib`, plus representative original-Harn CLI flag checks.
 

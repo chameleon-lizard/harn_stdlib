@@ -10,7 +10,11 @@ and `harn_stdlib/*.py` do not import the known dependency packages from the
 previous implementation, that `python -m harn --list-tools` works under the
 system Python, and that `harn` and `harn_stdlib` match on public API, tool list,
 and version output. It also checks representative original-Harn compatibility
-flags in the stdlib parser and help output.
+flags in the stdlib parser and help output, plus the empty no-tool reply
+regression path in the agent loop.
+
+`design_doc_dual_eval_report.md` records a live dual-agent implementation run
+against `DesignDoc.md`. It is a report artifact, not a unit test.
 
 Run:
 

@@ -1,35 +1,9 @@
-
-# Python
 __pycache__/
-*.pyc
-*.pyo
-*.egg-info/
-dist/
-build/
-
-# Virtual environments
+*.py[cod]
+.python-version
 .venv/
+venv/
 .env
-
-# Testing / linting caches
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-
-# Session logs
-pi-session-*.html
-harn-session-*.html
-
-# TLDR cache
-.tldr/
-.tldrignore
-
-# Reference source (not shipped)
-important_repository_of_the_dependencies_source_code_to_read_better_than_online_docs/
-
-# Beads / Dolt files (added by bd init)
-.dolt/
-*.db
-.beads-credential-key
-.beads/
+.harn/
+agent_eval_tests/.tmp/
 

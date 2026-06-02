@@ -76,6 +76,20 @@ class Agent:
             content = message.get("content") or ""
 
             if not tool_calls:
+                if not content.strip():
+                    messages.append({"role": "assistant", "content": content})
+                    if step == self.max_steps:
+                        break
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "Your previous assistant message was empty. Continue the task by either "
+                                "calling the available tools or providing a non-empty final answer."
+                            ),
+                        }
+                    )
+                    continue
                 messages.append({"role": "assistant", "content": content})
                 return AgentResult(content=content, steps=step, tool_calls=tool_call_count, messages=messages)
 

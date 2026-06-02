@@ -35,3 +35,8 @@ The CLI accepts common original-Harn flags such as `--print`, `--provider`,
 `--thinking`, `--tools/-t`, `--no-tools/-nt`, `--list-models`, `--offline`, and
 `--no-context-files/-nc`. Unsupported stateful subsystems are parsed for
 compatibility but are not implemented in this dependency-free runtime.
+
+The agent loop treats an empty assistant response without tool calls as an
+incomplete turn. It appends a short continuation prompt and retries until the
+model either calls a tool, returns a non-empty final answer, or reaches
+`max_steps`.

@@ -5,8 +5,10 @@ from __future__ import annotations
 import ast
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -112,6 +114,29 @@ class StaticStdlibTests(unittest.TestCase):
         completed = self._run_module("harn", "--help")
         for flag in ("--provider", "--print", "--thinking", "--list-models", "--no-context-files"):
             self.assertIn(flag, completed.stdout)
+
+    def test_agent_continues_after_empty_no_tool_reply(self) -> None:
+        from harn.agent import Agent
+
+        class BlankThenFinalClient:
+            model = "fake"
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def chat(self, messages: list[dict[str, Any]], **_: Any) -> dict[str, Any]:
+                self.calls += 1
+                if self.calls == 1:
+                    return {"choices": [{"message": {"content": ""}}]}
+                return {"choices": [{"message": {"content": "done"}}]}
+
+        client = BlankThenFinalClient()
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            agent = Agent(client, cwd=Path(raw_tmp), no_tools=True, max_steps=3)  # type: ignore[arg-type]
+            result = agent.run("finish")
+        self.assertEqual("done", result.content)
+        self.assertEqual(2, client.calls)
+        self.assertIn("previous assistant message was empty", result.messages[3]["content"])
 
     def test_cli_lists_tools_with_system_python(self) -> None:
         completed = self._run_module("harn", "--list-tools")

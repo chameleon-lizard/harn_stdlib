@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import ast
+import io
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 from typing import Any
 
 
@@ -112,8 +114,47 @@ class StaticStdlibTests(unittest.TestCase):
 
     def test_help_includes_original_harn_compatibility_flags(self) -> None:
         completed = self._run_module("harn", "--help")
-        for flag in ("--provider", "--print", "--thinking", "--list-models", "--no-context-files"):
+        for flag in ("--provider", "--print", "--tui", "--thinking", "--list-models", "--no-context-files"):
             self.assertIn(flag, completed.stdout)
+
+    def test_tui_dispatch_rules(self) -> None:
+        from harn.cli import build_parser, should_launch_tui
+
+        parser = build_parser()
+        explicit = parser.parse_args(["--tui"])
+        self.assertTrue(should_launch_tui(explicit, ""))
+
+        no_tui = parser.parse_args(["--no-tui"])
+        self.assertFalse(should_launch_tui(no_tui, ""))
+
+        print_mode = parser.parse_args(["-p"])
+        self.assertFalse(should_launch_tui(print_mode, ""))
+
+        with mock.patch("sys.stdin.isatty", return_value=True), mock.patch("sys.stdout.isatty", return_value=True):
+            default = parser.parse_args([])
+            self.assertTrue(should_launch_tui(default, ""))
+            self.assertFalse(should_launch_tui(default, "hello"))
+
+    def test_tui_render_helpers(self) -> None:
+        from harn.tui import TranscriptEntry, input_tail, wrap_transcript
+
+        lines = wrap_transcript([TranscriptEntry("user", "hello world " * 6)], 24)
+        self.assertGreater(len(lines), 2)
+        self.assertTrue(lines[0].startswith("user> "))
+        self.assertEqual("> cdef", input_tail("abcdef", 6))
+
+    def test_tui_line_repl_commands(self) -> None:
+        from harn.tui import run_line_repl
+
+        class FakeAgent:
+            def initial_messages(self) -> list[dict[str, Any]]:
+                return [{"role": "system", "content": "fake"}]
+
+        output = io.StringIO()
+        code = run_line_repl(FakeAgent(), out=output, inp=io.StringIO("/help\n/quit\n"))  # type: ignore[arg-type]
+        self.assertEqual(0, code)
+        self.assertIn("Harn TUI fallback", output.getvalue())
+        self.assertIn("/clear", output.getvalue())
 
     def test_agent_continues_after_empty_no_tool_reply(self) -> None:
         from harn.agent import Agent

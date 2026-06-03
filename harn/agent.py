@@ -54,13 +54,23 @@ class Agent:
     def run(self, prompt: str) -> AgentResult:
         """Run the agent until it returns a final answer or max_steps is hit."""
 
+        return self.run_turn(self.initial_messages(), prompt)
+
+    def initial_messages(self) -> list[dict[str, Any]]:
+        """Return a fresh conversation containing the system prompt."""
+
+        return [{"role": "system", "content": self.system_prompt}]
+
+    def run_turn(self, messages: list[dict[str, Any]], prompt: str) -> AgentResult:
+        """Run one user turn using an existing chat transcript."""
+
         if self.max_steps <= 0:
             raise AgentError("max_steps must be positive")
 
-        messages: list[dict[str, Any]] = [
-            {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": prompt},
-        ]
+        messages = list(messages)
+        if not messages:
+            messages = self.initial_messages()
+        messages.append({"role": "user", "content": prompt})
         tool_schemas = [] if self.no_tools else self.registry.schemas(self.enabled_tools)
         tool_call_count = 0
 

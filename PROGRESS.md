@@ -10,6 +10,10 @@
   and `ls`.
 - Added automatic `AGENTS.md` discovery plus explicit `--agents-file`.
 - Added CLI support for direct prompts, stdin, `@file`, and `--prompt-file`.
+- Added a dependency-free interactive TUI using stdlib `curses`, plus a
+  line-mode fallback for terminals without curses.
+- Added automatic TUI launch when `harn` runs without a prompt in an
+  interactive terminal, plus explicit `--tui` and `--no-tui`.
 - Added `harn_stdlib` as a compatibility alias for `harn`.
 - Added the `harn-stdlib` console-script entry point targeting the same CLI as
   `harn`.
@@ -24,6 +28,7 @@
 - Added parity tests proving `harn` and `harn_stdlib` public API/module outputs
   match.
 - Added parser/help tests for representative original-Harn compatibility flags.
+- Added static tests for TUI dispatch and render helpers.
 - Added a static regression test for empty no-tool model replies.
 - Added optional live prompt evals using copied `AGENTS.md` and `DesignDoc.md`.
 - Added an optional live `harn_stdlib` alias eval.
@@ -36,7 +41,8 @@
 ## Planned or intentionally deferred
 
 - Streaming output is not implemented.
-- Interactive TUI is not implemented.
+- The stdlib TUI is intentionally simple: no mouse support, no streaming
+  token rendering, no old rich theme system.
 - Multi-provider SDK support is not implemented; OpenRouter is the supported
   path for this rewrite.
 - Session persistence is not implemented.
@@ -50,6 +56,7 @@
 - `python3 -m harn_stdlib --list-tools`
 - `python3 -m harn_stdlib --version`
 - `python3 -m harn --help`
+- `python3 -m harn --tui --help`
 - `python3 -m venv /tmp/harn-stdlib-venv && /tmp/harn-stdlib-venv/bin/python -m pip install --no-deps . && /tmp/harn-stdlib-venv/bin/harn --version && /tmp/harn-stdlib-venv/bin/harn-stdlib --version`
 - `python3 -m unittest discover -s agent_eval_tests`
 - Dual DesignDoc eval:

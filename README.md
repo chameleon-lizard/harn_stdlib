@@ -38,6 +38,17 @@ Equivalent stdlib alias:
 python -m harn_stdlib -p "List the important files in this repository"
 ```
 
+Start the interactive stdlib TUI by running without a prompt, or force it with
+`--tui`:
+
+```bash
+python -m harn
+python -m harn --tui --cwd /path/to/project
+```
+
+Inside the TUI, type a prompt and press Enter. Commands: `/help`, `/clear`,
+`/quit`. The transcript scrolls with Up/Down and PageUp/PageDown.
+
 The default model is `deepseek-v4-flash`. Override it with `--model` or
 `HARN_MODEL`:
 
@@ -67,9 +78,9 @@ python -m harn --no-tools -p "Answer without touching files"
 Original Harn CLI compatibility flags are accepted where they make sense in a
 stdlib/OpenRouter runtime, including `--print`, `--provider`, `--thinking`,
 `--tools/-t`, `--no-tools/-nt`, `--no-builtin-tools/-nbt`, `--list-models`,
-`--mode text|json`, `--offline`, and `--no-context-files/-nc`. Session, TUI,
-extension, theme, skill, and export flags are parsed for compatibility, but the
-stdlib runtime does not implement those subsystems.
+`--mode text|json`, `--offline`, `--tui`, and `--no-context-files/-nc`.
+Session, extension, theme, skill, and export flags are parsed for
+compatibility, but the stdlib runtime does not implement those subsystems.
 
 ## Tools
 
@@ -116,7 +127,7 @@ The API key is intentionally read from the environment and is not committed.
 harn/                 stdlib runtime and CLI
 harn_stdlib/          compatibility alias for harn / harn-stdlib
 agent_eval_tests/     static and live prompt eval tests
-setup.cfg             legacy editable-install metadata for both scripts
+setup.cfg             legacy setuptools metadata for both scripts
 WIKI.md               project feature summary
 PROGRESS.md           implemented and planned work
 OPS.md                operations runbook

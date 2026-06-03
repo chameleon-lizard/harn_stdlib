@@ -19,6 +19,7 @@ from .config import (
     DEFAULT_TOOLS,
     VERSION,
 )
+from .tui import run_tui
 
 
 def _read_stdin_if_available() -> str:
@@ -31,7 +32,7 @@ def _load_text_file(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
-def _collect_prompt(args: argparse.Namespace) -> str:
+def _collect_prompt(args: argparse.Namespace, *, read_stdin: bool = True) -> str:
     chunks: list[str] = []
     if args.prompt:
         chunks.append(args.prompt)
@@ -50,9 +51,10 @@ def _collect_prompt(args: argparse.Namespace) -> str:
     if words:
         chunks.append(" ".join(words))
 
-    stdin_text = _read_stdin_if_available()
-    if stdin_text.strip():
-        chunks.append(stdin_text)
+    if read_stdin:
+        stdin_text = _read_stdin_if_available()
+        if stdin_text.strip():
+            chunks.append(stdin_text)
     return "\n".join(part for part in chunks if part).strip()
 
 
@@ -100,6 +102,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="harn", description="Stdlib-only OpenRouter coding agent.")
     parser.add_argument("message", nargs="*", help="Prompt text. Tokens like @file are attached as text.")
     parser.add_argument("-p", "--print", dest="print_mode", action="store_true", help="Process prompt and exit.")
+    parser.add_argument("--tui", action="store_true", help="Open the stdlib interactive terminal UI.")
+    parser.add_argument("--no-tui", action="store_true", help="Disable automatic TUI launch when no prompt is supplied.")
     parser.add_argument("--prompt", help="Prompt text.")
     parser.add_argument("--prompt-file", action="append", help="Attach a prompt file. Can be used more than once.")
     parser.add_argument("--provider", help="Provider prefix for OpenRouter model IDs.")
@@ -164,9 +168,12 @@ def main(argv: list[str] | None = None) -> int:
         print("harn: session export is not available in the stdlib runtime", file=sys.stderr)
         return 1
 
-    prompt = _collect_prompt(args)
-    if not prompt and args.list_models is None:
-        parser.error("provide a prompt, --prompt-file, @file, or stdin")
+    prompt = _collect_prompt(args, read_stdin=not args.tui)
+    launch_tui = should_launch_tui(args, prompt)
+    if launch_tui and args.mode != "text":
+        parser.error("--tui only supports --mode text")
+    if not prompt and args.list_models is None and not launch_tui:
+        parser.error("provide a prompt, --prompt-file, @file, stdin, or run without a prompt to open the TUI")
 
     cwd = Path(args.cwd).resolve()
     extra_system_prompt_parts: list[str] = []
@@ -212,6 +219,8 @@ def main(argv: list[str] | None = None) -> int:
         system_prompt=extra_system_prompt,
         agents_file=agents_file,
     )
+    if launch_tui:
+        return run_tui(agent)
 
     try:
         result = agent.run(prompt)
@@ -228,4 +237,15 @@ def main(argv: list[str] | None = None) -> int:
 
 run = main
 
-__all__ = ["build_parser", "main", "run"]
+
+def should_launch_tui(args: argparse.Namespace, prompt: str) -> bool:
+    """Return whether the CLI should enter interactive TUI mode."""
+
+    if args.tui:
+        return True
+    if args.no_tui or args.print_mode or args.list_models is not None:
+        return False
+    return not prompt and sys.stdin.isatty() and sys.stdout.isatty()
+
+
+__all__ = ["build_parser", "main", "run", "should_launch_tui"]

@@ -15,6 +15,7 @@ against OpenRouter's OpenAI-compatible chat-completions API.
 - `agent.py` runs the model/tool loop until the assistant returns a final
   answer.
 - `cli.py` provides the `python -m harn` command-line interface.
+- `tui.py` provides the stdlib interactive terminal UI and fallback REPL.
 
 ## Dependency policy
 
@@ -31,9 +32,15 @@ The matching stdlib alias runs the same CLI:
 python -m harn_stdlib -p "List this repository"
 ```
 
+Run without a prompt to open the TUI:
+
+```bash
+python -m harn
+```
+
 The CLI accepts common original-Harn flags such as `--print`, `--provider`,
-`--thinking`, `--tools/-t`, `--no-tools/-nt`, `--list-models`, `--offline`, and
-`--no-context-files/-nc`. Unsupported stateful subsystems are parsed for
+`--thinking`, `--tools/-t`, `--no-tools/-nt`, `--list-models`, `--offline`,
+`--tui`, and `--no-context-files/-nc`. Unsupported stateful subsystems are parsed for
 compatibility but are not implemented in this dependency-free runtime.
 
 The agent loop treats an empty assistant response without tool calls as an

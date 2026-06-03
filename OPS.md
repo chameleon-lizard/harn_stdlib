@@ -49,6 +49,7 @@ CLI options of operational interest:
 ```bash
 python -m harn --help
 python -m harn_stdlib --help
+python -m harn --tui
 python -m harn --cwd /repo -p "Inspect this project"
 python -m harn --no-tools -p "Answer without tools"
 python -m harn --allow-outside-cwd -p "Read a specific external file"
@@ -73,9 +74,10 @@ Live OpenRouter health:
 RUN_OPENROUTER_EVAL=1 OPENROUTER_API_KEY="sk-or-v1-..." python -m unittest discover -s agent_eval_tests
 ```
 
-Expected static result: twelve tests run, four live tests skipped when
+Expected static result: fifteen tests run, four live tests skipped when
 `RUN_OPENROUTER_EVAL` is not set. The static suite includes parity checks for
-`harn` and `harn_stdlib`, plus representative original-Harn CLI flag checks.
+`harn` and `harn_stdlib`, representative original-Harn CLI flag checks, and TUI
+dispatch/render helper checks.
 
 ## Logs
 
@@ -111,6 +113,12 @@ Agent reaches max steps:
 - Symptom: `Agent reached max_steps=N without a final answer`.
 - Fix: increase `--max-steps`, simplify the prompt, or disable tools for pure
   summarization with `--no-tools`.
+
+TUI does not open:
+
+- Symptom: running `harn` without a prompt exits with an argparse prompt error.
+- Fix: run from an interactive terminal, or force the UI with `harn --tui`.
+  Use `--no-tui` in scripts where no prompt should be treated as an error.
 
 Tool path rejected:
 

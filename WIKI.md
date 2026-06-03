@@ -19,6 +19,8 @@ core useful surface as a compact terminal coding agent:
 - default model `deepseek-v4-flash`;
 - API key loaded from `OPENROUTER_API_KEY`;
 - filesystem and shell tools exposed through OpenAI-compatible tool calling;
+- dependency-free interactive TUI through stdlib `curses`, with line-mode
+  fallback;
 - local project instructions loaded from nearest `AGENTS.md`;
 - separate prompt eval directory using `AGENTS.md` and `DesignDoc.md`.
 
@@ -28,11 +30,16 @@ The CLI builds a prompt from positional text, stdin, `@file` attachments, and
 `--prompt-file` attachments. It creates an `OpenRouterClient`, builds a system
 prompt, and runs an agent loop.
 
+When run in an interactive terminal without a prompt, the CLI opens the stdlib
+TUI. The same UI can be forced with `--tui` or disabled with `--no-tui`. The TUI
+keeps a single chat transcript for the session and supports `/help`, `/clear`,
+and `/quit`.
+
 The CLI also accepts original-Harn compatibility flags where a stdlib
 OpenRouter runtime can support them. Examples include `--print`, `--provider`,
 `--thinking`, `--tools/-t`, `--no-tools/-nt`, `--no-builtin-tools/-nbt`,
-`--list-models`, `--mode text|json`, `--offline`, and
-`--no-context-files/-nc`. State/session/TUI/resource flags are parsed so old
+`--list-models`, `--mode text|json`, `--offline`, `--tui`, and
+`--no-context-files/-nc`. State/session/resource flags are parsed so old
 commands fail less abruptly, but those subsystems are intentionally not
 implemented in the stdlib rewrite.
 
@@ -60,6 +67,8 @@ upward from the configured cwd.
 
 `harn/cli.py` provides argument parsing and terminal output.
 
+`harn/tui.py` provides the stdlib curses TUI and line-mode fallback.
+
 `setup.cfg` mirrors the console script metadata for package installers that
 still consult setuptools configuration.
 
@@ -72,7 +81,8 @@ imports from `harn`, so `harn` and `harn-stdlib` cannot drift in behavior.
 runtime dependencies, imports no known external packages from the previous
 implementation, that `harn` and `harn_stdlib` expose the same public API, and
 that both module entry points print matching tools and version outputs. It also
-checks that representative original-Harn flags parse in stdlib mode.
+checks that representative original-Harn flags parse in stdlib mode and covers
+TUI dispatch/render helpers.
 
 `agent_eval_tests/test_prompt_eval.py` is a live eval suite. It is skipped by
 default and runs only when `RUN_OPENROUTER_EVAL=1` and `OPENROUTER_API_KEY` are
@@ -84,9 +94,10 @@ set. It uses:
 
 ## Removed features
 
-The dependency-heavy TUI, multi-provider SDK registry, OAuth flows, image
-providers, rich rendering, and old pytest suite were removed. They were not
-compatible with the requirement to use pure Python and stdlib only.
+The dependency-heavy original TUI, multi-provider SDK registry, OAuth flows,
+image providers, rich rendering, and old pytest suite were removed. They were
+not compatible with the requirement to use pure Python and stdlib only. A
+smaller stdlib TUI now replaces the old TUI surface.
 
 ## Security notes
 

@@ -7,6 +7,7 @@ import locale
 import sys
 import textwrap
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable
 
 from .agent import Agent, AgentError, AgentTraceEvent, append_stream_chunk
@@ -82,6 +83,7 @@ SLASH_COMMANDS = (
     ("/help", "show help and key bindings"),
     ("/commands", "list slash commands"),
     ("/clear", "clear the visible transcript"),
+    ("/continue", "list sessions or resume a numbered session"),
     ("/resume", "resume the latest or named session"),
     ("/reset", "reset conversation memory"),
     ("/status", "show model, cwd, and loop settings"),
@@ -95,6 +97,7 @@ HELP_TEXT = """Slash commands:
 /help      show this help
 /commands  list slash commands
 /clear     clear the visible transcript
+/continue  list sessions or resume a numbered session
 /resume    resume the latest or named session
 /reset     reset conversation memory
 /status    show model, cwd, and loop settings
@@ -290,6 +293,68 @@ def session_status(
             ]
         )
     return "\n".join(lines)
+
+
+def safe_session_metadata(store: SessionStore) -> dict[str, object]:
+    """Return session metadata, ignoring corrupt session folders in listings."""
+
+    try:
+        return store.metadata()
+    except SessionError:
+        return {}
+
+
+def recent_sessions(
+    *,
+    root: Path | None = None,
+    exclude: str | None = None,
+    limit: int = 20,
+) -> list[SessionStore]:
+    """Return recent sessions sorted newest first."""
+
+    sessions = []
+    for store in SessionStore.list(root=root):
+        if exclude and store.session_id == exclude:
+            continue
+        sessions.append(store)
+    sessions.sort(key=lambda store: str(safe_session_metadata(store).get("updated_at") or ""), reverse=True)
+    return sessions[:limit]
+
+
+def format_session_choices(sessions: list[SessionStore]) -> str:
+    """Return a numbered session picker for /continue."""
+
+    if not sessions:
+        return "No previous sessions found."
+    rows = ["Recent sessions:"]
+    for index, store in enumerate(sessions, start=1):
+        metadata = safe_session_metadata(store)
+        updated = str(metadata.get("updated_at") or "unknown")
+        model = str(metadata.get("model") or "unknown-model")
+        cwd = str(metadata.get("cwd") or "")
+        cwd_part = f" cwd={cwd}" if cwd else ""
+        rows.append(f"{index}. {store.session_id} updated={updated} model={model}{cwd_part}")
+    rows.append("Use /continue <number> or /continue <session-id>.")
+    return "\n".join(rows)
+
+
+def select_continue_session(
+    target: str,
+    choices: list[SessionStore],
+    *,
+    current_session_id: str | None = None,
+) -> SessionStore:
+    """Resolve a /continue target from a numbered list or session id."""
+
+    stripped = target.strip()
+    if stripped.isdigit():
+        if not choices:
+            choices = recent_sessions(exclude=current_session_id)
+        index = int(stripped)
+        if 1 <= index <= len(choices):
+            return choices[index - 1]
+        raise SessionError(f"No session numbered {index}. Run /continue to list available sessions.")
+    return SessionStore.open(stripped)
 
 
 def agent_tools(agent: Agent) -> str:
@@ -495,6 +560,9 @@ def run_line_repl(agent: Agent, *, out: object = sys.stdout, inp: object = sys.s
                 print("\033[H\033[J", end="", file=out)
             print("system> Transcript cleared.", file=out)
             continue
+        if stripped.startswith("/continue"):
+            print("system> /continue is available in the full-screen TUI.", file=out)
+            continue
         if stripped.startswith("/resume"):
             print("system> /resume is available in the full-screen TUI.", file=out)
             continue
@@ -557,6 +625,7 @@ def run_curses_tui(agent: Agent) -> int:
         status = "ready"
         expanded_traces = False
         turn_counter = 0
+        continue_choices: list[SessionStore] = []
 
         def persist_state() -> None:
             if not session_store:
@@ -609,6 +678,16 @@ def run_curses_tui(agent: Agent) -> int:
                 collapsible=event.collapsible,
             )
 
+        def resume_loaded_session(loaded: SessionStore) -> None:
+            nonlocal entries, messages, session_store, status
+            state = loaded.load_state()
+            loaded_entries = deserialize_entries(state.get("entries"))
+            entries = loaded_entries or [TranscriptEntry("system", f"Resumed empty session {loaded.session_id}.")]
+            messages = deserialize_messages(state.get("messages"), agent.initial_messages())
+            session_store = loaded
+            add("system", f"Resumed session {loaded.session_id}.")
+            status = f"resumed {loaded.session_id}"
+
         def render() -> None:
             nonlocal scroll
             stdscr.erase()
@@ -641,7 +720,7 @@ def run_curses_tui(agent: Agent) -> int:
             stdscr.refresh()
 
         def submit() -> None:
-            nonlocal entries, messages, scroll, session_store, status, expanded_traces, turn_counter
+            nonlocal continue_choices, entries, messages, scroll, session_store, status, expanded_traces, turn_counter
             prompt = input_line.text.strip()
             input_line.clear()
             if not prompt:
@@ -665,6 +744,29 @@ def run_curses_tui(agent: Agent) -> int:
                 status = "cleared"
                 scroll = 0
                 return
+            if command == "/continue":
+                target = command_arg.strip()
+                try:
+                    if not target:
+                        continue_choices = recent_sessions(
+                            exclude=session_store.session_id if session_store else None
+                        )
+                        add("system", format_session_choices(continue_choices))
+                        status = "continue"
+                        scroll = 10**9
+                        return
+                    loaded = select_continue_session(
+                        target,
+                        continue_choices,
+                        current_session_id=session_store.session_id if session_store else None,
+                    )
+                    resume_loaded_session(loaded)
+                    scroll = 10**9
+                except (OSError, SessionError) as exc:
+                    add("error", str(exc))
+                    status = "error"
+                    scroll = 10**9
+                return
             if command == "/resume":
                 target = command_arg.strip()
                 try:
@@ -676,13 +778,7 @@ def run_curses_tui(agent: Agent) -> int:
                         status = "error"
                         scroll = 10**9
                         return
-                    state = loaded.load_state()
-                    loaded_entries = deserialize_entries(state.get("entries"))
-                    entries = loaded_entries or [TranscriptEntry("system", f"Resumed empty session {loaded.session_id}.")]
-                    messages = deserialize_messages(state.get("messages"), agent.initial_messages())
-                    session_store = loaded
-                    add("system", f"Resumed session {loaded.session_id}.")
-                    status = f"resumed {loaded.session_id}"
+                    resume_loaded_session(loaded)
                     scroll = 10**9
                 except (OSError, SessionError) as exc:
                     add("error", str(exc))

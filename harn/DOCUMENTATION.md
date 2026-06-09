@@ -43,10 +43,10 @@ Run without a prompt to open the TUI:
 python -m harn
 ```
 
-The TUI supports slash commands (`/help`, `/commands`, `/clear`, `/resume`,
-`/reset`, `/status`, `/trace`, `/tools`, `/quit`) and shell-like input editing with
-Left/Right, Ctrl+A, Ctrl+E, Ctrl+W, Ctrl+L, and Ctrl+O. Ctrl+O toggles full
-display for collapsed trace entries.
+The TUI supports slash commands (`/help`, `/commands`, `/clear`, `/continue`,
+`/resume`, `/reset`, `/status`, `/trace`, `/tools`, `/quit`) and shell-like
+input editing with Left/Right, Ctrl+A, Ctrl+E, Ctrl+W, Ctrl+L, and Ctrl+O.
+Ctrl+O toggles full display for collapsed trace entries.
 
 The TUI path streams OpenRouter chunks as they arrive. The agent loop emits
 trace events for OpenRouter reasoning fields, tool calls, bash command
@@ -61,8 +61,9 @@ API response.
 Each full-screen TUI run creates a session directory in
 `$HOME/.harn/sessions/<session-id>/`. The directory contains `metadata.json`,
 `state.json`, `events.jsonl`, and `transcript.log`. `/resume` loads the latest
-previous session, `/resume <session-id>` loads a specific session, and `/clear`
-only clears the visible transcript.
+previous session, `/resume <session-id>` loads a specific session, and
+`/continue` lists recent sessions for selection by number. `/continue <session-id>`
+also loads a specific session. `/clear` only clears the visible transcript.
 
 `/status` reports approximate context usage with a dependency-free chars/4 token
 estimate, message count, transcript size, and session file sizes.

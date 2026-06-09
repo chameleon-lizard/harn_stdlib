@@ -174,6 +174,7 @@ class StaticStdlibTests(unittest.TestCase):
         self.assertEqual(5, cursor_col)
         self.assertIn("/reset", slash_command_help())
         self.assertIn("/trace", slash_command_help())
+        self.assertIn("/continue", slash_command_help())
 
         collapsed = collapse_content("\n".join(str(item) for item in range(8)))
         self.assertIn("Ctrl+O to expand", collapsed)
@@ -339,6 +340,7 @@ class StaticStdlibTests(unittest.TestCase):
         self.assertEqual(0, code)
         self.assertIn("Harn TUI fallback", output.getvalue())
         self.assertIn("/clear", output.getvalue())
+        self.assertIn("/continue", output.getvalue())
         self.assertIn("/reset", output.getvalue())
         self.assertIn("/trace", output.getvalue())
 
@@ -698,6 +700,7 @@ class StaticStdlibTests(unittest.TestCase):
 
     def test_session_store_persists_state_and_finds_latest(self) -> None:
         from harn.sessions import SessionStore
+        from harn.tui import format_session_choices, recent_sessions, select_continue_session
 
         with tempfile.TemporaryDirectory() as raw_tmp:
             root = Path(raw_tmp) / "sessions"
@@ -718,11 +721,18 @@ class StaticStdlibTests(unittest.TestCase):
             latest = SessionStore.latest(root=root, exclude=second.session_id)
             reopened = SessionStore.open(second.session_id, root=root)
             state = reopened.load_state()
+            recent = recent_sessions(root=root)
+            choices = format_session_choices(recent)
+            selected = select_continue_session("1", recent)
 
             self.assertEqual(first.session_id, latest.session_id)  # type: ignore[union-attr]
             self.assertEqual("two", state["messages"][0]["content"])
             self.assertTrue((reopened.path / "events.jsonl").is_file())
             self.assertIn("hello", (reopened.path / "transcript.log").read_text(encoding="utf-8"))
+            self.assertEqual(second.session_id, recent[0].session_id)
+            self.assertIn("1. " + second.session_id, choices)
+            self.assertIn("Use /continue <number>", choices)
+            self.assertEqual(second.session_id, selected.session_id)
 
     def test_agent_continues_after_empty_no_tool_reply(self) -> None:
         from harn.agent import Agent

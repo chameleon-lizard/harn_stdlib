@@ -14,8 +14,8 @@
   line-mode fallback for terminals without curses.
 - Added shell-like TUI input editing for Left/Right, Ctrl+A, Ctrl+E, Ctrl+W,
   and Ctrl+L.
-- Added TUI slash commands: `/help`, `/commands`, `/clear`, `/resume`,
-  `/reset`, `/status`, `/trace`, `/tools`, and `/quit`.
+- Added TUI slash commands: `/help`, `/commands`, `/clear`, `/continue`,
+  `/resume`, `/reset`, `/status`, `/trace`, `/tools`, and `/quit`.
 - Added TUI trace display for OpenRouter reasoning fields, tool calls, bash
   command results, and edit diffs.
 - Added Ctrl+O and `/trace` to expand or collapse trace blocks, with five-line
@@ -75,6 +75,8 @@
 - Added an optional live `harn_stdlib` alias eval.
 - Added persistent TUI sessions under `$HOME/.harn/sessions`, with state,
   append-only JSONL events, transcript logs, and `/resume`.
+- Added `/continue` session selection: list recent sessions, then resume by
+  number or session id.
 - Ran a dual DesignDoc implementation eval for `harn` and `harn_stdlib`; the
   setup was identical, but results were not equivalent. See
   `agent_eval_tests/design_doc_dual_eval_report.md`.

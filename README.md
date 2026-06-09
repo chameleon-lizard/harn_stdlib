@@ -47,9 +47,9 @@ python -m harn --tui --cwd /path/to/project
 ```
 
 Inside the TUI, type a prompt and press Enter. Commands: `/help`, `/clear`,
-`/commands`, `/resume`, `/reset`, `/status`, `/trace`, `/tools`, and `/quit`.
-The input line supports Left/Right, Ctrl+A, Ctrl+E, Ctrl+W, Ctrl+L, and Ctrl+O.
-The transcript scrolls with Up/Down and PageUp/PageDown.
+`/commands`, `/continue`, `/resume`, `/reset`, `/status`, `/trace`, `/tools`,
+and `/quit`. The input line supports Left/Right, Ctrl+A, Ctrl+E, Ctrl+W,
+Ctrl+L, and Ctrl+O. The transcript scrolls with Up/Down and PageUp/PageDown.
 
 The TUI streams model output as OpenRouter chunks arrive. It shows reasoning
 traces when OpenRouter returns `reasoning` or `reasoning_details`, plus tool
@@ -67,8 +67,9 @@ so expanded trace output stays readable instead of showing one phrase per line.
 TUI sessions are saved under `~/.harn/sessions/<session-id>/` with
 `metadata.json`, `state.json`, `events.jsonl`, and `transcript.log`. Use
 `/resume` to resume the latest previous session or `/resume <session-id>` for a
-specific session. `/clear` clears only the visible transcript; the append-only
-logs remain on disk.
+specific session. Use `/continue` to list recent sessions, then
+`/continue <number>` or `/continue <session-id>` to load one. `/clear` clears
+only the visible transcript; the append-only logs remain on disk.
 
 `/status` includes approximate session context usage: message count, serialized
 context characters, a dependency-free chars/4 token estimate, transcript entry

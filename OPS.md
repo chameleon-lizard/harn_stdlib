@@ -155,8 +155,8 @@ TUI input editing does not behave like a shell:
 - Expected keys: Left/Right move by character, Ctrl+A/Ctrl+E jump to
   start/end, Ctrl+W deletes the previous word, Ctrl+L redraws the screen, and
   Ctrl+O expands or collapses trace details.
-- Slash commands: `/help`, `/commands`, `/clear`, `/resume`, `/reset`,
-  `/status`, `/trace`, `/tools`, and `/quit`.
+- Slash commands: `/help`, `/commands`, `/clear`, `/continue`, `/resume`,
+  `/reset`, `/status`, `/trace`, `/tools`, and `/quit`.
 - UTF-8 text such as Cyrillic should appear normally. If it appears as mojibake,
   verify the terminal locale is UTF-8; the TUI reads wide characters through
   curses.
@@ -196,6 +196,8 @@ Session cannot be resumed:
   and `transcript.log`.
 - Use `/resume` to load the latest previous session or `/resume <session-id>`
   to load a specific folder name.
+- Use `/continue` to list recent sessions and `/continue <number>` to choose
+  from that list. `/continue <session-id>` also loads a specific folder name.
 - `/clear` changes visible transcript state but does not remove append-only log
   files.
 

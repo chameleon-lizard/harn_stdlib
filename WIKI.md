@@ -34,12 +34,13 @@ prompt, and runs an agent loop.
 When run in an interactive terminal without a prompt, the CLI opens the stdlib
 TUI. The same UI can be forced with `--tui` or disabled with `--no-tui`. The TUI
 keeps a single chat transcript for the session and supports `/help`,
-`/commands`, `/clear`, `/resume`, `/reset`, `/status`, `/trace`, `/tools`, and
-`/quit`. The input line supports Left/Right cursor movement, Ctrl+A/Ctrl+E for
-start/end, Ctrl+W for previous-word deletion, Ctrl+L for screen redraw, and
-Ctrl+O for expanding or collapsing trace details. The TUI shows OpenRouter
-reasoning fields when returned, plus tool calls, bash command results, and edit
-diffs. Trace entries collapse to five lines by default. Reasoning blocks use a
+`/commands`, `/clear`, `/continue`, `/resume`, `/reset`, `/status`, `/trace`,
+`/tools`, and `/quit`. The input line supports Left/Right cursor movement,
+Ctrl+A/Ctrl+E for start/end, Ctrl+W for previous-word deletion, Ctrl+L for
+screen redraw, and Ctrl+O for expanding or collapsing trace details. The TUI
+shows OpenRouter reasoning fields when returned, plus tool calls, bash command
+results, and edit diffs. Trace entries collapse to five lines by default.
+Reasoning blocks use a
 high-contrast blue background, successful tool traces use high-contrast green,
 and tool errors use high-contrast red. Bash results with non-zero `exit_code`
 are treated as errors. The curses input path reads wide characters and raw
@@ -53,9 +54,11 @@ show one provider chunk per line.
 TUI sessions are stored in `$HOME/.harn/sessions`. Each session has its own
 folder containing `metadata.json`, `state.json`, `events.jsonl`, and
 `transcript.log`. `/resume` loads the latest previous session and `/resume
-<session-id>` loads a specific session. `/clear` clears visible state but keeps
-the append-only logs. `/status` includes approximate context usage, transcript
-size, and session file byte counts.
+<session-id>` loads a specific session. `/continue` lists recent sessions and
+`/continue <number>` or `/continue <session-id>` loads the chosen session.
+`/clear` clears visible state but keeps the append-only logs. `/status`
+includes approximate context usage, transcript size, and session file byte
+counts.
 
 Configuration is resolved in this order: CLI flags, environment variables,
 `$HOME/.harn/harn.json`, then defaults. Supported config keys include
@@ -122,9 +125,10 @@ that both module entry points print matching tools and version outputs. It also
 checks that representative original-Harn flags parse in stdlib mode and covers
 TUI dispatch/render helpers, editable input behavior, slash-command discovery,
 config-file option resolution, SSE streaming parsing, session persistence,
-context/session status reporting, reasoning preservation and overlap
-deduplication, streamed reasoning newline normalization, tool result traces,
-non-zero bash error classification, and edit diff traces.
+numbered session selection for `/continue`, context/session status reporting,
+reasoning preservation and overlap deduplication, streamed reasoning newline
+normalization, tool result traces, non-zero bash error classification, and edit
+diff traces.
 
 `agent_eval_tests/test_prompt_eval.py` is a live eval suite. It is skipped by
 default and runs only when `RUN_OPENROUTER_EVAL=1` and `OPENROUTER_API_KEY` are

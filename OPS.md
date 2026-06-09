@@ -157,6 +157,15 @@ TUI input editing does not behave like a shell:
   Ctrl+O expands or collapses trace details.
 - Slash commands: `/help`, `/commands`, `/clear`, `/reset`, `/status`, `/trace`,
   `/tools`, and `/quit`.
+- UTF-8 text such as Cyrillic should appear normally. If it appears as mojibake,
+  verify the terminal locale is UTF-8; the TUI reads wide characters through
+  curses.
+
+TUI answer appears above the latest question:
+
+- Streamed assistant/reasoning blocks are keyed per user turn. If ordering
+  regresses, check for duplicate `event_id` values across turns in TUI trace
+  handling.
 
 Reasoning or command feedback is missing in the TUI:
 

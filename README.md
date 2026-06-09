@@ -56,7 +56,9 @@ traces when OpenRouter returns `reasoning` or `reasoning_details`, plus tool
 calls, bash command output, and edit diffs. These details are collapsed to five
 lines by default; press Ctrl+O or run `/trace` to toggle full trace output.
 Reasoning blocks use a blue background, successful tool traces use green, and
-tool errors use red.
+tool errors use red. UTF-8 input such as Cyrillic is read through curses
+wide-character mode, and streamed trace blocks are scoped per user turn so
+later replies stay below their question.
 
 Optional user config is loaded from `~/.harn/harn.json` before defaults. CLI
 flags win over environment variables, environment variables win over config,

@@ -54,6 +54,11 @@ green, and tool errors use red. OpenRouter reasoning is preserved on assistant
 messages as `reasoning`, `reasoning_content`, or `reasoning_details` when those
 fields are present in the API response.
 
+The curses TUI uses wide-character input, so UTF-8 text such as Cyrillic is
+stored as Unicode instead of byte fragments. Streamed trace entries are scoped
+to the active user turn, so a second streamed response cannot append above its
+question into an earlier assistant block.
+
 Runtime settings are resolved from CLI flags, then environment variables, then
 `$HOME/.harn/harn.json`, then defaults. Config keys include `api_key`,
 `openrouter_api_key`, `api_key_env`, `model`, `base_url`,

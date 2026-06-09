@@ -332,10 +332,10 @@ def stream_reasoning_delta(delta: dict[str, Any]) -> str:
     details = delta.get("reasoning_details")
     if isinstance(details, list):
         for detail in details:
-            text = reasoning_detail_to_text(detail)
+            text = stream_reasoning_detail_delta(detail)
             if text:
                 parts.append(text)
-    return "\n".join(parts)
+    return "".join(parts)
 
 
 def stream_direct_reasoning_delta(delta: dict[str, Any]) -> str:
@@ -343,10 +343,44 @@ def stream_direct_reasoning_delta(delta: dict[str, Any]) -> str:
 
     parts: list[str] = []
     for key in ("reasoning", "reasoning_content"):
-        text = reasoning_value_to_text(delta.get(key))
+        value = delta.get(key)
+        if isinstance(value, str):
+            parts.append(value)
+        else:
+            text = stream_reasoning_value_delta(value)
+            if text:
+                parts.append(text)
+    return "".join(parts)
+
+
+def stream_reasoning_value_delta(value: object) -> str:
+    """Convert streaming reasoning values without stripping whitespace chunks."""
+
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return "".join(stream_reasoning_value_delta(item) for item in value)
+    if isinstance(value, dict):
+        return stream_reasoning_detail_delta(value)
+    return str(value)
+
+
+def stream_reasoning_detail_delta(detail: object) -> str:
+    """Convert one streaming reasoning_details delta to display text."""
+
+    if not isinstance(detail, dict):
+        return stream_reasoning_value_delta(detail)
+    for key in ("text", "summary", "content"):
+        value = detail.get(key)
+        text = stream_reasoning_value_delta(value)
         if text:
-            parts.append(text)
-    return "\n".join(parts)
+            return text
+    detail_type = str(detail.get("type") or "reasoning")
+    if detail.get("data") is not None:
+        return f"[{detail_type}] encrypted or redacted reasoning block"
+    return ""
 
 
 def merge_tool_call_delta(tool_states: dict[int, dict[str, Any]], raw_tool_call: object) -> None:

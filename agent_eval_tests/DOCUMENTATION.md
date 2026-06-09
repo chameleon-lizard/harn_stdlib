@@ -13,8 +13,8 @@ and version output. It also checks representative original-Harn compatibility
 flags in the stdlib parser and help output, plus the empty no-tool reply
 regression path in the agent loop, TUI dispatch/render helpers, TUI line-editing
 controls, slash-command discovery, user config option resolution, SSE streaming
-parsing, reasoning trace preservation, command-result traces, and edit-diff
-traces.
+parsing, turn-scoped streamed trace entries, Unicode input handling, reasoning
+trace preservation, command-result traces, and edit-diff traces.
 
 `design_doc_dual_eval_report.md` records a live dual-agent implementation run
 against `DesignDoc.md`. It is a report artifact, not a unit test.

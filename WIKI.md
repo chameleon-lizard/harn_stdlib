@@ -40,7 +40,10 @@ start/end, Ctrl+W for previous-word deletion, Ctrl+L for screen redraw, and
 Ctrl+O for expanding or collapsing trace details. The TUI shows OpenRouter
 reasoning fields when returned, plus tool calls, bash command results, and edit
 diffs. Trace entries collapse to five lines by default. Reasoning blocks use a
-blue background, successful tool traces use green, and tool errors use red.
+blue background, successful tool traces use green, and tool errors use red. The
+curses input path reads wide characters so UTF-8 prompts such as Cyrillic are
+kept as Unicode. Streamed trace ids are scoped per user turn so later responses
+append below the latest question, not into an earlier assistant block.
 
 Configuration is resolved in this order: CLI flags, environment variables,
 `$HOME/.harn/harn.json`, then defaults. Supported config keys include

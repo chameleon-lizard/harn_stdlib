@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import locale
 import sys
 import textwrap
 from dataclasses import dataclass
@@ -257,6 +258,35 @@ def trace_event_content(event: AgentTraceEvent) -> str:
     return f"{event.title}\n{event.content}" if event.content else event.title
 
 
+def trace_event_id(event: AgentTraceEvent, event_prefix: str = "") -> str | None:
+    """Return a transcript-scoped event id for a trace event."""
+
+    if not event.event_id:
+        return None
+    return f"{event_prefix}:{event.event_id}" if event_prefix else event.event_id
+
+
+def upsert_trace_entry(entries: list[TranscriptEntry], event: AgentTraceEvent, event_prefix: str = "") -> None:
+    """Append a trace event or extend its existing transcript entry."""
+
+    event_id = trace_event_id(event, event_prefix)
+    if event_id and event.append:
+        for entry in reversed(entries):
+            if entry.event_id == event_id:
+                entry.content += event.content
+                entry.role = event.kind
+                entry.collapsible = event.collapsible
+                return
+    entries.append(
+        TranscriptEntry(
+            event.kind,
+            trace_event_content(event),
+            collapsible=event.collapsible,
+            event_id=event_id,
+        )
+    )
+
+
 def setup_colors(curses_module: object) -> dict[str, int]:
     """Initialize curses color pairs for trace roles."""
 
@@ -349,6 +379,11 @@ def run_curses_tui(agent: Agent) -> int:
     """Run the full-screen curses TUI."""
 
     try:
+        locale.setlocale(locale.LC_ALL, "")
+    except locale.Error:
+        pass
+
+    try:
         import curses
     except ImportError:
         return run_line_repl(agent)
@@ -366,6 +401,7 @@ def run_curses_tui(agent: Agent) -> int:
         scroll = 0
         status = "ready"
         expanded_traces = False
+        turn_counter = 0
 
         def add(
             role: str,
@@ -384,14 +420,8 @@ def run_curses_tui(agent: Agent) -> int:
                         return
             entries.append(TranscriptEntry(role, content, collapsible=collapsible, event_id=event_id))
 
-        def add_trace(event: AgentTraceEvent) -> None:
-            add(
-                event.kind,
-                trace_event_content(event),
-                collapsible=event.collapsible,
-                event_id=event.event_id,
-                append=event.append,
-            )
+        def add_trace(event: AgentTraceEvent, event_prefix: str = "") -> None:
+            upsert_trace_entry(entries, event, event_prefix)
 
         def render() -> None:
             nonlocal scroll
@@ -425,7 +455,7 @@ def run_curses_tui(agent: Agent) -> int:
             stdscr.refresh()
 
         def submit() -> None:
-            nonlocal messages, scroll, status, expanded_traces
+            nonlocal messages, scroll, status, expanded_traces, turn_counter
             prompt = input_line.text.strip()
             input_line.clear()
             if not prompt:
@@ -481,9 +511,12 @@ def run_curses_tui(agent: Agent) -> int:
             scroll = 10**9
             render()
             try:
+                turn_counter += 1
+                event_prefix = f"turn:{turn_counter}"
+
                 def on_trace(event: AgentTraceEvent) -> None:
                     nonlocal scroll
-                    add_trace(event)
+                    add_trace(event, event_prefix)
                     scroll = 10**9
                     render()
 
@@ -500,7 +533,44 @@ def run_curses_tui(agent: Agent) -> int:
 
         while True:
             render()
-            key = stdscr.getch()
+            try:
+                key = stdscr.get_wch()
+            except curses.error:
+                continue
+            if isinstance(key, str):
+                code = ord(key) if len(key) == 1 else None
+                if key in ("\x03", "\x04"):
+                    return 0
+                if key in ("\n", "\r"):
+                    try:
+                        submit()
+                    except KeyboardInterrupt:
+                        return 0
+                    continue
+                if key in ("\b", "\x7f"):
+                    input_line.backspace()
+                    continue
+                if code == 1:
+                    input_line.move_start()
+                    continue
+                if code == 5:
+                    input_line.move_end()
+                    continue
+                if code == 23:
+                    input_line.kill_previous_word()
+                    continue
+                if code == 12:
+                    stdscr.clear()
+                    status = "redrawn"
+                    continue
+                if code == 15:
+                    expanded_traces = not expanded_traces
+                    status = "trace full" if expanded_traces else "trace short"
+                    continue
+                if key.isprintable():
+                    input_line.insert(key)
+                continue
+
             if key in (3, 4):
                 return 0
             if key in (10, 13):

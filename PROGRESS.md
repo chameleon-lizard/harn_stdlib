@@ -22,6 +22,12 @@
   previews by default.
 - Added OpenRouter SSE streaming in the TUI path so assistant text and
   reasoning chunks render before the full model response completes.
+- Fixed TUI streaming transcript ordering by scoping streamed assistant and
+  reasoning event ids to each user turn.
+- Fixed TUI Unicode input by using curses wide-character input instead of
+  byte-wise key reads.
+- Fixed streamed reasoning chunk formatting so whitespace is preserved and
+  block headers are not repeated on every chunk.
 - Added TUI color styling: reasoning blocks use blue backgrounds, successful
   tool traces use green backgrounds, and tool errors use red backgrounds.
 - Added optional user config loading from `$HOME/.harn/harn.json` and
@@ -50,6 +56,8 @@
 - Added static tests for reasoning preservation, tool result traces, and edit
   diff traces.
 - Added static tests for SSE parsing and streaming agent trace events.
+- Added static regression tests for Unicode input, turn-scoped streamed trace
+  entries, and streamed reasoning whitespace.
 - Added a static regression test for empty no-tool model replies.
 - Added optional live prompt evals using copied `AGENTS.md` and `DesignDoc.md`.
 - Added an optional live `harn_stdlib` alias eval.
@@ -61,7 +69,6 @@
 
 ## Planned or intentionally deferred
 
-- Streaming output is not implemented.
 - The stdlib TUI is intentionally simple: no mouse support and no old rich
   theme system.
 - Multi-provider SDK support is not implemented; OpenRouter is the supported

@@ -146,13 +146,16 @@ class StaticStdlibTests(unittest.TestCase):
             self.assertFalse(should_launch_tui(default, "hello"))
 
     def test_tui_render_helpers(self) -> None:
+        from harn.agent import AgentTraceEvent
         from harn.tui import (
+            InputLine,
             TranscriptEntry,
             collapse_content,
             input_tail,
             input_view,
             render_transcript_lines,
             slash_command_help,
+            upsert_trace_entry,
             wrap_transcript,
         )
 
@@ -178,6 +181,45 @@ class StaticStdlibTests(unittest.TestCase):
         self.assertFalse(any("Ctrl+O to expand" in line for line in full_lines))
         display_lines = render_transcript_lines([TranscriptEntry("reasoning", "thinking", True)], 80)
         self.assertEqual("reasoning", display_lines[0].role)
+
+        unicode_line = InputLine()
+        unicode_line.insert("привет")
+        self.assertEqual("привет", unicode_line.text)
+        self.assertEqual(6, unicode_line.cursor)
+
+        entries = [TranscriptEntry("user", "first")]
+        upsert_trace_entry(
+            entries,
+            AgentTraceEvent("assistant", "assistant", "one", event_id="assistant:1", append=True),
+            "turn:1",
+        )
+        upsert_trace_entry(
+            entries,
+            AgentTraceEvent("assistant", "assistant", " two", event_id="assistant:1", append=True),
+            "turn:1",
+        )
+        entries.append(TranscriptEntry("user", "second"))
+        upsert_trace_entry(
+            entries,
+            AgentTraceEvent("assistant", "assistant", "three", event_id="assistant:1", append=True),
+            "turn:2",
+        )
+        self.assertEqual(["user", "assistant", "user", "assistant"], [entry.role for entry in entries])
+        self.assertEqual("one two", entries[1].content)
+        self.assertEqual("three", entries[3].content)
+
+        reasoning_entries: list[TranscriptEntry] = []
+        upsert_trace_entry(
+            reasoning_entries,
+            AgentTraceEvent("reasoning", "reasoning: step 1", "It", event_id="reasoning:1", append=True),
+            "turn:1",
+        )
+        upsert_trace_entry(
+            reasoning_entries,
+            AgentTraceEvent("reasoning", "reasoning: step 1", " seems", event_id="reasoning:1", append=True),
+            "turn:1",
+        )
+        self.assertEqual("reasoning: step 1\nIt seems", reasoning_entries[0].content)
 
     def test_tui_input_line_editing_controls(self) -> None:
         from harn.tui import InputLine
@@ -469,7 +511,9 @@ class StaticStdlibTests(unittest.TestCase):
         self.assertEqual("llo", chunks[1]["choices"][0]["delta"]["content"])
 
     def test_agent_streams_text_reasoning_and_tool_calls(self) -> None:
-        from harn.agent import Agent
+        from harn.agent import Agent, stream_reasoning_delta
+
+        self.assertEqual("It seems", stream_reasoning_delta({"reasoning_details": [{"text": "It"}, {"text": " seems"}]}))
 
         class StreamingClient:
             model = "fake"

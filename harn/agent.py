@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -360,15 +361,27 @@ def stream_reasoning_delta(delta: dict[str, Any]) -> str:
 def append_stream_chunk(existing: str, chunk: str) -> str:
     """Append a streamed chunk while removing repeated overlap."""
 
+    existing = normalize_stream_text(existing)
+    chunk = normalize_stream_text(chunk)
     if not chunk:
         return existing
     if not existing:
-        return chunk
+        return chunk.lstrip()
     max_overlap = min(len(existing), len(chunk))
     for size in range(max_overlap, 0, -1):
         if existing[-size:] == chunk[:size]:
             return existing + chunk[size:]
     return existing + chunk
+
+
+def normalize_stream_text(text: str) -> str:
+    """Normalize provider stream whitespace for readable trace blocks."""
+
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"(?<=[\w'])\n(?=[\w'])", "", text)
+    text = re.sub(r"[ \t\f\v]*\n[ \t\f\v]*", " ", text)
+    text = re.sub(r"[ \t\f\v]{2,}", " ", text)
+    return text
 
 
 def stream_direct_reasoning_delta(delta: dict[str, Any]) -> str:

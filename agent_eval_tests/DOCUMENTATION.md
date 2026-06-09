@@ -16,7 +16,8 @@ controls, slash-command discovery, user config option resolution, SSE streaming
 parsing, turn-scoped streamed trace entries, Unicode input handling, reasoning
 trace preservation, command-result traces, non-zero bash exit classification,
 edit-diff traces, TUI session persistence, context status reporting, Ctrl+O raw
-input handling, and streamed reasoning overlap deduplication.
+input handling, streamed reasoning overlap deduplication, and streamed reasoning
+newline normalization.
 
 `design_doc_dual_eval_report.md` records a live dual-agent implementation run
 against `DesignDoc.md`. It is a report artifact, not a unit test.

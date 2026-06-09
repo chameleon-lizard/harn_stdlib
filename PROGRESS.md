@@ -38,6 +38,9 @@
   chars, chars/4 token estimate, transcript size, and session file byte counts.
 - Added streamed reasoning overlap deduplication so expanded `/trace` output
   does not repeat cumulative reasoning chunks.
+- Added streamed reasoning newline normalization so provider fragments such as
+  `exit\n_code` and `\n command failed` render as normal text in expanded trace
+  blocks.
 - Added optional user config loading from `$HOME/.harn/harn.json` and
   `--config`, with CLI/env/config/default precedence.
 - Added optional OpenRouter reasoning request config through `--reasoning`,
@@ -65,7 +68,8 @@
   diff traces.
 - Added static tests for SSE parsing and streaming agent trace events.
 - Added static regression tests for Unicode input, turn-scoped streamed trace
-  entries, and streamed reasoning whitespace.
+  entries, streamed reasoning whitespace, and streamed reasoning newline
+  normalization.
 - Added a static regression test for empty no-tool model replies.
 - Added optional live prompt evals using copied `AGENTS.md` and `DesignDoc.md`.
 - Added an optional live `harn_stdlib` alias eval.

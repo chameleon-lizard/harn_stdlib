@@ -61,6 +61,8 @@ with non-zero `exit_code` are treated as errors. UTF-8 input such as Cyrillic is
 read through curses wide-character mode, and streamed trace blocks are scoped
 per user turn so later replies stay below their question. Ctrl+O is read in
 curses raw mode so terminal discard-output handling does not swallow it.
+Single-newline reasoning fragments from the provider are normalized into spaces
+so expanded trace output stays readable instead of showing one phrase per line.
 
 TUI sessions are saved under `~/.harn/sessions/<session-id>/` with
 `metadata.json`, `state.json`, `events.jsonl`, and `transcript.log`. Use

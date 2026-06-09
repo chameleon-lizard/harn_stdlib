@@ -9,7 +9,7 @@ import textwrap
 from dataclasses import dataclass
 from typing import Callable
 
-from .agent import Agent, AgentError, AgentTraceEvent
+from .agent import Agent, AgentError, AgentTraceEvent, append_stream_chunk
 from .client import OpenRouterError
 from .sessions import SessionError, SessionStore
 
@@ -356,15 +356,10 @@ def upsert_trace_entry(entries: list[TranscriptEntry], event: AgentTraceEvent, e
 def append_stream_text(existing: str, chunk: str) -> str:
     """Append streamed display text while removing repeated overlap."""
 
-    if not chunk:
-        return existing
-    if not existing:
-        return chunk
-    max_overlap = min(len(existing), len(chunk))
-    for size in range(max_overlap, 0, -1):
-        if existing[-size:] == chunk[:size]:
-            return existing + chunk[size:]
-    return existing + chunk
+    if existing.startswith("reasoning:") and "\n" in existing:
+        heading, body = existing.split("\n", 1)
+        return heading + "\n" + append_stream_chunk(body, chunk)
+    return append_stream_chunk(existing, chunk)
 
 
 def setup_colors(curses_module: object) -> dict[str, int]:

@@ -295,6 +295,10 @@ class StaticStdlibTests(unittest.TestCase):
         )
         self.assertEqual("reasoning: step 1\nIt seems done", reasoning_entries[0].content)
         self.assertEqual("abcdef", append_stream_text("abc", "abcdef"))
+        self.assertEqual(
+            "reasoning: step 2\nThe command failed with exit_code 127",
+            append_stream_text("reasoning: step 2\nThe", "\n command failed\n with exit\n_code\n 127"),
+        )
 
     def test_tui_input_line_editing_controls(self) -> None:
         from harn.tui import InputLine
@@ -627,11 +631,13 @@ class StaticStdlibTests(unittest.TestCase):
         self.assertEqual("llo", chunks[1]["choices"][0]["delta"]["content"])
 
     def test_agent_streams_text_reasoning_and_tool_calls(self) -> None:
-        from harn.agent import Agent, append_stream_chunk, stream_reasoning_delta
+        from harn.agent import Agent, append_stream_chunk, normalize_stream_text, stream_reasoning_delta
 
         self.assertEqual("It seems", stream_reasoning_delta({"reasoning_details": [{"text": "It"}, {"text": " seems"}]}))
         self.assertEqual("It", stream_reasoning_delta({"reasoning": "It", "reasoning_details": [{"text": "It"}]}))
         self.assertEqual("It seems", append_stream_chunk("It", "It seems"))
+        self.assertEqual("The command failed with exit_code 127", normalize_stream_text("The\n command failed\n with exit\n_code\n 127"))
+        self.assertEqual("The command failed", append_stream_chunk("The", "\n command failed"))
 
         class StreamingClient:
             model = "fake"

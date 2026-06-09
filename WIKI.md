@@ -46,7 +46,9 @@ are treated as errors. The curses input path reads wide characters and raw
 control keys so UTF-8 prompts such as Cyrillic are kept as Unicode and Ctrl+O is
 not swallowed by terminal discard-output handling. Streamed trace ids are scoped
 per user turn so later responses append below the latest question, not into an
-earlier assistant block.
+earlier assistant block. Single-newline reasoning fragments are normalized into
+spaces, and newlines inside identifiers are removed, so expanded traces do not
+show one provider chunk per line.
 
 TUI sessions are stored in `$HOME/.harn/sessions`. Each session has its own
 folder containing `metadata.json`, `state.json`, `events.jsonl`, and
@@ -121,8 +123,8 @@ checks that representative original-Harn flags parse in stdlib mode and covers
 TUI dispatch/render helpers, editable input behavior, slash-command discovery,
 config-file option resolution, SSE streaming parsing, session persistence,
 context/session status reporting, reasoning preservation and overlap
-deduplication, tool result traces, non-zero bash error classification, and edit
-diff traces.
+deduplication, streamed reasoning newline normalization, tool result traces,
+non-zero bash error classification, and edit diff traces.
 
 `agent_eval_tests/test_prompt_eval.py` is a live eval suite. It is skipped by
 default and runs only when `RUN_OPENROUTER_EVAL=1` and `OPENROUTER_API_KEY` are

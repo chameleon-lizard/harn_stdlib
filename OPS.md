@@ -185,6 +185,9 @@ Reasoning or command feedback is missing in the TUI:
 - `/status` shows approximate context usage with message count, serialized
   context characters, a chars/4 token estimate, transcript size, and session log
   byte counts.
+- Single-newline reasoning fragments are normalized into spaces. Newlines inside
+  identifiers such as `exit_code` are removed so streamed reasoning remains
+  readable after tool calls.
 
 Session cannot be resumed:
 

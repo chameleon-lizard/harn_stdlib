@@ -71,9 +71,9 @@ The curses TUI uses wide-character input, so UTF-8 text such as Cyrillic is
 stored as Unicode instead of byte fragments. It also switches curses input to
 raw mode so Ctrl+O reaches the TUI on terminals that otherwise treat it as
 discard-output. Streamed trace entries are scoped to the active user turn and
-reasoning chunks are overlap-deduplicated, so a second streamed response cannot
-append above its question or fragment expanded trace output into repeated
-chunks.
+reasoning chunks are overlap-deduplicated and newline-normalized, so a second
+streamed response cannot append above its question or fragment expanded trace
+output into repeated chunks or one-phrase-per-line reasoning.
 
 Runtime settings are resolved from CLI flags, then environment variables, then
 `$HOME/.harn/harn.json`, then defaults. Config keys include `api_key`,

@@ -47,9 +47,14 @@ python -m harn --tui --cwd /path/to/project
 ```
 
 Inside the TUI, type a prompt and press Enter. Commands: `/help`, `/clear`,
-`/commands`, `/reset`, `/status`, `/tools`, and `/quit`. The input line
-supports Left/Right, Ctrl+A, Ctrl+E, Ctrl+W, and Ctrl+L. The transcript scrolls
-with Up/Down and PageUp/PageDown.
+`/commands`, `/reset`, `/status`, `/trace`, `/tools`, and `/quit`. The input
+line supports Left/Right, Ctrl+A, Ctrl+E, Ctrl+W, Ctrl+L, and Ctrl+O. The
+transcript scrolls with Up/Down and PageUp/PageDown.
+
+The TUI shows reasoning traces when OpenRouter returns `reasoning` or
+`reasoning_details`, plus tool calls, bash command output, and edit diffs. These
+details are collapsed to five lines by default; press Ctrl+O or run `/trace` to
+toggle full trace output.
 
 Optional user config is loaded from `~/.harn/harn.json` before defaults. CLI
 flags win over environment variables, environment variables win over config,
@@ -63,13 +68,22 @@ and config wins over built-in defaults.
   "timeout": 120,
   "temperature": 0.2,
   "max_steps": 8,
-  "max_tokens": 4096
+  "max_tokens": 4096,
+  "reasoning": "enabled"
 }
 ```
 
 Use `--config /path/to/harn.json` for a different file or `--no-config` to
-ignore the default config. `openrouter_api_key`, `openrouter_base_url`, and
-`api_key_env` are also accepted config keys.
+ignore the default config. `openrouter_api_key`, `openrouter_base_url`,
+`api_key_env`, `reasoning_effort`, `reasoning_max_tokens`,
+`reasoning_enabled`, and `reasoning_exclude` are also accepted config keys.
+
+Reasoning can also be controlled with CLI flags:
+
+```bash
+python -m harn --reasoning enabled -p "Think visibly if the model supports it"
+python -m harn --reasoning-max-tokens 2048 -p "Solve this carefully"
+```
 
 The default model is `deepseek-v4-flash`. Override it with `--model` or
 `HARN_MODEL`:

@@ -7,6 +7,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 from .agent import Agent, AgentError
 from .client import OpenRouterClient, OpenRouterError
@@ -21,6 +22,9 @@ from .config import (
 )
 from .settings import SettingsError, float_setting, int_setting, load_settings, string_setting
 from .tui import run_tui
+
+
+REASONING_EFFORTS = {"minimal", "low", "medium", "high", "xhigh"}
 
 
 def _read_stdin_if_available() -> str:
@@ -103,6 +107,97 @@ def _setting_path(raw: str | None) -> Path | None:
     return Path(raw).expanduser() if raw else None
 
 
+def _bool_setting(value: object, name: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "off"}:
+            return False
+    raise SettingsError(f"Config setting {name!r} must be a boolean")
+
+
+def _optional_int(value: object, name: str) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise SettingsError(f"Config setting {name!r} must be an integer") from exc
+
+
+def _reasoning_from_label(label: str, *, max_tokens: int | None = None) -> dict[str, Any] | None:
+    lowered = label.strip().lower()
+    if lowered in {"", "auto"}:
+        if max_tokens is None:
+            return None
+        return {"max_tokens": max_tokens, "exclude": False}
+    if lowered in {"off", "none", "false", "0"}:
+        return {"exclude": True}
+    if lowered in {"enabled", "on", "true", "1"}:
+        if max_tokens is not None:
+            return {"max_tokens": max_tokens, "exclude": False}
+        return {"enabled": True, "exclude": False}
+    if lowered in REASONING_EFFORTS:
+        if max_tokens is not None:
+            raise SettingsError("Reasoning effort and reasoning_max_tokens cannot both be set")
+        return {"effort": lowered, "exclude": False}
+    raise SettingsError(f"Unsupported reasoning setting: {label}")
+
+
+def _reasoning_from_config(settings: dict[str, object]) -> dict[str, Any] | None:
+    max_tokens = _optional_int(settings.get("reasoning_max_tokens"), "reasoning_max_tokens")
+    effort = string_setting(settings, "reasoning_effort")
+    if effort:
+        return _reasoning_from_label(effort, max_tokens=max_tokens)
+
+    raw = settings.get("reasoning")
+    if isinstance(raw, dict):
+        return dict(raw)
+    if isinstance(raw, bool):
+        return {"enabled": True, "exclude": False} if raw else {"exclude": True}
+    if isinstance(raw, str):
+        return _reasoning_from_label(raw, max_tokens=max_tokens)
+    if raw is not None:
+        raise SettingsError("Config setting 'reasoning' must be a string, boolean, or object")
+    if max_tokens is not None:
+        return {"max_tokens": max_tokens, "exclude": False}
+
+    enabled = settings.get("reasoning_enabled")
+    exclude = settings.get("reasoning_exclude")
+    if enabled is None and exclude is None:
+        return None
+    resolved: dict[str, Any] = {}
+    if enabled is not None:
+        resolved["enabled"] = _bool_setting(enabled, "reasoning_enabled")
+    if exclude is not None:
+        resolved["exclude"] = _bool_setting(exclude, "reasoning_exclude")
+    return resolved
+
+
+def resolve_reasoning_options(args: argparse.Namespace, settings: dict[str, object]) -> dict[str, Any] | None:
+    """Resolve OpenRouter reasoning options from CLI, environment, then config."""
+
+    cli_max_tokens = args.reasoning_max_tokens
+    if args.reasoning and args.reasoning != "auto":
+        return _reasoning_from_label(args.reasoning, max_tokens=cli_max_tokens)
+    if cli_max_tokens is not None:
+        return {"max_tokens": cli_max_tokens, "exclude": False}
+    if args.thinking:
+        return _reasoning_from_label(args.thinking)
+
+    env_reasoning = os.environ.get("HARN_REASONING")
+    env_max_tokens = _optional_int(os.environ.get("HARN_REASONING_MAX_TOKENS"), "HARN_REASONING_MAX_TOKENS")
+    if env_reasoning:
+        return _reasoning_from_label(env_reasoning, max_tokens=env_max_tokens)
+    if env_max_tokens is not None:
+        return {"max_tokens": env_max_tokens, "exclude": False}
+
+    return _reasoning_from_config(settings)
+
+
 def resolve_runtime_options(args: argparse.Namespace, settings: dict[str, object]) -> dict[str, object]:
     """Resolve runtime options using CLI, environment, config, then defaults."""
 
@@ -139,6 +234,7 @@ def resolve_runtime_options(args: argparse.Namespace, settings: dict[str, object
         "temperature": float(temperature),
         "max_steps": int(max_steps),
         "max_tokens": max_tokens,
+        "reasoning": resolve_reasoning_options(args, settings),
     }
 
 
@@ -171,6 +267,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--temperature", type=float, help="Model temperature.")
     parser.add_argument("--max-tokens", type=int, help="Optional response token cap.")
     parser.add_argument("--max-steps", type=int, help=f"Maximum model/tool loop steps. Default: {DEFAULT_MAX_STEPS}.")
+    parser.add_argument(
+        "--reasoning",
+        choices=["auto", "off", "enabled", "minimal", "low", "medium", "high", "xhigh"],
+        help="OpenRouter reasoning control. Default: auto.",
+    )
+    parser.add_argument("--reasoning-max-tokens", type=int, help="OpenRouter reasoning token budget.")
     parser.add_argument("--tools", "-t", type=_parse_tools, default=set(DEFAULT_TOOLS), help="Comma-separated tools or 'all'.")
     parser.add_argument("--no-tools", "-nt", action="store_true", help="Disable tool calls.")
     parser.add_argument("--no-builtin-tools", "-nbt", action="store_true", help="Disable built-in tools.")
@@ -267,6 +369,7 @@ def main(argv: list[str] | None = None) -> int:
         max_steps=int(runtime["max_steps"]),
         temperature=float(runtime["temperature"]),
         max_tokens=runtime["max_tokens"],  # type: ignore[arg-type]
+        reasoning=runtime["reasoning"],  # type: ignore[arg-type]
         no_tools=args.no_tools or args.no_builtin_tools,
         system_prompt=extra_system_prompt,
         agents_file=agents_file,

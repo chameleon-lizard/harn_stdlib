@@ -20,7 +20,7 @@ core useful surface as a compact terminal coding agent:
 - API key loaded from CLI flags, environment, or `$HOME/.harn/harn.json`;
 - filesystem and shell tools exposed through OpenAI-compatible tool calling;
 - dependency-free interactive TUI through stdlib `curses`, with line-mode
-  fallback, editable input, and slash commands;
+  fallback, editable input, slash commands, and collapsed trace output;
 - local project instructions loaded from nearest `AGENTS.md`;
 - separate prompt eval directory using `AGENTS.md` and `DesignDoc.md`.
 
@@ -33,15 +33,19 @@ prompt, and runs an agent loop.
 When run in an interactive terminal without a prompt, the CLI opens the stdlib
 TUI. The same UI can be forced with `--tui` or disabled with `--no-tui`. The TUI
 keeps a single chat transcript for the session and supports `/help`,
-`/commands`, `/clear`, `/reset`, `/status`, `/tools`, and `/quit`. The input
-line supports Left/Right cursor movement, Ctrl+A/Ctrl+E for start/end,
-Ctrl+W for previous-word deletion, and Ctrl+L for screen redraw.
+`/commands`, `/clear`, `/reset`, `/status`, `/trace`, `/tools`, and `/quit`.
+The input line supports Left/Right cursor movement, Ctrl+A/Ctrl+E for
+start/end, Ctrl+W for previous-word deletion, Ctrl+L for screen redraw, and
+Ctrl+O for expanding or collapsing trace details. The TUI shows OpenRouter
+reasoning fields when returned, plus tool calls, bash command results, and edit
+diffs. Trace entries collapse to five lines by default.
 
 Configuration is resolved in this order: CLI flags, environment variables,
 `$HOME/.harn/harn.json`, then defaults. Supported config keys include
 `api_key`, `openrouter_api_key`, `api_key_env`, `model`, `base_url`,
 `openrouter_base_url`, `timeout`, `temperature`, `max_steps`, and
-`max_tokens`.
+`max_tokens`, `reasoning`, `reasoning_effort`, `reasoning_max_tokens`,
+`reasoning_enabled`, and `reasoning_exclude`.
 
 The CLI also accepts original-Harn compatibility flags where a stdlib
 OpenRouter runtime can support them. Examples include `--print`, `--provider`,
@@ -54,7 +58,9 @@ implemented in the stdlib rewrite.
 The agent loop sends messages to OpenRouter. If the model returns tool calls,
 Harn executes them locally and appends tool results to the conversation. The
 loop stops when the assistant returns a final message or when `--max-steps` is
-reached.
+reached. If the model returns `reasoning`, `reasoning_content`, or
+`reasoning_details`, Harn preserves those fields in the assistant message and
+emits trace events for the TUI.
 
 ## Modules
 
@@ -94,7 +100,8 @@ implementation, that `harn` and `harn_stdlib` expose the same public API, and
 that both module entry points print matching tools and version outputs. It also
 checks that representative original-Harn flags parse in stdlib mode and covers
 TUI dispatch/render helpers, editable input behavior, slash-command discovery,
-and config-file option resolution.
+config-file option resolution, reasoning preservation, tool result traces, and
+edit diff traces.
 
 `agent_eval_tests/test_prompt_eval.py` is a live eval suite. It is skipped by
 default and runs only when `RUN_OPENROUTER_EVAL=1` and `OPENROUTER_API_KEY` are

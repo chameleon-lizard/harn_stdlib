@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import io
+import json
 import os
 import subprocess
 import sys
@@ -115,7 +116,15 @@ class StaticStdlibTests(unittest.TestCase):
 
     def test_help_includes_original_harn_compatibility_flags(self) -> None:
         completed = self._run_module("harn", "--help")
-        for flag in ("--provider", "--print", "--tui", "--thinking", "--list-models", "--no-context-files"):
+        for flag in (
+            "--provider",
+            "--print",
+            "--tui",
+            "--thinking",
+            "--reasoning",
+            "--list-models",
+            "--no-context-files",
+        ):
             self.assertIn(flag, completed.stdout)
 
     def test_tui_dispatch_rules(self) -> None:
@@ -137,7 +146,7 @@ class StaticStdlibTests(unittest.TestCase):
             self.assertFalse(should_launch_tui(default, "hello"))
 
     def test_tui_render_helpers(self) -> None:
-        from harn.tui import TranscriptEntry, input_tail, input_view, slash_command_help, wrap_transcript
+        from harn.tui import TranscriptEntry, collapse_content, input_tail, input_view, slash_command_help, wrap_transcript
 
         lines = wrap_transcript([TranscriptEntry("user", "hello world " * 6)], 24)
         self.assertGreater(len(lines), 2)
@@ -147,6 +156,18 @@ class StaticStdlibTests(unittest.TestCase):
         self.assertEqual("> def", display)
         self.assertEqual(5, cursor_col)
         self.assertIn("/reset", slash_command_help())
+        self.assertIn("/trace", slash_command_help())
+
+        collapsed = collapse_content("\n".join(str(item) for item in range(8)))
+        self.assertIn("Ctrl+O to expand", collapsed)
+        expanded_lines = wrap_transcript([TranscriptEntry("result", "\n".join(str(item) for item in range(8)), True)], 80)
+        self.assertTrue(any("Ctrl+O to expand" in line for line in expanded_lines))
+        full_lines = wrap_transcript(
+            [TranscriptEntry("result", "\n".join(str(item) for item in range(8)), True)],
+            80,
+            expand_collapsible=True,
+        )
+        self.assertFalse(any("Ctrl+O to expand" in line for line in full_lines))
 
     def test_tui_input_line_editing_controls(self) -> None:
         from harn.tui import InputLine
@@ -188,6 +209,7 @@ class StaticStdlibTests(unittest.TestCase):
         self.assertIn("Harn TUI fallback", output.getvalue())
         self.assertIn("/clear", output.getvalue())
         self.assertIn("/reset", output.getvalue())
+        self.assertIn("/trace", output.getvalue())
 
     def test_config_file_resolves_runtime_options(self) -> None:
         from harn.cli import build_parser, resolve_runtime_options
@@ -201,7 +223,8 @@ class StaticStdlibTests(unittest.TestCase):
                 (
                     '{"api_key": "cfg-key", "model": "cfg-model", '
                     '"base_url": "https://example.test/api", "timeout": "7", '
-                    '"temperature": "0.4", "max_steps": "3", "max_tokens": "123"}'
+                    '"temperature": "0.4", "max_steps": "3", "max_tokens": "123", '
+                    '"reasoning": "enabled"}'
                 ),
                 encoding="utf-8",
             )
@@ -215,6 +238,7 @@ class StaticStdlibTests(unittest.TestCase):
         self.assertEqual(0.4, runtime["temperature"])
         self.assertEqual(3, runtime["max_steps"])
         self.assertEqual(123, runtime["max_tokens"])
+        self.assertEqual({"enabled": True, "exclude": False}, runtime["reasoning"])
 
     def test_default_home_config_path_is_loaded_dynamically(self) -> None:
         script = "from harn.settings import load_settings; print(load_settings()['model'])"
@@ -288,6 +312,110 @@ class StaticStdlibTests(unittest.TestCase):
         self.assertEqual("env-key", runtime["api_key"])
         self.assertEqual("env-model", runtime["model"])
         self.assertEqual("https://env.example/api", runtime["base_url"])
+
+    def test_agent_emits_reasoning_and_tool_result_traces(self) -> None:
+        from harn.agent import Agent
+
+        class ReasoningToolClient:
+            model = "fake"
+
+            def __init__(self) -> None:
+                self.calls = 0
+                self.kwargs: list[dict[str, Any]] = []
+
+            def chat(self, messages: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
+                self.calls += 1
+                self.kwargs.append(kwargs)
+                if self.calls == 1:
+                    return {
+                        "choices": [
+                            {
+                                "message": {
+                                    "content": "",
+                                    "reasoning": "Need to inspect the shell.",
+                                    "reasoning_details": [
+                                        {"type": "reasoning.summary", "summary": "Will run a small command."}
+                                    ],
+                                    "tool_calls": [
+                                        {
+                                            "id": "call-1",
+                                            "function": {
+                                                "name": "bash",
+                                                "arguments": json.dumps({"command": "printf 'alpha\\nbeta\\n'"}),
+                                            },
+                                        }
+                                    ],
+                                }
+                            }
+                        ]
+                    }
+                return {"choices": [{"message": {"content": "done"}}]}
+
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            client = ReasoningToolClient()
+            agent = Agent(
+                client,  # type: ignore[arg-type]
+                cwd=Path(raw_tmp),
+                max_steps=3,
+                reasoning={"enabled": True, "exclude": False},
+            )
+            result = agent.run("go")
+
+        self.assertEqual("done", result.content)
+        self.assertEqual({"enabled": True, "exclude": False}, client.kwargs[0]["reasoning"])
+        self.assertIn("reasoning", [event.kind for event in result.trace])
+        self.assertIn("tool", [event.kind for event in result.trace])
+        self.assertIn("result", [event.kind for event in result.trace])
+        self.assertIn("alpha", "\n".join(event.content for event in result.trace))
+        self.assertEqual("Need to inspect the shell.", result.messages[2]["reasoning"])
+        self.assertIn("reasoning_details", result.messages[2])
+
+    def test_agent_emits_edit_diff_traces(self) -> None:
+        from harn.agent import Agent
+
+        class EditClient:
+            model = "fake"
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def chat(self, messages: list[dict[str, Any]], **_: Any) -> dict[str, Any]:
+                self.calls += 1
+                if self.calls == 1:
+                    return {
+                        "choices": [
+                            {
+                                "message": {
+                                    "content": "",
+                                    "tool_calls": [
+                                        {
+                                            "id": "call-1",
+                                            "function": {
+                                                "name": "edit",
+                                                "arguments": json.dumps(
+                                                    {"path": "demo.txt", "old": "one\ntwo\n", "new": "one\nthree\n"}
+                                                ),
+                                            },
+                                        }
+                                    ],
+                                }
+                            }
+                        ]
+                    }
+                return {"choices": [{"message": {"content": "edited"}}]}
+
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            tmp = Path(raw_tmp)
+            (tmp / "demo.txt").write_text("one\ntwo\n", encoding="utf-8")
+            agent = Agent(EditClient(), cwd=tmp, max_steps=3)  # type: ignore[arg-type]
+            result = agent.run("edit it")
+            file_text = (tmp / "demo.txt").read_text(encoding="utf-8")
+
+        diffs = [event.content for event in result.trace if event.kind == "diff"]
+        self.assertEqual("one\nthree\n", file_text)
+        self.assertTrue(diffs)
+        self.assertIn("-two", diffs[0])
+        self.assertIn("+three", diffs[0])
 
     def test_agent_continues_after_empty_no_tool_reply(self) -> None:
         from harn.agent import Agent

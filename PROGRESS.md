@@ -15,9 +15,15 @@
 - Added shell-like TUI input editing for Left/Right, Ctrl+A, Ctrl+E, Ctrl+W,
   and Ctrl+L.
 - Added TUI slash commands: `/help`, `/commands`, `/clear`, `/reset`,
-  `/status`, `/tools`, and `/quit`.
+  `/status`, `/trace`, `/tools`, and `/quit`.
+- Added TUI trace display for OpenRouter reasoning fields, tool calls, bash
+  command results, and edit diffs.
+- Added Ctrl+O and `/trace` to expand or collapse trace blocks, with five-line
+  previews by default.
 - Added optional user config loading from `$HOME/.harn/harn.json` and
   `--config`, with CLI/env/config/default precedence.
+- Added optional OpenRouter reasoning request config through `--reasoning`,
+  `--reasoning-max-tokens`, environment variables, and config keys.
 - Added automatic TUI launch when `harn` runs without a prompt in an
   interactive terminal, plus explicit `--tui` and `--no-tui`.
 - Added `harn_stdlib` as a compatibility alias for `harn`.
@@ -37,6 +43,8 @@
 - Added static tests for TUI dispatch and render helpers.
 - Added static tests for TUI line editing, slash-command discovery, and config
   resolution.
+- Added static tests for reasoning preservation, tool result traces, and edit
+  diff traces.
 - Added a static regression test for empty no-tool model replies.
 - Added optional live prompt evals using copied `AGENTS.md` and `DesignDoc.md`.
 - Added an optional live `harn_stdlib` alias eval.
@@ -77,6 +85,12 @@
 - `python3 -m unittest discover -s agent_eval_tests -v`
   - 19 tests run, 4 live OpenRouter tests skipped as expected.
 - `python3 -m harn --help | rg -- '--config|--no-config|--tui|--api-key-env'`
+- `rg 'sk-or-v1-<redacted>' -n .`
+  - No matches.
+- `python3 -m compileall -q harn harn_stdlib agent_eval_tests`
+- `python3 -m unittest discover -s agent_eval_tests -v`
+  - 21 tests run, 4 live OpenRouter tests skipped as expected.
+- `python3 -m harn --help | rg -- '--reasoning|--reasoning-max-tokens|--config|--tui'`
 - `rg 'sk-or-v1-<redacted>' -n .`
   - No matches.
 

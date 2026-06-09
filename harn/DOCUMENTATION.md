@@ -41,14 +41,22 @@ python -m harn
 ```
 
 The TUI supports slash commands (`/help`, `/commands`, `/clear`, `/reset`,
-`/status`, `/tools`, `/quit`) and shell-like input editing with Left/Right,
-Ctrl+A, Ctrl+E, Ctrl+W, and Ctrl+L.
+`/status`, `/trace`, `/tools`, `/quit`) and shell-like input editing with
+Left/Right, Ctrl+A, Ctrl+E, Ctrl+W, Ctrl+L, and Ctrl+O. Ctrl+O toggles full
+display for collapsed trace entries.
+
+The agent loop emits trace events for OpenRouter reasoning fields, tool calls,
+bash command feedback, and edit diffs. TUI trace entries are collapsed to five
+lines by default. OpenRouter reasoning is preserved on assistant messages as
+`reasoning`, `reasoning_content`, or `reasoning_details` when those fields are
+present in the API response.
 
 Runtime settings are resolved from CLI flags, then environment variables, then
 `$HOME/.harn/harn.json`, then defaults. Config keys include `api_key`,
 `openrouter_api_key`, `api_key_env`, `model`, `base_url`,
-`openrouter_base_url`, `timeout`, `temperature`, `max_steps`, and
-`max_tokens`.
+`openrouter_base_url`, `timeout`, `temperature`, `max_steps`, `max_tokens`,
+`reasoning`, `reasoning_effort`, `reasoning_max_tokens`, `reasoning_enabled`,
+and `reasoning_exclude`.
 
 The CLI accepts common original-Harn flags such as `--print`, `--provider`,
 `--thinking`, `--tools/-t`, `--no-tools/-nt`, `--list-models`, `--offline`,

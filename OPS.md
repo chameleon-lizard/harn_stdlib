@@ -44,13 +44,15 @@ Example config:
   "timeout": 120,
   "temperature": 0.2,
   "max_steps": 8,
-  "max_tokens": 4096
+  "max_tokens": 4096,
+  "reasoning": "enabled"
 }
 ```
 
 Accepted config keys include `api_key`, `openrouter_api_key`, `api_key_env`,
 `model`, `base_url`, `openrouter_base_url`, `timeout`, `temperature`,
-`max_steps`, and `max_tokens`.
+`max_steps`, `max_tokens`, `reasoning`, `reasoning_effort`,
+`reasoning_max_tokens`, `reasoning_enabled`, and `reasoning_exclude`.
 
 Required environment variables when no config key or CLI flag supplies the API
 key:
@@ -78,6 +80,7 @@ python -m harn --config "$HOME/.harn/harn.json" -p "Inspect this project"
 python -m harn --cwd /repo -p "Inspect this project"
 python -m harn --no-tools -p "Answer without tools"
 python -m harn --allow-outside-cwd -p "Read a specific external file"
+python -m harn --reasoning enabled -p "Show reasoning traces when supported"
 python -m harn --provider openai --model gpt-4o -p "Use OpenRouter provider prefixing"
 ```
 
@@ -99,10 +102,11 @@ Live OpenRouter health:
 RUN_OPENROUTER_EVAL=1 OPENROUTER_API_KEY="sk-or-v1-..." python -m unittest discover -s agent_eval_tests
 ```
 
-Expected static result: nineteen tests run, four live tests skipped when
+Expected static result: twenty-one tests run, four live tests skipped when
 `RUN_OPENROUTER_EVAL` is not set. The static suite includes parity checks for
 `harn` and `harn_stdlib`, representative original-Harn CLI flag checks, and TUI
-dispatch/render helper checks, plus config-file and TUI input-editing checks.
+dispatch/render helper checks, plus config-file, TUI input-editing, and trace
+event checks.
 
 ## Logs
 
@@ -149,9 +153,20 @@ TUI does not open:
 TUI input editing does not behave like a shell:
 
 - Expected keys: Left/Right move by character, Ctrl+A/Ctrl+E jump to
-  start/end, Ctrl+W deletes the previous word, and Ctrl+L redraws the screen.
-- Slash commands: `/help`, `/commands`, `/clear`, `/reset`, `/status`,
+  start/end, Ctrl+W deletes the previous word, Ctrl+L redraws the screen, and
+  Ctrl+O expands or collapses trace details.
+- Slash commands: `/help`, `/commands`, `/clear`, `/reset`, `/status`, `/trace`,
   `/tools`, and `/quit`.
+
+Reasoning or command feedback is missing in the TUI:
+
+- Reasoning traces only appear when OpenRouter returns `reasoning` or
+  `reasoning_details`; some models/providers do not expose them.
+- Use `--reasoning enabled`, `--reasoning high`, or config key
+  `"reasoning": "enabled"` to request reasoning from models that support it.
+- Tool calls, bash command results, and edit diffs are shown as trace entries
+  and collapse to five lines by default. Press Ctrl+O or run `/trace` to toggle
+  full trace output.
 
 Tool path rejected:
 

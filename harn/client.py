@@ -33,6 +33,7 @@ class OpenRouterClient:
         tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.2,
         max_tokens: int | None = None,
+        reasoning: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Send one chat-completions request and return the decoded JSON."""
 
@@ -46,6 +47,8 @@ class OpenRouterClient:
         }
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
+        if reasoning:
+            payload["reasoning"] = reasoning
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import io
+import os
 import subprocess
 import sys
 import tempfile
@@ -136,12 +137,43 @@ class StaticStdlibTests(unittest.TestCase):
             self.assertFalse(should_launch_tui(default, "hello"))
 
     def test_tui_render_helpers(self) -> None:
-        from harn.tui import TranscriptEntry, input_tail, wrap_transcript
+        from harn.tui import TranscriptEntry, input_tail, input_view, slash_command_help, wrap_transcript
 
         lines = wrap_transcript([TranscriptEntry("user", "hello world " * 6)], 24)
         self.assertGreater(len(lines), 2)
         self.assertTrue(lines[0].startswith("user> "))
         self.assertEqual("> cdef", input_tail("abcdef", 6))
+        display, cursor_col = input_view("abcdef", 6, 6)
+        self.assertEqual("> def", display)
+        self.assertEqual(5, cursor_col)
+        self.assertIn("/reset", slash_command_help())
+
+    def test_tui_input_line_editing_controls(self) -> None:
+        from harn.tui import InputLine
+
+        line = InputLine()
+        for char in "abcd":
+            line.insert(char)
+        line.move_left()
+        line.move_left()
+        line.insert("X")
+        self.assertEqual("abXcd", line.text)
+        self.assertEqual(3, line.cursor)
+
+        line.move_start()
+        line.move_left()
+        self.assertEqual(0, line.cursor)
+        line.move_end()
+        line.move_right()
+        self.assertEqual(len(line.text), line.cursor)
+
+        line = InputLine("hello   world", len("hello   world"))
+        line.kill_previous_word()
+        self.assertEqual("hello   ", line.text)
+        self.assertEqual(len("hello   "), line.cursor)
+        line.kill_previous_word()
+        self.assertEqual("", line.text)
+        self.assertEqual(0, line.cursor)
 
     def test_tui_line_repl_commands(self) -> None:
         from harn.tui import run_line_repl
@@ -151,10 +183,111 @@ class StaticStdlibTests(unittest.TestCase):
                 return [{"role": "system", "content": "fake"}]
 
         output = io.StringIO()
-        code = run_line_repl(FakeAgent(), out=output, inp=io.StringIO("/help\n/quit\n"))  # type: ignore[arg-type]
+        code = run_line_repl(FakeAgent(), out=output, inp=io.StringIO("/help\n/commands\n/quit\n"))  # type: ignore[arg-type]
         self.assertEqual(0, code)
         self.assertIn("Harn TUI fallback", output.getvalue())
         self.assertIn("/clear", output.getvalue())
+        self.assertIn("/reset", output.getvalue())
+
+    def test_config_file_resolves_runtime_options(self) -> None:
+        from harn.cli import build_parser, resolve_runtime_options
+        from harn.settings import load_settings
+
+        parser = build_parser()
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            config_path = Path(raw_tmp) / ".harn" / "harn.json"
+            config_path.parent.mkdir()
+            config_path.write_text(
+                (
+                    '{"api_key": "cfg-key", "model": "cfg-model", '
+                    '"base_url": "https://example.test/api", "timeout": "7", '
+                    '"temperature": "0.4", "max_steps": "3", "max_tokens": "123"}'
+                ),
+                encoding="utf-8",
+            )
+            args = parser.parse_args(["--config", str(config_path), "-p", "hello"])
+            with mock.patch.dict(os.environ, {}, clear=True):
+                runtime = resolve_runtime_options(args, load_settings(config_path))
+        self.assertEqual("cfg-key", runtime["api_key"])
+        self.assertEqual("cfg-model", runtime["model"])
+        self.assertEqual("https://example.test/api", runtime["base_url"])
+        self.assertEqual(7, runtime["timeout"])
+        self.assertEqual(0.4, runtime["temperature"])
+        self.assertEqual(3, runtime["max_steps"])
+        self.assertEqual(123, runtime["max_tokens"])
+
+    def test_default_home_config_path_is_loaded_dynamically(self) -> None:
+        script = "from harn.settings import load_settings; print(load_settings()['model'])"
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            config_path = Path(raw_tmp) / ".harn" / "harn.json"
+            config_path.parent.mkdir()
+            config_path.write_text('{"model": "home-config-model"}', encoding="utf-8")
+            env = os.environ.copy()
+            env["HOME"] = raw_tmp
+            completed = subprocess.run(
+                [sys.executable, "-c", script],
+                cwd=ROOT,
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=30,
+                check=False,
+            )
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertEqual("home-config-model", completed.stdout.strip())
+
+    def test_runtime_option_precedence_prefers_cli_then_env_then_config(self) -> None:
+        from harn.cli import build_parser, resolve_runtime_options
+
+        parser = build_parser()
+        settings = {
+            "api_key": "cfg-key",
+            "api_key_env": "CUSTOM_KEY",
+            "model": "cfg-model",
+            "base_url": "https://cfg.example/api",
+            "timeout": 1,
+        }
+        args = parser.parse_args(
+            [
+                "--api-key",
+                "cli-key",
+                "--model",
+                "cli-model",
+                "--base-url",
+                "https://cli.example/api",
+                "--timeout",
+                "9",
+                "-p",
+                "hello",
+            ]
+        )
+        with mock.patch.dict(
+            os.environ,
+            {
+                "CUSTOM_KEY": "env-key",
+                "OPENROUTER_API_KEY": "default-env-key",
+                "HARN_MODEL": "env-model",
+                "OPENROUTER_BASE_URL": "https://env.example/api",
+            },
+            clear=True,
+        ):
+            runtime = resolve_runtime_options(args, settings)
+        self.assertEqual("cli-key", runtime["api_key"])
+        self.assertEqual("cli-model", runtime["model"])
+        self.assertEqual("https://cli.example/api", runtime["base_url"])
+        self.assertEqual(9, runtime["timeout"])
+
+        env_args = parser.parse_args(["-p", "hello"])
+        with mock.patch.dict(
+            os.environ,
+            {"CUSTOM_KEY": "env-key", "HARN_MODEL": "env-model", "OPENROUTER_BASE_URL": "https://env.example/api"},
+            clear=True,
+        ):
+            runtime = resolve_runtime_options(env_args, settings)
+        self.assertEqual("env-key", runtime["api_key"])
+        self.assertEqual("env-model", runtime["model"])
+        self.assertEqual("https://env.example/api", runtime["base_url"])
 
     def test_agent_continues_after_empty_no_tool_reply(self) -> None:
         from harn.agent import Agent

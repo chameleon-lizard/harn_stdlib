@@ -29,7 +29,31 @@ but runtime operation from source does not need third-party packages.
 
 ## Configuration
 
-Required environment variables:
+Configuration can come from CLI flags, environment variables, or a JSON config
+file. The precedence is CLI, environment, config, then defaults. The default
+config path is `$HOME/.harn/harn.json`; use `--config` for another path or
+`--no-config` to disable config loading.
+
+Example config:
+
+```json
+{
+  "api_key": "sk-or-v1-...",
+  "model": "deepseek-v4-flash",
+  "base_url": "https://openrouter.ai/api/v1",
+  "timeout": 120,
+  "temperature": 0.2,
+  "max_steps": 8,
+  "max_tokens": 4096
+}
+```
+
+Accepted config keys include `api_key`, `openrouter_api_key`, `api_key_env`,
+`model`, `base_url`, `openrouter_base_url`, `timeout`, `temperature`,
+`max_steps`, and `max_tokens`.
+
+Required environment variables when no config key or CLI flag supplies the API
+key:
 
 | Variable | Description | Example |
 |---|---|---|
@@ -50,6 +74,7 @@ CLI options of operational interest:
 python -m harn --help
 python -m harn_stdlib --help
 python -m harn --tui
+python -m harn --config "$HOME/.harn/harn.json" -p "Inspect this project"
 python -m harn --cwd /repo -p "Inspect this project"
 python -m harn --no-tools -p "Answer without tools"
 python -m harn --allow-outside-cwd -p "Read a specific external file"
@@ -74,10 +99,10 @@ Live OpenRouter health:
 RUN_OPENROUTER_EVAL=1 OPENROUTER_API_KEY="sk-or-v1-..." python -m unittest discover -s agent_eval_tests
 ```
 
-Expected static result: fifteen tests run, four live tests skipped when
+Expected static result: nineteen tests run, four live tests skipped when
 `RUN_OPENROUTER_EVAL` is not set. The static suite includes parity checks for
 `harn` and `harn_stdlib`, representative original-Harn CLI flag checks, and TUI
-dispatch/render helper checks.
+dispatch/render helper checks, plus config-file and TUI input-editing checks.
 
 ## Logs
 
@@ -101,7 +126,8 @@ grep -i "tool_error" harn.stdout.log harn.stderr.log
 Missing API key:
 
 - Symptom: `harn: OPENROUTER_API_KEY is required`.
-- Fix: export `OPENROUTER_API_KEY` or pass `--api-key` for a one-off command.
+- Fix: export `OPENROUTER_API_KEY`, set `api_key` or `openrouter_api_key` in
+  `$HOME/.harn/harn.json`, or pass `--api-key` for a one-off command.
 
 OpenRouter rejects model:
 
@@ -119,6 +145,13 @@ TUI does not open:
 - Symptom: running `harn` without a prompt exits with an argparse prompt error.
 - Fix: run from an interactive terminal, or force the UI with `harn --tui`.
   Use `--no-tui` in scripts where no prompt should be treated as an error.
+
+TUI input editing does not behave like a shell:
+
+- Expected keys: Left/Right move by character, Ctrl+A/Ctrl+E jump to
+  start/end, Ctrl+W deletes the previous word, and Ctrl+L redraws the screen.
+- Slash commands: `/help`, `/commands`, `/clear`, `/reset`, `/status`,
+  `/tools`, and `/quit`.
 
 Tool path rejected:
 

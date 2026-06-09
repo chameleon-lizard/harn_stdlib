@@ -12,6 +12,12 @@
 - Added CLI support for direct prompts, stdin, `@file`, and `--prompt-file`.
 - Added a dependency-free interactive TUI using stdlib `curses`, plus a
   line-mode fallback for terminals without curses.
+- Added shell-like TUI input editing for Left/Right, Ctrl+A, Ctrl+E, Ctrl+W,
+  and Ctrl+L.
+- Added TUI slash commands: `/help`, `/commands`, `/clear`, `/reset`,
+  `/status`, `/tools`, and `/quit`.
+- Added optional user config loading from `$HOME/.harn/harn.json` and
+  `--config`, with CLI/env/config/default precedence.
 - Added automatic TUI launch when `harn` runs without a prompt in an
   interactive terminal, plus explicit `--tui` and `--no-tui`.
 - Added `harn_stdlib` as a compatibility alias for `harn`.
@@ -29,6 +35,8 @@
   match.
 - Added parser/help tests for representative original-Harn compatibility flags.
 - Added static tests for TUI dispatch and render helpers.
+- Added static tests for TUI line editing, slash-command discovery, and config
+  resolution.
 - Added a static regression test for empty no-tool model replies.
 - Added optional live prompt evals using copied `AGENTS.md` and `DesignDoc.md`.
 - Added an optional live `harn_stdlib` alias eval.
@@ -65,6 +73,12 @@
     `max_steps=40` and left a dirty worktree.
 - `OPENROUTER_API_KEY=... python3 -m harn_stdlib --no-tools --model deepseek-v4-flash --max-steps 1 --max-tokens 80 --prompt 'Reply with exactly HARN_STDLIB_ALIAS_OK'`
 - `RUN_OPENROUTER_EVAL=1 OPENROUTER_API_KEY=... python3 -m unittest discover -s agent_eval_tests -v`
+- `python3 -m compileall -q harn harn_stdlib agent_eval_tests`
+- `python3 -m unittest discover -s agent_eval_tests -v`
+  - 19 tests run, 4 live OpenRouter tests skipped as expected.
+- `python3 -m harn --help | rg -- '--config|--no-config|--tui|--api-key-env'`
+- `rg 'sk-or-v1-<redacted>' -n .`
+  - No matches.
 
 Live OpenRouter verification passed on `deepseek-v4-flash` with the API key
 provided through the environment.

@@ -17,10 +17,10 @@ core useful surface as a compact terminal coding agent:
   pip/setuptools environments;
 - OpenRouter chat-completions calls through `urllib.request`;
 - default model `deepseek-v4-flash`;
-- API key loaded from `OPENROUTER_API_KEY`;
+- API key loaded from CLI flags, environment, or `$HOME/.harn/harn.json`;
 - filesystem and shell tools exposed through OpenAI-compatible tool calling;
 - dependency-free interactive TUI through stdlib `curses`, with line-mode
-  fallback;
+  fallback, editable input, and slash commands;
 - local project instructions loaded from nearest `AGENTS.md`;
 - separate prompt eval directory using `AGENTS.md` and `DesignDoc.md`.
 
@@ -32,8 +32,16 @@ prompt, and runs an agent loop.
 
 When run in an interactive terminal without a prompt, the CLI opens the stdlib
 TUI. The same UI can be forced with `--tui` or disabled with `--no-tui`. The TUI
-keeps a single chat transcript for the session and supports `/help`, `/clear`,
-and `/quit`.
+keeps a single chat transcript for the session and supports `/help`,
+`/commands`, `/clear`, `/reset`, `/status`, `/tools`, and `/quit`. The input
+line supports Left/Right cursor movement, Ctrl+A/Ctrl+E for start/end,
+Ctrl+W for previous-word deletion, and Ctrl+L for screen redraw.
+
+Configuration is resolved in this order: CLI flags, environment variables,
+`$HOME/.harn/harn.json`, then defaults. Supported config keys include
+`api_key`, `openrouter_api_key`, `api_key_env`, `model`, `base_url`,
+`openrouter_base_url`, `timeout`, `temperature`, `max_steps`, and
+`max_tokens`.
 
 The CLI also accepts original-Harn compatibility flags where a stdlib
 OpenRouter runtime can support them. Examples include `--print`, `--provider`,
@@ -52,6 +60,9 @@ reached.
 
 `harn/config.py` defines defaults such as version, model, timeout, API key env
 var, and tool names.
+
+`harn/settings.py` loads optional JSON user config from `$HOME/.harn/harn.json`
+or an explicit `--config` path.
 
 `harn/client.py` is a minimal OpenRouter client. It serializes JSON requests,
 sends them to `/chat/completions`, decodes JSON responses, and raises
@@ -82,7 +93,8 @@ runtime dependencies, imports no known external packages from the previous
 implementation, that `harn` and `harn_stdlib` expose the same public API, and
 that both module entry points print matching tools and version outputs. It also
 checks that representative original-Harn flags parse in stdlib mode and covers
-TUI dispatch/render helpers.
+TUI dispatch/render helpers, editable input behavior, slash-command discovery,
+and config-file option resolution.
 
 `agent_eval_tests/test_prompt_eval.py` is a live eval suite. It is skipped by
 default and runs only when `RUN_OPENROUTER_EVAL=1` and `OPENROUTER_API_KEY` are
@@ -101,6 +113,6 @@ smaller stdlib TUI now replaces the old TUI surface.
 
 ## Security notes
 
-Secrets are read from environment variables. No API key is stored in source,
-docs, tests, or git history for this branch. Tool access is cwd-scoped by
-default.
+Secrets are read from environment variables or local user config. No API key is
+stored in source, docs, tests, or git history for this branch. Tool access is
+cwd-scoped by default.

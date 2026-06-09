@@ -19,6 +19,7 @@ from .config import (
     DEFAULT_TOOLS,
     VERSION,
 )
+from .settings import SettingsError, float_setting, int_setting, load_settings, string_setting
 from .tui import run_tui
 
 
@@ -98,6 +99,49 @@ def _print_models(client: OpenRouterClient, search: str | None) -> int:
     return 0
 
 
+def _setting_path(raw: str | None) -> Path | None:
+    return Path(raw).expanduser() if raw else None
+
+
+def resolve_runtime_options(args: argparse.Namespace, settings: dict[str, object]) -> dict[str, object]:
+    """Resolve runtime options using CLI, environment, config, then defaults."""
+
+    api_key_env = args.api_key_env or string_setting(settings, "api_key_env") or DEFAULT_API_KEY_ENV
+    api_key = (
+        args.api_key
+        or os.environ.get(api_key_env)
+        or string_setting(settings, "api_key", "openrouter_api_key")
+        or ""
+    )
+    model = args.model or os.environ.get("HARN_MODEL") or string_setting(settings, "model") or DEFAULT_MODEL
+    base_url = (
+        args.base_url
+        or os.environ.get("OPENROUTER_BASE_URL")
+        or string_setting(settings, "base_url", "openrouter_base_url")
+        or DEFAULT_BASE_URL
+    )
+    timeout = args.timeout if args.timeout is not None else int_setting(settings, "timeout", DEFAULT_TIMEOUT_SECONDS)
+    temperature = args.temperature if args.temperature is not None else float_setting(settings, "temperature", 0.2)
+    max_steps = args.max_steps if args.max_steps is not None else int_setting(settings, "max_steps", DEFAULT_MAX_STEPS)
+    max_tokens = args.max_tokens if args.max_tokens is not None else settings.get("max_tokens")
+    if max_tokens is not None:
+        try:
+            max_tokens = int(max_tokens)
+        except (TypeError, ValueError) as exc:
+            raise SettingsError("Config setting 'max_tokens' must be an integer") from exc
+
+    return {
+        "api_key_env": api_key_env,
+        "api_key": api_key,
+        "model": _resolve_model(args.provider, str(model)),
+        "base_url": str(base_url),
+        "timeout": int(timeout),
+        "temperature": float(temperature),
+        "max_steps": int(max_steps),
+        "max_tokens": max_tokens,
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="harn", description="Stdlib-only OpenRouter coding agent.")
     parser.add_argument("message", nargs="*", help="Prompt text. Tokens like @file are attached as text.")
@@ -106,6 +150,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-tui", action="store_true", help="Disable automatic TUI launch when no prompt is supplied.")
     parser.add_argument("--prompt", help="Prompt text.")
     parser.add_argument("--prompt-file", action="append", help="Attach a prompt file. Can be used more than once.")
+    parser.add_argument("--config", help="Config JSON path. Default: ~/.harn/harn.json")
+    parser.add_argument("--no-config", action="store_true", help="Do not load ~/.harn/harn.json.")
     parser.add_argument("--provider", help="Provider prefix for OpenRouter model IDs.")
     parser.add_argument("--system-prompt", help="Additional system prompt text.")
     parser.add_argument("--system-prompt-file", help="Additional system prompt file.")
@@ -113,15 +159,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--agents-file", help="Explicit AGENTS.md path to load instead of auto-discovery.")
     parser.add_argument("--no-context-files", "-nc", action="store_true", help="Disable AGENTS.md discovery.")
     parser.add_argument("--cwd", default=".", help="Working directory for tools.")
-    parser.add_argument("--model", default=DEFAULT_MODEL, help=f"OpenRouter model. Default: {DEFAULT_MODEL}")
+    parser.add_argument("--model", help=f"OpenRouter model. Default: {DEFAULT_MODEL}")
     parser.add_argument("--models", help="Accepted for original Harn compatibility; unused in stdlib mode.")
-    parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help="OpenRouter-compatible API base URL.")
-    parser.add_argument("--api-key-env", default=DEFAULT_API_KEY_ENV, help="Environment variable containing the API key.")
+    parser.add_argument("--base-url", help="OpenRouter-compatible API base URL.")
+    parser.add_argument(
+        "--api-key-env",
+        help=f"Environment variable containing the API key. Default: {DEFAULT_API_KEY_ENV}.",
+    )
     parser.add_argument("--api-key", help="API key. Prefer the environment variable so it is not saved in shell history.")
-    parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS, help="HTTP timeout in seconds.")
-    parser.add_argument("--temperature", type=float, default=0.2, help="Model temperature.")
+    parser.add_argument("--timeout", type=int, help=f"HTTP timeout in seconds. Default: {DEFAULT_TIMEOUT_SECONDS}.")
+    parser.add_argument("--temperature", type=float, help="Model temperature.")
     parser.add_argument("--max-tokens", type=int, help="Optional response token cap.")
-    parser.add_argument("--max-steps", type=int, default=DEFAULT_MAX_STEPS, help="Maximum model/tool loop steps.")
+    parser.add_argument("--max-steps", type=int, help=f"Maximum model/tool loop steps. Default: {DEFAULT_MAX_STEPS}.")
     parser.add_argument("--tools", "-t", type=_parse_tools, default=set(DEFAULT_TOOLS), help="Comma-separated tools or 'all'.")
     parser.add_argument("--no-tools", "-nt", action="store_true", help="Disable tool calls.")
     parser.add_argument("--no-builtin-tools", "-nbt", action="store_true", help="Disable built-in tools.")
@@ -167,6 +216,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.export is not None:
         print("harn: session export is not available in the stdlib runtime", file=sys.stderr)
         return 1
+    try:
+        settings = {} if args.no_config else load_settings(_setting_path(args.config))
+        runtime = resolve_runtime_options(args, settings)
+    except SettingsError as exc:
+        print(f"harn: {exc}", file=sys.stderr)
+        return 1
 
     prompt = _collect_prompt(args, read_stdin=not args.tui)
     launch_tui = should_launch_tui(args, prompt)
@@ -191,14 +246,11 @@ def main(argv: list[str] | None = None) -> int:
         agents_file = Path("/__harn_no_context_files__")
     else:
         agents_file = Path(args.agents_file).resolve() if args.agents_file else None
-    api_key = args.api_key or os.environ.get(args.api_key_env, "")
-    model = _resolve_model(args.provider, args.model)
-
     client = OpenRouterClient(
-        api_key=api_key,
-        model=model,
-        base_url=args.base_url,
-        timeout=args.timeout,
+        api_key=str(runtime["api_key"]),
+        model=str(runtime["model"]),
+        base_url=str(runtime["base_url"]),
+        timeout=int(runtime["timeout"]),
     )
     if args.list_models is not None:
         try:
@@ -212,9 +264,9 @@ def main(argv: list[str] | None = None) -> int:
         cwd=cwd,
         tools=args.tools,
         allow_outside_cwd=args.allow_outside_cwd,
-        max_steps=args.max_steps,
-        temperature=args.temperature,
-        max_tokens=args.max_tokens,
+        max_steps=int(runtime["max_steps"]),
+        temperature=float(runtime["temperature"]),
+        max_tokens=runtime["max_tokens"],  # type: ignore[arg-type]
         no_tools=args.no_tools or args.no_builtin_tools,
         system_prompt=extra_system_prompt,
         agents_file=agents_file,

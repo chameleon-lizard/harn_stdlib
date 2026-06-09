@@ -12,7 +12,7 @@ API and runs the same CLI.
 ## Requirements
 
 - Python 3.9 or later
-- An OpenRouter API key in `OPENROUTER_API_KEY`
+- An OpenRouter API key in `OPENROUTER_API_KEY` or `~/.harn/harn.json`
 
 No package install is required when running from the repository.
 
@@ -47,7 +47,29 @@ python -m harn --tui --cwd /path/to/project
 ```
 
 Inside the TUI, type a prompt and press Enter. Commands: `/help`, `/clear`,
-`/quit`. The transcript scrolls with Up/Down and PageUp/PageDown.
+`/commands`, `/reset`, `/status`, `/tools`, and `/quit`. The input line
+supports Left/Right, Ctrl+A, Ctrl+E, Ctrl+W, and Ctrl+L. The transcript scrolls
+with Up/Down and PageUp/PageDown.
+
+Optional user config is loaded from `~/.harn/harn.json` before defaults. CLI
+flags win over environment variables, environment variables win over config,
+and config wins over built-in defaults.
+
+```json
+{
+  "api_key": "sk-or-v1-...",
+  "model": "deepseek-v4-flash",
+  "base_url": "https://openrouter.ai/api/v1",
+  "timeout": 120,
+  "temperature": 0.2,
+  "max_steps": 8,
+  "max_tokens": 4096
+}
+```
+
+Use `--config /path/to/harn.json` for a different file or `--no-config` to
+ignore the default config. `openrouter_api_key`, `openrouter_base_url`, and
+`api_key_env` are also accepted config keys.
 
 The default model is `deepseek-v4-flash`. Override it with `--model` or
 `HARN_MODEL`:

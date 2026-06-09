@@ -9,6 +9,8 @@
 - Added cwd-scoped tools: `read`, `write`, `edit`, `bash`, `grep`, `find`,
   and `ls`.
 - Added automatic `AGENTS.md` discovery plus explicit `--agents-file`.
+- Added built-in default operating instructions to the system prompt for
+  documentation, git workflow, progress tracking, testing, and `OPS.md`.
 - Added CLI support for direct prompts, stdin, `@file`, and `--prompt-file`.
 - Added a dependency-free interactive TUI using stdlib `curses`, plus a
   line-mode fallback for terminals without curses.
@@ -68,6 +70,7 @@
 - Added static tests for TUI dispatch and render helpers.
 - Added static tests for TUI line editing, slash-command discovery, and config
   resolution.
+- Added a static test for built-in system-prompt operating instructions.
 - Added static tests for skill discovery, CLI listing, and system prompt
   injection.
 - Added static tests for reasoning preservation, tool result traces, and edit
@@ -145,6 +148,12 @@
 - `python3 -m compileall -q harn harn_stdlib agent_eval_tests`
 - `python3 -m unittest discover -s agent_eval_tests -v`
   - 27 tests run, 4 live OpenRouter tests skipped as expected.
+- `git diff --check`
+- `rg 'sk-or-v1-<redacted>' -n .`
+  - No matches.
+- `python3 -m compileall -q harn harn_stdlib agent_eval_tests`
+- `python3 -m unittest discover -s agent_eval_tests -v`
+  - 28 tests run, 4 live OpenRouter tests skipped as expected.
 - `git diff --check`
 - `rg 'sk-or-v1-<redacted>' -n .`
   - No matches.

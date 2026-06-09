@@ -127,6 +127,21 @@ class StaticStdlibTests(unittest.TestCase):
         ):
             self.assertIn(flag, completed.stdout)
 
+    def test_system_prompt_includes_default_operating_instructions(self) -> None:
+        from harn.prompts import build_system_prompt
+
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            cwd = Path(raw_tmp)
+            prompt = build_system_prompt(cwd, skills_prompt="## Demo\nDo demo work.")
+
+        self.assertIn("Default project operating instructions", prompt)
+        self.assertIn("# Agent Instructions", prompt)
+        self.assertIn("Each new module should have its own DOCUMENTATION.md", prompt)
+        self.assertIn("OPS.md", prompt)
+        self.assertIn("Active skill instructions", prompt)
+        self.assertIn("Current date:", prompt)
+        self.assertIn(f"Current working directory: {cwd.resolve()}", prompt)
+
     def test_tui_dispatch_rules(self) -> None:
         from harn.cli import build_parser, should_launch_tui
 

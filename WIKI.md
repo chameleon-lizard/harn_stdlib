@@ -19,6 +19,8 @@ core useful surface as a compact terminal coding agent:
 - default model `deepseek-v4-flash`;
 - API key loaded from CLI flags, environment, or `$HOME/.harn/harn.json`;
 - filesystem and shell tools exposed through OpenAI-compatible tool calling;
+- built-in coding-agent operating instructions for documentation, git hygiene,
+  progress tracking, and `OPS.md` maintenance;
 - dependency-free interactive TUI through stdlib `curses`, with line-mode
   fallback, streaming output, editable input, slash commands, and collapsed
   trace output;
@@ -29,7 +31,12 @@ core useful surface as a compact terminal coding agent:
 
 The CLI builds a prompt from positional text, stdin, `@file` attachments, and
 `--prompt-file` attachments. It creates an `OpenRouterClient`, builds a system
-prompt, and runs an agent loop.
+prompt, and runs an agent loop. The system prompt starts with Harn's coding
+agent/tool guidelines and a built-in `Agent Instructions` block covering module
+documentation, WIKI/PROGRESS updates, feature-branch and commit discipline,
+test expectations, and `OPS.md` runbook maintenance. Project `AGENTS.md`, extra
+system prompt text, active skills, current date, and current working directory
+are appended after the base instructions.
 
 When run in an interactive terminal without a prompt, the CLI opens the stdlib
 TUI. The same UI can be forced with `--tui` or disabled with `--no-tui`. The TUI
@@ -108,8 +115,9 @@ sends them to `/chat/completions`, decodes JSON responses, and raises
 `harn/tools.py` contains the tool registry and local tool implementations.
 Paths are scoped to `--cwd` unless `--allow-outside-cwd` is set.
 
-`harn/prompts.py` builds the base system prompt and finds `AGENTS.md` by walking
-upward from the configured cwd.
+`harn/prompts.py` builds the base system prompt, embeds the default operating
+instructions, appends current date/cwd, and finds `AGENTS.md` by walking upward
+from the configured cwd.
 
 `harn/skills.py` discovers and loads `SKILL.md` files from `$HOME/.harn/skills`
 or another configured skills directory.
@@ -138,11 +146,11 @@ that both module entry points print matching tools and version outputs. It also
 checks that representative original-Harn flags parse in stdlib mode and covers
 TUI dispatch/render helpers, editable input behavior, slash-command discovery,
 config-file option resolution, SSE streaming parsing, session persistence,
-numbered session selection for `/continue`, generation cancellation, skill
-discovery and system-prompt injection, context/session status reporting,
-reasoning preservation and overlap deduplication, streamed reasoning newline
-normalization, tool result traces, non-zero bash error classification, and edit
-diff traces.
+numbered session selection for `/continue`, generation cancellation, built-in
+system-prompt operating instructions, skill discovery and system-prompt
+injection, context/session status reporting, reasoning preservation and overlap
+deduplication, streamed reasoning newline normalization, tool result traces,
+non-zero bash error classification, and edit diff traces.
 
 `agent_eval_tests/test_prompt_eval.py` is a live eval suite. It is skipped by
 default and runs only when `RUN_OPENROUTER_EVAL=1` and `OPENROUTER_API_KEY` are

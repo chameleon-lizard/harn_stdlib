@@ -99,6 +99,17 @@ ignore the default config. `openrouter_api_key`, `openrouter_base_url`,
 `api_key_env`, `reasoning_effort`, `reasoning_max_tokens`,
 `reasoning_enabled`, and `reasoning_exclude` are also accepted config keys.
 
+## System Prompt
+
+Harn's base system prompt includes coding-agent guidelines, tool discipline,
+and a built-in `Agent Instructions` block for documentation, git hygiene,
+progress tracking, and `OPS.md` maintenance. That means the documentation and
+operations rules do not have to be repeated in every project `AGENTS.md`.
+
+At runtime, the prompt is assembled in this order: base Harn instructions,
+nearest project `AGENTS.md` when present, additional system prompt text, active
+skills, then the current date and working directory.
+
 ## Skills
 
 Skills live under `~/.harn/skills/`. The standard layout is one directory per

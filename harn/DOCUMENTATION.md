@@ -13,8 +13,8 @@ against OpenRouter's OpenAI-compatible chat-completions API.
   including SSE streaming for chat completions.
 - `tools.py` exposes filesystem and shell tools: `read`, `write`, `edit`,
   `bash`, `grep`, `find`, and `ls`.
-- `prompts.py` builds the system prompt and auto-loads the nearest
-  `AGENTS.md`.
+- `prompts.py` builds the system prompt, embeds default operating instructions,
+  appends current date/cwd, and auto-loads the nearest `AGENTS.md`.
 - `skills.py` discovers and loads local `SKILL.md` files from
   `$HOME/.harn/skills`.
 - `agent.py` runs the model/tool loop until the assistant returns a final
@@ -87,6 +87,12 @@ Runtime settings are resolved from CLI flags, then environment variables, then
 `openrouter_base_url`, `timeout`, `temperature`, `max_steps`, `max_tokens`,
 `reasoning`, `reasoning_effort`, `reasoning_max_tokens`, `reasoning_enabled`,
 `reasoning_exclude`, `skills`, and `skills_dir`.
+
+The base system prompt includes coding-agent tool guidelines and a built-in
+`Agent Instructions` block for documentation, WIKI/PROGRESS tracking, git
+workflow, testing, and `OPS.md` runbook maintenance. Project `AGENTS.md`, extra
+system prompt text, active skills, current date, and cwd are appended after that
+base block.
 
 Skills are stored under `$HOME/.harn/skills` by default, usually as
 `$HOME/.harn/skills/<name>/SKILL.md`. `--skill`, config key `skills`, or

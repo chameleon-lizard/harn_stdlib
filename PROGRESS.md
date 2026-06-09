@@ -20,6 +20,10 @@
   command results, and edit diffs.
 - Added Ctrl+O and `/trace` to expand or collapse trace blocks, with five-line
   previews by default.
+- Added OpenRouter SSE streaming in the TUI path so assistant text and
+  reasoning chunks render before the full model response completes.
+- Added TUI color styling: reasoning blocks use blue backgrounds, successful
+  tool traces use green backgrounds, and tool errors use red backgrounds.
 - Added optional user config loading from `$HOME/.harn/harn.json` and
   `--config`, with CLI/env/config/default precedence.
 - Added optional OpenRouter reasoning request config through `--reasoning`,
@@ -45,6 +49,7 @@
   resolution.
 - Added static tests for reasoning preservation, tool result traces, and edit
   diff traces.
+- Added static tests for SSE parsing and streaming agent trace events.
 - Added a static regression test for empty no-tool model replies.
 - Added optional live prompt evals using copied `AGENTS.md` and `DesignDoc.md`.
 - Added an optional live `harn_stdlib` alias eval.
@@ -57,8 +62,8 @@
 ## Planned or intentionally deferred
 
 - Streaming output is not implemented.
-- The stdlib TUI is intentionally simple: no mouse support, no streaming
-  token rendering, no old rich theme system.
+- The stdlib TUI is intentionally simple: no mouse support and no old rich
+  theme system.
 - Multi-provider SDK support is not implemented; OpenRouter is the supported
   path for this rewrite.
 - Session persistence is not implemented.
@@ -93,6 +98,9 @@
 - `python3 -m harn --help | rg -- '--reasoning|--reasoning-max-tokens|--config|--tui'`
 - `rg 'sk-or-v1-<redacted>' -n .`
   - No matches.
+- `python3 -m compileall -q harn harn_stdlib agent_eval_tests`
+- `python3 -m unittest discover -s agent_eval_tests -v`
+  - 23 tests run, 4 live OpenRouter tests skipped as expected.
 
 Live OpenRouter verification passed on `deepseek-v4-flash` with the API key
 provided through the environment.

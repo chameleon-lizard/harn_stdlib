@@ -16,6 +16,13 @@ class TranscriptEntry:
     role: str
     content: str
     collapsible: bool = False
+    event_id: str | None = None
+
+
+@dataclass
+class DisplayLine:
+    text: str
+    role: str
 
 
 @dataclass
@@ -98,6 +105,11 @@ Ctrl+W deletes the previous word.
 Ctrl+L redraws the screen.
 Ctrl+O expands/collapses reasoning, diffs, and tool results.
 Up/Down/PageUp/PageDown scroll the transcript.
+
+Trace colors:
+Reasoning blocks use a blue background.
+Tool calls, successful results, and diffs use a green background.
+Tool errors use a red background.
 """
 
 
@@ -115,17 +127,17 @@ def collapse_content(content: str, *, expanded: bool = False, preview_lines: int
     return "\n".join(preview)
 
 
-def wrap_transcript(
+def render_transcript_lines(
     entries: list[TranscriptEntry],
     width: int,
     *,
     expand_collapsible: bool = False,
     preview_lines: int = 5,
-) -> list[str]:
-    """Render transcript entries into display-width text lines."""
+) -> list[DisplayLine]:
+    """Render transcript entries into display-width text lines with roles."""
 
     safe_width = max(20, width)
-    lines: list[str] = []
+    lines: list[DisplayLine] = []
     for entry in entries:
         prefix = f"{entry.role}> "
         visible_content = collapse_content(
@@ -141,12 +153,30 @@ def wrap_transcript(
             wrapped = textwrap.wrap(paragraph, width=available, replace_whitespace=False) or [""]
             for item in wrapped:
                 if first:
-                    lines.append((prefix + item)[:safe_width])
+                    lines.append(DisplayLine((prefix + item)[:safe_width], entry.role))
                     first = False
                 else:
-                    lines.append(("  " + item)[:safe_width])
-        lines.append("")
+                    lines.append(DisplayLine(("  " + item)[:safe_width], entry.role))
+        lines.append(DisplayLine("", entry.role))
     return lines
+
+
+def wrap_transcript(
+    entries: list[TranscriptEntry],
+    width: int,
+    *,
+    expand_collapsible: bool = False,
+    preview_lines: int = 5,
+) -> list[str]:
+    """Render transcript entries into display-width text lines."""
+
+    lines = render_transcript_lines(
+        entries,
+        width,
+        expand_collapsible=expand_collapsible,
+        preview_lines=preview_lines,
+    )
+    return [line.text for line in lines]
 
 
 def input_tail(text: str, width: int, prompt: str = "> ") -> str:
@@ -215,8 +245,44 @@ def agent_tools(agent: Agent) -> str:
 def format_trace_event(event: AgentTraceEvent, *, expanded: bool = False) -> str:
     """Format one trace event for transcript output."""
 
-    content = f"{event.title}\n{event.content}" if event.content else event.title
+    content = trace_event_content(event)
     return collapse_content(content, expanded=expanded or not event.collapsible)
+
+
+def trace_event_content(event: AgentTraceEvent) -> str:
+    """Return the transcript content for a trace event."""
+
+    if event.kind == "assistant":
+        return event.content
+    return f"{event.title}\n{event.content}" if event.content else event.title
+
+
+def setup_colors(curses_module: object) -> dict[str, int]:
+    """Initialize curses color pairs for trace roles."""
+
+    pairs: dict[str, int] = {}
+    try:
+        curses_module.start_color()
+        curses_module.use_default_colors()
+        curses_module.init_pair(1, curses_module.COLOR_WHITE, curses_module.COLOR_BLUE)
+        curses_module.init_pair(2, curses_module.COLOR_BLACK, curses_module.COLOR_GREEN)
+        curses_module.init_pair(3, curses_module.COLOR_WHITE, curses_module.COLOR_RED)
+        pairs = {"reasoning": 1, "tool": 2, "result": 2, "diff": 2, "error": 3}
+    except Exception:
+        return {}
+    return pairs
+
+
+def attr_for_role(curses_module: object, color_pairs: dict[str, int], role: str) -> int:
+    """Return a curses attribute for a transcript role."""
+
+    pair = color_pairs.get(role)
+    if not pair:
+        return 0
+    try:
+        return curses_module.color_pair(pair)
+    except Exception:
+        return 0
 
 
 def run_line_repl(agent: Agent, *, out: object = sys.stdout, inp: object = sys.stdin) -> int:
@@ -290,7 +356,7 @@ def run_curses_tui(agent: Agent) -> int:
     def _main(stdscr: object) -> int:
         curses.curs_set(1)
         stdscr.keypad(True)
-        curses.use_default_colors()
+        color_pairs = setup_colors(curses)
 
         entries = [
             TranscriptEntry("system", "Harn stdlib TUI. Type /help for commands, /quit to exit."),
@@ -301,26 +367,49 @@ def run_curses_tui(agent: Agent) -> int:
         status = "ready"
         expanded_traces = False
 
-        def add(role: str, content: str, *, collapsible: bool = False) -> None:
-            entries.append(TranscriptEntry(role, content, collapsible=collapsible))
+        def add(
+            role: str,
+            content: str,
+            *,
+            collapsible: bool = False,
+            event_id: str | None = None,
+            append: bool = False,
+        ) -> None:
+            if event_id:
+                for entry in reversed(entries):
+                    if entry.event_id == event_id:
+                        entry.content = entry.content + content if append else content
+                        entry.role = role
+                        entry.collapsible = collapsible
+                        return
+            entries.append(TranscriptEntry(role, content, collapsible=collapsible, event_id=event_id))
 
         def add_trace(event: AgentTraceEvent) -> None:
-            content = f"{event.title}\n{event.content}" if event.content else event.title
-            add(event.kind, content, collapsible=event.collapsible)
+            add(
+                event.kind,
+                trace_event_content(event),
+                collapsible=event.collapsible,
+                event_id=event.event_id,
+                append=event.append,
+            )
 
         def render() -> None:
             nonlocal scroll
             stdscr.erase()
             height, width = stdscr.getmaxyx()
             transcript_height = max(1, height - 3)
-            lines = wrap_transcript(entries, width, expand_collapsible=expanded_traces)
+            lines = render_transcript_lines(entries, width, expand_collapsible=expanded_traces)
             max_scroll = max(0, len(lines) - transcript_height)
             scroll = max(0, min(scroll, max_scroll))
             visible = lines[scroll : scroll + transcript_height]
 
             for y, line in enumerate(visible):
                 try:
-                    stdscr.addstr(y, 0, line[: max(0, width - 1)])
+                    attr = attr_for_role(curses, color_pairs, line.role)
+                    text = line.text[: max(0, width - 1)]
+                    if attr and text:
+                        text = text.ljust(max(0, width - 1))
+                    stdscr.addstr(y, 0, text, attr)
                 except curses.error:
                     pass
 
@@ -398,13 +487,14 @@ def run_curses_tui(agent: Agent) -> int:
                     scroll = 10**9
                     render()
 
-                result = agent.run_turn(messages, prompt, trace_callback=on_trace)
+                result = agent.run_turn(messages, prompt, trace_callback=on_trace, stream=True)
             except (AgentError, OpenRouterError) as exc:
                 add("error", str(exc))
                 status = "error"
                 return
             messages = result.messages
-            add("assistant", result.content)
+            if result.content and not any(event.kind == "assistant" for event in result.trace):
+                add("assistant", result.content)
             status = f"done: {result.steps} step(s), {result.tool_calls} tool call(s)"
             scroll = 10**9
 

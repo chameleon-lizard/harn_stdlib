@@ -9,7 +9,8 @@ against OpenRouter's OpenAI-compatible chat-completions API.
   `OPENROUTER_API_KEY`, timeout, max steps, and tool names.
 - `settings.py` loads optional JSON user config from `$HOME/.harn/harn.json`
   or `--config`.
-- `client.py` implements the OpenRouter HTTP client with `urllib.request`.
+- `client.py` implements the OpenRouter HTTP client with `urllib.request`,
+  including SSE streaming for chat completions.
 - `tools.py` exposes filesystem and shell tools: `read`, `write`, `edit`,
   `bash`, `grep`, `find`, and `ls`.
 - `prompts.py` builds the system prompt and auto-loads the nearest
@@ -45,11 +46,13 @@ The TUI supports slash commands (`/help`, `/commands`, `/clear`, `/reset`,
 Left/Right, Ctrl+A, Ctrl+E, Ctrl+W, Ctrl+L, and Ctrl+O. Ctrl+O toggles full
 display for collapsed trace entries.
 
-The agent loop emits trace events for OpenRouter reasoning fields, tool calls,
-bash command feedback, and edit diffs. TUI trace entries are collapsed to five
-lines by default. OpenRouter reasoning is preserved on assistant messages as
-`reasoning`, `reasoning_content`, or `reasoning_details` when those fields are
-present in the API response.
+The TUI path streams OpenRouter chunks as they arrive. The agent loop emits
+trace events for OpenRouter reasoning fields, tool calls, bash command
+feedback, and edit diffs. TUI trace entries are collapsed to five lines by
+default. Reasoning blocks use a blue background, successful tool traces use
+green, and tool errors use red. OpenRouter reasoning is preserved on assistant
+messages as `reasoning`, `reasoning_content`, or `reasoning_details` when those
+fields are present in the API response.
 
 Runtime settings are resolved from CLI flags, then environment variables, then
 `$HOME/.harn/harn.json`, then defaults. Config keys include `api_key`,

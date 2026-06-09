@@ -51,10 +51,12 @@ Inside the TUI, type a prompt and press Enter. Commands: `/help`, `/clear`,
 line supports Left/Right, Ctrl+A, Ctrl+E, Ctrl+W, Ctrl+L, and Ctrl+O. The
 transcript scrolls with Up/Down and PageUp/PageDown.
 
-The TUI shows reasoning traces when OpenRouter returns `reasoning` or
-`reasoning_details`, plus tool calls, bash command output, and edit diffs. These
-details are collapsed to five lines by default; press Ctrl+O or run `/trace` to
-toggle full trace output.
+The TUI streams model output as OpenRouter chunks arrive. It shows reasoning
+traces when OpenRouter returns `reasoning` or `reasoning_details`, plus tool
+calls, bash command output, and edit diffs. These details are collapsed to five
+lines by default; press Ctrl+O or run `/trace` to toggle full trace output.
+Reasoning blocks use a blue background, successful tool traces use green, and
+tool errors use red.
 
 Optional user config is loaded from `~/.harn/harn.json` before defaults. CLI
 flags win over environment variables, environment variables win over config,

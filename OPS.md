@@ -102,11 +102,11 @@ Live OpenRouter health:
 RUN_OPENROUTER_EVAL=1 OPENROUTER_API_KEY="sk-or-v1-..." python -m unittest discover -s agent_eval_tests
 ```
 
-Expected static result: twenty-one tests run, four live tests skipped when
+Expected static result: twenty-three tests run, four live tests skipped when
 `RUN_OPENROUTER_EVAL` is not set. The static suite includes parity checks for
 `harn` and `harn_stdlib`, representative original-Harn CLI flag checks, and TUI
-dispatch/render helper checks, plus config-file, TUI input-editing, and trace
-event checks.
+dispatch/render helper checks, plus config-file, TUI input-editing, SSE
+streaming, and trace event checks.
 
 ## Logs
 
@@ -167,6 +167,8 @@ Reasoning or command feedback is missing in the TUI:
 - Tool calls, bash command results, and edit diffs are shown as trace entries
   and collapse to five lines by default. Press Ctrl+O or run `/trace` to toggle
   full trace output.
+- TUI streaming uses OpenRouter SSE chunks. Reasoning blocks use a blue
+  background, successful tool traces use green, and tool errors use red.
 
 Tool path rejected:
 

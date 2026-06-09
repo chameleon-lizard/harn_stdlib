@@ -20,7 +20,8 @@ core useful surface as a compact terminal coding agent:
 - API key loaded from CLI flags, environment, or `$HOME/.harn/harn.json`;
 - filesystem and shell tools exposed through OpenAI-compatible tool calling;
 - dependency-free interactive TUI through stdlib `curses`, with line-mode
-  fallback, editable input, slash commands, and collapsed trace output;
+  fallback, streaming output, editable input, slash commands, and collapsed
+  trace output;
 - local project instructions loaded from nearest `AGENTS.md`;
 - separate prompt eval directory using `AGENTS.md` and `DesignDoc.md`.
 
@@ -38,7 +39,8 @@ The input line supports Left/Right cursor movement, Ctrl+A/Ctrl+E for
 start/end, Ctrl+W for previous-word deletion, Ctrl+L for screen redraw, and
 Ctrl+O for expanding or collapsing trace details. The TUI shows OpenRouter
 reasoning fields when returned, plus tool calls, bash command results, and edit
-diffs. Trace entries collapse to five lines by default.
+diffs. Trace entries collapse to five lines by default. Reasoning blocks use a
+blue background, successful tool traces use green, and tool errors use red.
 
 Configuration is resolved in this order: CLI flags, environment variables,
 `$HOME/.harn/harn.json`, then defaults. Supported config keys include
@@ -55,12 +57,13 @@ OpenRouter runtime can support them. Examples include `--print`, `--provider`,
 commands fail less abruptly, but those subsystems are intentionally not
 implemented in the stdlib rewrite.
 
-The agent loop sends messages to OpenRouter. If the model returns tool calls,
-Harn executes them locally and appends tool results to the conversation. The
-loop stops when the assistant returns a final message or when `--max-steps` is
-reached. If the model returns `reasoning`, `reasoning_content`, or
-`reasoning_details`, Harn preserves those fields in the assistant message and
-emits trace events for the TUI.
+The agent loop sends messages to OpenRouter. The TUI path uses OpenRouter SSE
+streaming so assistant text and reasoning chunks can be shown before the full
+response completes. If the model returns tool calls, Harn executes them locally
+and appends tool results to the conversation. The loop stops when the assistant
+returns a final message or when `--max-steps` is reached. If the model returns
+`reasoning`, `reasoning_content`, or `reasoning_details`, Harn preserves those
+fields in the assistant message and emits trace events for the TUI.
 
 ## Modules
 
@@ -100,8 +103,8 @@ implementation, that `harn` and `harn_stdlib` expose the same public API, and
 that both module entry points print matching tools and version outputs. It also
 checks that representative original-Harn flags parse in stdlib mode and covers
 TUI dispatch/render helpers, editable input behavior, slash-command discovery,
-config-file option resolution, reasoning preservation, tool result traces, and
-edit diff traces.
+config-file option resolution, SSE streaming parsing, reasoning preservation,
+tool result traces, and edit diff traces.
 
 `agent_eval_tests/test_prompt_eval.py` is a live eval suite. It is skipped by
 default and runs only when `RUN_OPENROUTER_EVAL=1` and `OPENROUTER_API_KEY` are

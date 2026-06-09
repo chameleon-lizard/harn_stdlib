@@ -146,7 +146,15 @@ class StaticStdlibTests(unittest.TestCase):
             self.assertFalse(should_launch_tui(default, "hello"))
 
     def test_tui_render_helpers(self) -> None:
-        from harn.tui import TranscriptEntry, collapse_content, input_tail, input_view, slash_command_help, wrap_transcript
+        from harn.tui import (
+            TranscriptEntry,
+            collapse_content,
+            input_tail,
+            input_view,
+            render_transcript_lines,
+            slash_command_help,
+            wrap_transcript,
+        )
 
         lines = wrap_transcript([TranscriptEntry("user", "hello world " * 6)], 24)
         self.assertGreater(len(lines), 2)
@@ -168,6 +176,8 @@ class StaticStdlibTests(unittest.TestCase):
             expand_collapsible=True,
         )
         self.assertFalse(any("Ctrl+O to expand" in line for line in full_lines))
+        display_lines = render_transcript_lines([TranscriptEntry("reasoning", "thinking", True)], 80)
+        self.assertEqual("reasoning", display_lines[0].role)
 
     def test_tui_input_line_editing_controls(self) -> None:
         from harn.tui import InputLine
@@ -416,6 +426,107 @@ class StaticStdlibTests(unittest.TestCase):
         self.assertTrue(diffs)
         self.assertIn("-two", diffs[0])
         self.assertIn("+three", diffs[0])
+
+    def test_client_stream_chat_parses_sse_chunks(self) -> None:
+        from harn.client import OpenRouterClient
+
+        class FakeResponse:
+            def __enter__(self) -> "FakeResponse":
+                return self
+
+            def __exit__(self, *_: object) -> None:
+                return None
+
+            def __iter__(self) -> object:
+                return iter(
+                    [
+                        b": keepalive\n",
+                        b"\n",
+                        b'data: {"choices":[{"delta":{"content":"he"}}]}\n',
+                        b"\n",
+                        b'data: {"choices":[{"delta":{"content":"llo"}}]}\n',
+                        b"\n",
+                        b"data: [DONE]\n",
+                        b"\n",
+                    ]
+                )
+
+        captured: dict[str, object] = {}
+
+        def fake_urlopen(request: object, timeout: int) -> FakeResponse:
+            captured["body"] = request.data  # type: ignore[attr-defined]
+            captured["timeout"] = timeout
+            return FakeResponse()
+
+        client = OpenRouterClient("key", "model", timeout=9)
+        with mock.patch("harn.client.urllib.request.urlopen", fake_urlopen):
+            chunks = list(client.stream_chat([{"role": "user", "content": "hi"}]))
+
+        payload = json.loads(captured["body"].decode("utf-8"))  # type: ignore[union-attr]
+        self.assertTrue(payload["stream"])
+        self.assertEqual(9, captured["timeout"])
+        self.assertEqual("he", chunks[0]["choices"][0]["delta"]["content"])
+        self.assertEqual("llo", chunks[1]["choices"][0]["delta"]["content"])
+
+    def test_agent_streams_text_reasoning_and_tool_calls(self) -> None:
+        from harn.agent import Agent
+
+        class StreamingClient:
+            model = "fake"
+
+            def __init__(self) -> None:
+                self.calls = 0
+                self.kwargs: list[dict[str, Any]] = []
+
+            def stream_chat(self, messages: list[dict[str, Any]], **kwargs: Any) -> object:
+                self.calls += 1
+                self.kwargs.append(kwargs)
+                if self.calls == 1:
+                    yield {"choices": [{"delta": {"reasoning": "Need a command.\n"}}]}
+                    yield {
+                        "choices": [
+                            {
+                                "delta": {
+                                    "tool_calls": [
+                                        {
+                                            "index": 0,
+                                            "id": "call-1",
+                                            "type": "function",
+                                            "function": {
+                                                "name": "bash",
+                                                "arguments": json.dumps({"command": "printf 'ok\\n'"}),
+                                            },
+                                        }
+                                    ]
+                                },
+                                "finish_reason": "tool_calls",
+                            }
+                        ]
+                    }
+                    return
+                yield {"choices": [{"delta": {"content": "do"}}]}
+                yield {"choices": [{"delta": {"content": "ne"}, "finish_reason": "stop"}]}
+
+        events: list[Any] = []
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            client = StreamingClient()
+            agent = Agent(
+                client,  # type: ignore[arg-type]
+                cwd=Path(raw_tmp),
+                max_steps=3,
+                reasoning={"enabled": True, "exclude": False},
+            )
+            result = agent.run_turn(agent.initial_messages(), "go", trace_callback=events.append, stream=True)
+
+        self.assertEqual("done", result.content)
+        self.assertEqual(2, client.calls)
+        self.assertEqual({"enabled": True, "exclude": False}, client.kwargs[0]["reasoning"])
+        self.assertIn("reasoning", [event.kind for event in events])
+        self.assertIn("assistant", [event.kind for event in events])
+        self.assertIn("tool", [event.kind for event in events])
+        self.assertIn("result", [event.kind for event in events])
+        self.assertEqual("assistant:2", [event.event_id for event in events if event.kind == "assistant"][0])
+        self.assertIn("ok", "\n".join(event.content for event in events))
 
     def test_agent_continues_after_empty_no_tool_reply(self) -> None:
         from harn.agent import Agent

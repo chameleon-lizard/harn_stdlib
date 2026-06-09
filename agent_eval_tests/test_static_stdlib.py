@@ -150,10 +150,14 @@ class StaticStdlibTests(unittest.TestCase):
         from harn.tui import (
             InputLine,
             TranscriptEntry,
+            append_stream_text,
             collapse_content,
+            configure_curses_input,
             input_tail,
             input_view,
+            is_control_key,
             render_transcript_lines,
+            session_status,
             slash_command_help,
             setup_colors,
             attr_for_role,
@@ -227,7 +231,10 @@ class StaticStdlibTests(unittest.TestCase):
             COLOR_BLUE = 4
             COLOR_GREEN = 2
             COLOR_RED = 1
-            A_DIM = 256
+            A_BOLD = 512
+
+            def __init__(self) -> None:
+                self.raw_called = False
 
             def start_color(self) -> None:
                 return None
@@ -241,10 +248,33 @@ class StaticStdlibTests(unittest.TestCase):
             def color_pair(self, value: int) -> int:
                 return value
 
+            def curs_set(self, *_: object) -> None:
+                return None
+
+            def raw(self) -> None:
+                self.raw_called = True
+
+        class FakeWindow:
+            def __init__(self) -> None:
+                self.keypad_values: list[bool] = []
+
+            def keypad(self, value: bool) -> None:
+                self.keypad_values.append(value)
+
         fake_curses = FakeCurses()
         colors = setup_colors(fake_curses)
-        self.assertEqual(1 | fake_curses.A_DIM, attr_for_role(fake_curses, colors, "reasoning"))
-        self.assertEqual(3 | fake_curses.A_DIM, attr_for_role(fake_curses, colors, "error"))
+        fake_window = FakeWindow()
+        configure_curses_input(fake_curses, fake_window)
+        self.assertTrue(fake_curses.raw_called)
+        self.assertEqual([True], fake_window.keypad_values)
+        self.assertEqual(1 | fake_curses.A_BOLD, attr_for_role(fake_curses, colors, "reasoning"))
+        self.assertEqual(3 | fake_curses.A_BOLD, attr_for_role(fake_curses, colors, "error"))
+        self.assertTrue(is_control_key("\x0f", 15))
+        self.assertTrue(is_control_key(15, 15))
+        self.assertFalse(is_control_key("o", 15))
+        status = session_status(None, [{"role": "user", "content": "abcd"}], [TranscriptEntry("user", "abcd")])
+        self.assertIn("session: disabled", status)
+        self.assertIn("context_estimate: ~8 tokens", status)
 
         reasoning_entries: list[TranscriptEntry] = []
         upsert_trace_entry(
@@ -258,6 +288,13 @@ class StaticStdlibTests(unittest.TestCase):
             "turn:1",
         )
         self.assertEqual("reasoning: step 1\nIt seems", reasoning_entries[0].content)
+        upsert_trace_entry(
+            reasoning_entries,
+            AgentTraceEvent("reasoning", "reasoning: step 1", "It seems done", event_id="reasoning:1", append=True),
+            "turn:1",
+        )
+        self.assertEqual("reasoning: step 1\nIt seems done", reasoning_entries[0].content)
+        self.assertEqual("abcdef", append_stream_text("abc", "abcdef"))
 
     def test_tui_input_line_editing_controls(self) -> None:
         from harn.tui import InputLine
@@ -590,9 +627,11 @@ class StaticStdlibTests(unittest.TestCase):
         self.assertEqual("llo", chunks[1]["choices"][0]["delta"]["content"])
 
     def test_agent_streams_text_reasoning_and_tool_calls(self) -> None:
-        from harn.agent import Agent, stream_reasoning_delta
+        from harn.agent import Agent, append_stream_chunk, stream_reasoning_delta
 
         self.assertEqual("It seems", stream_reasoning_delta({"reasoning_details": [{"text": "It"}, {"text": " seems"}]}))
+        self.assertEqual("It", stream_reasoning_delta({"reasoning": "It", "reasoning_details": [{"text": "It"}]}))
+        self.assertEqual("It seems", append_stream_chunk("It", "It seems"))
 
         class StreamingClient:
             model = "fake"

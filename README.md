@@ -55,17 +55,22 @@ The TUI streams model output as OpenRouter chunks arrive. It shows reasoning
 traces when OpenRouter returns `reasoning` or `reasoning_details`, plus tool
 calls, bash command output, and edit diffs. These details are collapsed to five
 lines by default; press Ctrl+O or run `/trace` to toggle full trace output.
-Reasoning blocks use a dim blue background, successful tool traces use dim
-green, and tool errors use dim red. Bash results with non-zero `exit_code` are
-treated as errors. UTF-8 input such as Cyrillic is read through curses
-wide-character mode, and streamed trace blocks are scoped per user turn so
-later replies stay below their question.
+Reasoning blocks use a high-contrast blue background, successful tool traces
+use high-contrast green, and tool errors use high-contrast red. Bash results
+with non-zero `exit_code` are treated as errors. UTF-8 input such as Cyrillic is
+read through curses wide-character mode, and streamed trace blocks are scoped
+per user turn so later replies stay below their question. Ctrl+O is read in
+curses raw mode so terminal discard-output handling does not swallow it.
 
 TUI sessions are saved under `~/.harn/sessions/<session-id>/` with
 `metadata.json`, `state.json`, `events.jsonl`, and `transcript.log`. Use
 `/resume` to resume the latest previous session or `/resume <session-id>` for a
 specific session. `/clear` clears only the visible transcript; the append-only
 logs remain on disk.
+
+`/status` includes approximate session context usage: message count, serialized
+context characters, a dependency-free chars/4 token estimate, transcript entry
+counts, and session file sizes.
 
 Optional user config is loaded from `~/.harn/harn.json` before defaults. CLI
 flags win over environment variables, environment variables win over config,

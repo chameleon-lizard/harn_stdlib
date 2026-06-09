@@ -14,8 +14,8 @@
   line-mode fallback for terminals without curses.
 - Added shell-like TUI input editing for Left/Right, Ctrl+A, Ctrl+E, Ctrl+W,
   and Ctrl+L.
-- Added TUI slash commands: `/help`, `/commands`, `/clear`, `/reset`,
-  `/status`, `/trace`, `/tools`, and `/quit`.
+- Added TUI slash commands: `/help`, `/commands`, `/clear`, `/resume`,
+  `/reset`, `/status`, `/trace`, `/tools`, and `/quit`.
 - Added TUI trace display for OpenRouter reasoning fields, tool calls, bash
   command results, and edit diffs.
 - Added Ctrl+O and `/trace` to expand or collapse trace blocks, with five-line
@@ -30,6 +30,14 @@
   block headers are not repeated on every chunk.
 - Added TUI color styling: reasoning blocks use blue backgrounds, successful
   tool traces use green backgrounds, and tool errors use red backgrounds.
+- Switched trace block text back to high-contrast bold styling after dimmed
+  blocks proved hard to read.
+- Switched curses input to raw mode so Ctrl+O reaches the TUI on terminals that
+  otherwise treat it as discard-output.
+- Added `/status` context/session stats: message count, serialized context
+  chars, chars/4 token estimate, transcript size, and session file byte counts.
+- Added streamed reasoning overlap deduplication so expanded `/trace` output
+  does not repeat cumulative reasoning chunks.
 - Added optional user config loading from `$HOME/.harn/harn.json` and
   `--config`, with CLI/env/config/default precedence.
 - Added optional OpenRouter reasoning request config through `--reasoning`,
@@ -61,6 +69,8 @@
 - Added a static regression test for empty no-tool model replies.
 - Added optional live prompt evals using copied `AGENTS.md` and `DesignDoc.md`.
 - Added an optional live `harn_stdlib` alias eval.
+- Added persistent TUI sessions under `$HOME/.harn/sessions`, with state,
+  append-only JSONL events, transcript logs, and `/resume`.
 - Ran a dual DesignDoc implementation eval for `harn` and `harn_stdlib`; the
   setup was identical, but results were not equivalent. See
   `agent_eval_tests/design_doc_dual_eval_report.md`.
@@ -73,7 +83,6 @@
   theme system.
 - Multi-provider SDK support is not implemented; OpenRouter is the supported
   path for this rewrite.
-- Session persistence is not implemented.
 - Structured edit diffs beyond exact text replacement are not implemented.
 
 ## Verification history
@@ -111,6 +120,9 @@
 - `python3 -m compileall -q harn harn_stdlib agent_eval_tests`
 - `python3 -m unittest discover -s agent_eval_tests -v`
   - 25 tests run, 4 live OpenRouter tests skipped as expected.
+- `git diff --check`
+- `rg 'sk-or-v1-<redacted>' -n .`
+  - No matches.
 
 Live OpenRouter verification passed on `deepseek-v4-flash` with the API key
 provided through the environment.

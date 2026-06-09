@@ -51,11 +51,12 @@ display for collapsed trace entries.
 The TUI path streams OpenRouter chunks as they arrive. The agent loop emits
 trace events for OpenRouter reasoning fields, tool calls, bash command
 feedback, and edit diffs. TUI trace entries are collapsed to five lines by
-default. Reasoning blocks use a dim blue background, successful tool traces use
-dim green, and tool errors use dim red. Bash results with non-zero `exit_code`
-are classified as tool errors. OpenRouter reasoning is preserved on assistant
-messages as `reasoning`, `reasoning_content`, or `reasoning_details` when those
-fields are present in the API response.
+default. Reasoning blocks use a high-contrast blue background, successful tool
+traces use high-contrast green, and tool errors use high-contrast red. Bash
+results with non-zero `exit_code` are classified as tool errors. OpenRouter
+reasoning is preserved on assistant messages as `reasoning`,
+`reasoning_content`, or `reasoning_details` when those fields are present in the
+API response.
 
 Each full-screen TUI run creates a session directory in
 `$HOME/.harn/sessions/<session-id>/`. The directory contains `metadata.json`,
@@ -63,10 +64,16 @@ Each full-screen TUI run creates a session directory in
 previous session, `/resume <session-id>` loads a specific session, and `/clear`
 only clears the visible transcript.
 
+`/status` reports approximate context usage with a dependency-free chars/4 token
+estimate, message count, transcript size, and session file sizes.
+
 The curses TUI uses wide-character input, so UTF-8 text such as Cyrillic is
-stored as Unicode instead of byte fragments. Streamed trace entries are scoped
-to the active user turn, so a second streamed response cannot append above its
-question into an earlier assistant block.
+stored as Unicode instead of byte fragments. It also switches curses input to
+raw mode so Ctrl+O reaches the TUI on terminals that otherwise treat it as
+discard-output. Streamed trace entries are scoped to the active user turn and
+reasoning chunks are overlap-deduplicated, so a second streamed response cannot
+append above its question or fragment expanded trace output into repeated
+chunks.
 
 Runtime settings are resolved from CLI flags, then environment variables, then
 `$HOME/.harn/harn.json`, then defaults. Config keys include `api_key`,

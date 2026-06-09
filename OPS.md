@@ -176,9 +176,15 @@ Reasoning or command feedback is missing in the TUI:
 - Tool calls, bash command results, and edit diffs are shown as trace entries
   and collapse to five lines by default. Press Ctrl+O or run `/trace` to toggle
   full trace output.
-- TUI streaming uses OpenRouter SSE chunks. Reasoning blocks use a dim blue
-  background, successful tool traces use dim green, and tool errors use dim red.
-  Bash results with non-zero `exit_code` are classified as tool errors.
+- TUI streaming uses OpenRouter SSE chunks. Reasoning blocks use a
+  high-contrast blue background, successful tool traces use high-contrast green,
+  and tool errors use high-contrast red. Bash results with non-zero `exit_code`
+  are classified as tool errors.
+- Ctrl+O is read after switching curses input to raw mode. This avoids terminals
+  swallowing Ctrl+O as discard-output.
+- `/status` shows approximate context usage with message count, serialized
+  context characters, a chars/4 token estimate, transcript size, and session log
+  byte counts.
 
 Session cannot be resumed:
 

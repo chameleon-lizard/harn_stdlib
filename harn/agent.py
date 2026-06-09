@@ -205,7 +205,7 @@ class Agent:
         emit: TraceCallback,
     ) -> dict[str, Any]:
         content_parts: list[str] = []
-        reasoning_parts: list[str] = []
+        reasoning_text = ""
         reasoning_details: list[dict[str, Any]] = []
         tool_states: dict[int, dict[str, Any]] = {}
         finish_reason = ""
@@ -240,12 +240,9 @@ class Agent:
                     )
                 )
 
-            direct_reasoning_delta = stream_direct_reasoning_delta(delta)
-            if direct_reasoning_delta:
-                reasoning_parts.append(direct_reasoning_delta)
-
             reasoning_delta = stream_reasoning_delta(delta)
             if reasoning_delta:
+                reasoning_text = append_stream_chunk(reasoning_text, reasoning_delta)
                 emit(
                     AgentTraceEvent(
                         "reasoning",
@@ -269,8 +266,8 @@ class Agent:
             raise AgentError("OpenRouter stream ended with finish_reason=error")
 
         message: dict[str, Any] = {"content": "".join(content_parts)}
-        if reasoning_parts:
-            message["reasoning"] = "".join(reasoning_parts)
+        if reasoning_text:
+            message["reasoning"] = reasoning_text
         if reasoning_details:
             message["reasoning_details"] = reasoning_details
         tool_calls = finalize_streamed_tool_calls(tool_states)
@@ -344,17 +341,34 @@ def reasoning_detail_to_text(detail: object) -> str:
 def stream_reasoning_delta(delta: dict[str, Any]) -> str:
     """Extract visible reasoning text from a streaming delta."""
 
-    parts: list[str] = []
+    text = ""
     direct = stream_direct_reasoning_delta(delta)
     if direct:
-        parts.append(direct)
+        text = append_stream_chunk(text, direct)
     details = delta.get("reasoning_details")
     if isinstance(details, list):
+        details_text = ""
         for detail in details:
-            text = stream_reasoning_detail_delta(detail)
-            if text:
-                parts.append(text)
-    return "".join(parts)
+            detail_text = stream_reasoning_detail_delta(detail)
+            if detail_text:
+                details_text = append_stream_chunk(details_text, detail_text)
+        if details_text:
+            text = append_stream_chunk(text, details_text)
+    return text
+
+
+def append_stream_chunk(existing: str, chunk: str) -> str:
+    """Append a streamed chunk while removing repeated overlap."""
+
+    if not chunk:
+        return existing
+    if not existing:
+        return chunk
+    max_overlap = min(len(existing), len(chunk))
+    for size in range(max_overlap, 0, -1):
+        if existing[-size:] == chunk[:size]:
+            return existing + chunk[size:]
+    return existing + chunk
 
 
 def stream_direct_reasoning_delta(delta: dict[str, Any]) -> str:

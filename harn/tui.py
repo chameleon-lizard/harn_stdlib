@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import locale
 import sys
 import textwrap
@@ -111,9 +112,9 @@ Ctrl+O expands/collapses reasoning, diffs, and tool results.
 Up/Down/PageUp/PageDown scroll the transcript.
 
 Trace colors:
-Reasoning blocks use a blue background.
-Tool calls, successful results, and diffs use a green background.
-Tool errors use a red background.
+Reasoning blocks use a high-contrast blue background.
+Tool calls, successful results, and diffs use a high-contrast green background.
+Tool errors use a high-contrast red background.
 """
 
 
@@ -234,6 +235,63 @@ def agent_status(agent: Agent) -> str:
     )
 
 
+def context_chars(messages: list[dict[str, object]]) -> int:
+    """Return a rough serialized context size in characters."""
+
+    total = 0
+    for message in messages:
+        try:
+            total += len(json.dumps(message, ensure_ascii=False, separators=(",", ":")))
+        except (TypeError, ValueError):
+            total += len(str(message))
+    return total
+
+
+def approx_tokens(chars: int) -> int:
+    """Estimate token count using a dependency-free chars/4 heuristic."""
+
+    if chars <= 0:
+        return 0
+    return max(1, (chars + 3) // 4)
+
+
+def path_size(path: object) -> int:
+    """Return file size or zero when the file is unavailable."""
+
+    try:
+        return int(path.stat().st_size)  # type: ignore[attr-defined]
+    except (AttributeError, OSError):
+        return 0
+
+
+def session_status(
+    session_store: SessionStore | None,
+    messages: list[dict[str, object]],
+    entries: list[TranscriptEntry],
+) -> str:
+    """Return session and approximate context usage stats."""
+
+    chars = context_chars(messages)
+    transcript_chars = sum(len(entry.content) for entry in entries)
+    lines = [
+        f"session: {session_store.session_id if session_store else 'disabled'}",
+        f"context_messages: {len(messages)}",
+        f"context_estimate: ~{approx_tokens(chars)} tokens ({chars} chars, chars/4)",
+        f"transcript_entries: {len(entries)}",
+        f"transcript_chars: {transcript_chars}",
+    ]
+    if session_store:
+        lines.extend(
+            [
+                f"session_path: {session_store.path}",
+                f"state_bytes: {path_size(session_store.state_path())}",
+                f"events_bytes: {path_size(session_store.events_path())}",
+                f"transcript_log_bytes: {path_size(session_store.transcript_path())}",
+            ]
+        )
+    return "\n".join(lines)
+
+
 def agent_tools(agent: Agent) -> str:
     """Return enabled tool names for slash commands."""
 
@@ -276,7 +334,12 @@ def upsert_trace_entry(entries: list[TranscriptEntry], event: AgentTraceEvent, e
     if event_id:
         for entry in reversed(entries):
             if entry.event_id == event_id:
-                entry.content = entry.content + event.content if event.append else trace_event_content(event)
+                if event.append and event.kind == "reasoning":
+                    entry.content = append_stream_text(entry.content, event.content)
+                elif event.append:
+                    entry.content += event.content
+                else:
+                    entry.content = trace_event_content(event)
                 entry.role = event.kind
                 entry.collapsible = event.collapsible
                 return
@@ -288,6 +351,20 @@ def upsert_trace_entry(entries: list[TranscriptEntry], event: AgentTraceEvent, e
             event_id=event_id,
         )
     )
+
+
+def append_stream_text(existing: str, chunk: str) -> str:
+    """Append streamed display text while removing repeated overlap."""
+
+    if not chunk:
+        return existing
+    if not existing:
+        return chunk
+    max_overlap = min(len(existing), len(chunk))
+    for size in range(max_overlap, 0, -1):
+        if existing[-size:] == chunk[:size]:
+            return existing + chunk[size:]
+    return existing + chunk
 
 
 def setup_colors(curses_module: object) -> dict[str, int]:
@@ -313,9 +390,39 @@ def attr_for_role(curses_module: object, color_pairs: dict[str, int], role: str)
     if not pair:
         return 0
     try:
-        return curses_module.color_pair(pair) | curses_module.A_DIM
+        return curses_module.color_pair(pair) | curses_module.A_BOLD
     except Exception:
         return 0
+
+
+def configure_curses_input(curses_module: object, stdscr: object) -> None:
+    """Configure curses input so control keys reach the TUI."""
+
+    curses_module.curs_set(1)
+    try:
+        curses_module.raw()
+    except Exception:
+        try:
+            curses_module.cbreak()
+        except Exception:
+            pass
+    stdscr.keypad(True)
+
+
+def key_code(key: object) -> int | None:
+    """Return an integer key code for curses string/int keys."""
+
+    if isinstance(key, str) and len(key) == 1:
+        return ord(key)
+    if isinstance(key, int):
+        return key
+    return None
+
+
+def is_control_key(key: object, code: int) -> bool:
+    """Return whether a curses key is the requested control character."""
+
+    return key_code(key) == code
 
 
 def serialize_entries(entries: list[TranscriptEntry]) -> list[dict[str, object]]:
@@ -401,7 +508,7 @@ def run_line_repl(agent: Agent, *, out: object = sys.stdout, inp: object = sys.s
             print("system> Conversation memory reset.", file=out)
             continue
         if stripped == "/status":
-            print(f"system> {agent_status(agent)}", file=out)
+            print(f"system> {agent_status(agent)}\n{session_status(None, messages, [])}", file=out)
             continue
         if stripped == "/trace":
             print("system> Full-screen TUI toggles trace expansion with Ctrl+O.", file=out)
@@ -438,8 +545,7 @@ def run_curses_tui(agent: Agent) -> int:
         return run_line_repl(agent)
 
     def _main(stdscr: object) -> int:
-        curses.curs_set(1)
-        stdscr.keypad(True)
+        configure_curses_input(curses, stdscr)
         color_pairs = setup_colors(curses)
 
         entries = [
@@ -595,8 +701,7 @@ def run_curses_tui(agent: Agent) -> int:
                 scroll = 10**9
                 return
             if command == "/status":
-                session_line = f"session: {session_store.session_id}" if session_store else "session: disabled"
-                add("system", agent_status(agent) + "\n" + session_line)
+                add("system", agent_status(agent) + "\n" + session_status(session_store, messages, entries))
                 status = "status"
                 scroll = 10**9
                 return
@@ -650,8 +755,7 @@ def run_curses_tui(agent: Agent) -> int:
             except curses.error:
                 continue
             if isinstance(key, str):
-                code = ord(key) if len(key) == 1 else None
-                if key in ("\x03", "\x04"):
+                if is_control_key(key, 3) or is_control_key(key, 4):
                     return 0
                 if key in ("\n", "\r"):
                     try:
@@ -662,20 +766,20 @@ def run_curses_tui(agent: Agent) -> int:
                 if key in ("\b", "\x7f"):
                     input_line.backspace()
                     continue
-                if code == 1:
+                if is_control_key(key, 1):
                     input_line.move_start()
                     continue
-                if code == 5:
+                if is_control_key(key, 5):
                     input_line.move_end()
                     continue
-                if code == 23:
+                if is_control_key(key, 23):
                     input_line.kill_previous_word()
                     continue
-                if code == 12:
+                if is_control_key(key, 12):
                     stdscr.clear()
                     status = "redrawn"
                     continue
-                if code == 15:
+                if is_control_key(key, 15):
                     expanded_traces = not expanded_traces
                     status = "trace full" if expanded_traces else "trace short"
                     continue
@@ -683,7 +787,7 @@ def run_curses_tui(agent: Agent) -> int:
                     input_line.insert(key)
                 continue
 
-            if key in (3, 4):
+            if is_control_key(key, 3) or is_control_key(key, 4):
                 return 0
             if key in (10, 13):
                 try:
@@ -703,20 +807,20 @@ def run_curses_tui(agent: Agent) -> int:
             if key == curses.KEY_RIGHT:
                 input_line.move_right()
                 continue
-            if key == curses.KEY_HOME or key == 1:
+            if key == curses.KEY_HOME or is_control_key(key, 1):
                 input_line.move_start()
                 continue
-            if key == curses.KEY_END or key == 5:
+            if key == curses.KEY_END or is_control_key(key, 5):
                 input_line.move_end()
                 continue
-            if key == 23:
+            if is_control_key(key, 23):
                 input_line.kill_previous_word()
                 continue
-            if key == 12:
+            if is_control_key(key, 12):
                 stdscr.clear()
                 status = "redrawn"
                 continue
-            if key == 15:
+            if is_control_key(key, 15):
                 expanded_traces = not expanded_traces
                 status = "trace full" if expanded_traces else "trace short"
                 continue

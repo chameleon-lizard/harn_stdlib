@@ -50,6 +50,7 @@ Inside the TUI, type a prompt and press Enter. Commands: `/help`, `/clear`,
 `/commands`, `/continue`, `/resume`, `/reset`, `/status`, `/trace`, `/tools`,
 and `/quit`. The input line supports Left/Right, Ctrl+A, Ctrl+E, Ctrl+W,
 Ctrl+L, and Ctrl+O. The transcript scrolls with Up/Down and PageUp/PageDown.
+While a response is generating, Esc or Ctrl+C cancels the in-flight turn.
 
 The TUI streams model output as OpenRouter chunks arrive. It shows reasoning
 traces when OpenRouter returns `reasoning` or `reasoning_details`, plus tool

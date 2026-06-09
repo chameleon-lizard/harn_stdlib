@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import json
 import locale
+import queue
 import sys
+import threading
 import textwrap
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from .agent import Agent, AgentError, AgentTraceEvent, append_stream_chunk
+from .agent import Agent, AgentCancelled, AgentError, AgentResult, AgentTraceEvent, append_stream_chunk
 from .client import OpenRouterError
 from .sessions import SessionError, SessionStore
 
@@ -112,6 +114,7 @@ Ctrl+A/Ctrl+E move to start/end.
 Ctrl+W deletes the previous word.
 Ctrl+L redraws the screen.
 Ctrl+O expands/collapses reasoning, diffs, and tool results.
+Esc or Ctrl+C stops an in-flight generation.
 Up/Down/PageUp/PageDown scroll the transcript.
 
 Trace colors:
@@ -467,6 +470,10 @@ def configure_curses_input(curses_module: object, stdscr: object) -> None:
         except Exception:
             pass
     stdscr.keypad(True)
+    try:
+        stdscr.timeout(100)
+    except Exception:
+        pass
 
 
 def key_code(key: object) -> int | None:
@@ -483,6 +490,12 @@ def is_control_key(key: object, code: int) -> bool:
     """Return whether a curses key is the requested control character."""
 
     return key_code(key) == code
+
+
+def is_cancel_key(key: object) -> bool:
+    """Return whether a key should cancel an in-flight generation."""
+
+    return is_control_key(key, 3) or is_control_key(key, 27)
 
 
 def serialize_entries(entries: list[TranscriptEntry]) -> list[dict[str, object]]:
@@ -626,6 +639,9 @@ def run_curses_tui(agent: Agent) -> int:
         expanded_traces = False
         turn_counter = 0
         continue_choices: list[SessionStore] = []
+        generation_queue: queue.Queue[tuple[str, object]] = queue.Queue()
+        generation_thread: threading.Thread | None = None
+        generation_cancel: threading.Event | None = None
 
         def persist_state() -> None:
             if not session_store:
@@ -687,6 +703,91 @@ def run_curses_tui(agent: Agent) -> int:
             session_store = loaded
             add("system", f"Resumed session {loaded.session_id}.")
             status = f"resumed {loaded.session_id}"
+
+        def finish_generation() -> None:
+            nonlocal generation_cancel, generation_thread
+            generation_cancel = None
+            generation_thread = None
+
+        def process_generation_events() -> None:
+            nonlocal messages, scroll, status
+            while True:
+                try:
+                    kind, payload = generation_queue.get_nowait()
+                except queue.Empty:
+                    break
+
+                if kind == "trace":
+                    event, event_prefix = payload  # type: ignore[misc]
+                    add_trace(event, str(event_prefix))  # type: ignore[arg-type]
+                    scroll = 10**9
+                    continue
+                if kind == "done":
+                    result = payload
+                    if isinstance(result, AgentResult):
+                        messages = result.messages
+                        if result.content and not any(event.kind == "assistant" for event in result.trace):
+                            add("assistant", result.content)
+                        persist_state()
+                        status = f"done: {result.steps} step(s), {result.tool_calls} tool call(s)"
+                    else:
+                        add("error", f"Unexpected generation result: {result!r}")
+                        status = "error"
+                    finish_generation()
+                    scroll = 10**9
+                    continue
+                if kind == "cancelled":
+                    add("system", "Generation cancelled.")
+                    status = "cancelled"
+                    finish_generation()
+                    scroll = 10**9
+                    continue
+                if kind == "error":
+                    add("error", str(payload))
+                    status = "error"
+                    finish_generation()
+                    scroll = 10**9
+
+        def start_generation(prompt: str) -> None:
+            nonlocal generation_cancel, generation_thread, scroll, status, turn_counter
+            add("user", prompt)
+            status = "working... Esc/Ctrl+C to stop"
+            scroll = 10**9
+            turn_counter += 1
+            event_prefix = f"turn:{turn_counter}"
+            cancel_event = threading.Event()
+            generation_cancel = cancel_event
+
+            def run_worker(start_messages: list[dict[str, object]]) -> None:
+                try:
+                    def on_trace(event: AgentTraceEvent) -> None:
+                        generation_queue.put(("trace", (event, event_prefix)))
+
+                    result = agent.run_turn(
+                        start_messages,
+                        prompt,
+                        trace_callback=on_trace,
+                        stream=True,
+                        cancel_check=cancel_event.is_set,
+                    )
+                    generation_queue.put(("cancelled" if cancel_event.is_set() else "done", result))
+                except AgentCancelled as exc:
+                    generation_queue.put(("cancelled", exc))
+                except (AgentError, OpenRouterError) as exc:
+                    generation_queue.put(("error", exc))
+                except Exception as exc:
+                    generation_queue.put(("error", exc))
+
+            generation_thread = threading.Thread(target=run_worker, args=(list(messages),), daemon=True)
+            generation_thread.start()
+
+        def cancel_generation() -> bool:
+            nonlocal status
+            if generation_cancel and generation_thread and generation_thread.is_alive():
+                generation_cancel.set()
+                status = "cancelling..."
+                return True
+            return False
 
         def render() -> None:
             nonlocal scroll
@@ -813,40 +914,45 @@ def run_curses_tui(agent: Agent) -> int:
                 scroll = 10**9
                 return
 
-            add("user", prompt)
-            status = "working..."
-            scroll = 10**9
-            render()
-            try:
-                turn_counter += 1
-                event_prefix = f"turn:{turn_counter}"
-
-                def on_trace(event: AgentTraceEvent) -> None:
-                    nonlocal scroll
-                    add_trace(event, event_prefix)
-                    scroll = 10**9
-                    render()
-
-                result = agent.run_turn(messages, prompt, trace_callback=on_trace, stream=True)
-            except (AgentError, OpenRouterError) as exc:
-                add("error", str(exc))
-                status = "error"
-                return
-            messages = result.messages
-            if result.content and not any(event.kind == "assistant" for event in result.trace):
-                add("assistant", result.content)
-            persist_state()
-            status = f"done: {result.steps} step(s), {result.tool_calls} tool call(s)"
-            scroll = 10**9
+            start_generation(prompt)
 
         while True:
+            process_generation_events()
             render()
             try:
                 key = stdscr.get_wch()
             except curses.error:
                 continue
+            process_generation_events()
+            generation_active = bool(generation_thread and generation_thread.is_alive())
+            if is_cancel_key(key):
+                if cancel_generation():
+                    continue
+                if is_control_key(key, 3):
+                    return 0
+                input_line.clear()
+                status = "ready"
+                continue
+            if generation_active:
+                if is_control_key(key, 15):
+                    expanded_traces = not expanded_traces
+                    status = "trace full" if expanded_traces else "trace short"
+                    continue
+                if key == curses.KEY_UP:
+                    scroll -= 1
+                    continue
+                if key == curses.KEY_DOWN:
+                    scroll += 1
+                    continue
+                if key == curses.KEY_PPAGE:
+                    scroll -= 10
+                    continue
+                if key == curses.KEY_NPAGE:
+                    scroll += 10
+                    continue
+                continue
             if isinstance(key, str):
-                if is_control_key(key, 3) or is_control_key(key, 4):
+                if is_control_key(key, 4):
                     return 0
                 if key in ("\n", "\r"):
                     try:

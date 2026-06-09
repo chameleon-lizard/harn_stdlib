@@ -19,6 +19,10 @@ class AgentError(RuntimeError):
     """Raised when the agent loop cannot complete."""
 
 
+class AgentCancelled(AgentError):
+    """Raised when an in-flight agent turn is cancelled."""
+
+
 @dataclass
 class AgentTraceEvent:
     kind: str
@@ -30,6 +34,7 @@ class AgentTraceEvent:
 
 
 TraceCallback = Callable[[AgentTraceEvent], None]
+CancelCheck = Callable[[], bool]
 
 
 @dataclass
@@ -87,6 +92,7 @@ class Agent:
         *,
         trace_callback: TraceCallback | None = None,
         stream: bool = False,
+        cancel_check: CancelCheck | None = None,
     ) -> AgentResult:
         """Run one user turn using an existing chat transcript."""
 
@@ -102,13 +108,16 @@ class Agent:
         trace: list[AgentTraceEvent] = []
 
         def emit(event: AgentTraceEvent) -> None:
+            check_cancelled(cancel_check)
             trace.append(event)
             if trace_callback:
                 trace_callback(event)
+            check_cancelled(cancel_check)
 
         for step in range(1, self.max_steps + 1):
+            check_cancelled(cancel_check)
             if stream:
-                message = self._stream_message(messages, tool_schemas, step, emit)
+                message = self._stream_message(messages, tool_schemas, step, emit, cancel_check=cancel_check)
             else:
                 response = self.client.chat(
                     messages,
@@ -151,6 +160,7 @@ class Agent:
             messages.append(build_assistant_message(message, content, tool_calls))
 
             for tool_call in tool_calls:
+                check_cancelled(cancel_check)
                 tool_call_count += 1
                 function = tool_call.get("function") or {}
                 name = function.get("name")
@@ -171,6 +181,7 @@ class Agent:
                     if diff:
                         emit(AgentTraceEvent("diff", f"diff: {arguments.get('path', name)}", diff))
                     output = self.registry.run(str(name), arguments)
+                    check_cancelled(cancel_check)
                 except ToolError as exc:
                     output = f"TOOL_ERROR: {exc}"
                     tool_display = format_tool_call(str(name), {})
@@ -204,6 +215,8 @@ class Agent:
         tool_schemas: list[dict[str, Any]],
         step: int,
         emit: TraceCallback,
+        *,
+        cancel_check: CancelCheck | None = None,
     ) -> dict[str, Any]:
         content_parts: list[str] = []
         reasoning_text = ""
@@ -218,6 +231,7 @@ class Agent:
             max_tokens=self.max_tokens,
             reasoning=self.reasoning,
         ):
+            check_cancelled(cancel_check)
             choices = chunk.get("choices") or []
             if not choices:
                 continue
@@ -288,6 +302,13 @@ def build_assistant_message(message: dict[str, Any], content: str, tool_calls: l
         if value is not None:
             assistant_message[key] = value
     return assistant_message
+
+
+def check_cancelled(cancel_check: CancelCheck | None) -> None:
+    """Raise AgentCancelled when the caller requested cancellation."""
+
+    if cancel_check and cancel_check():
+        raise AgentCancelled("Generation cancelled.")
 
 
 def extract_reasoning_text(message: dict[str, Any]) -> str:

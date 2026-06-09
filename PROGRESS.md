@@ -34,6 +34,8 @@
   blocks proved hard to read.
 - Switched curses input to raw mode so Ctrl+O reaches the TUI on terminals that
   otherwise treat it as discard-output.
+- Moved TUI generation into a worker thread and added Esc/Ctrl+C cancellation
+  for in-flight turns.
 - Added `/status` context/session stats: message count, serialized context
   chars, chars/4 token estimate, transcript size, and session file byte counts.
 - Added streamed reasoning overlap deduplication so expanded `/trace` output
@@ -77,6 +79,7 @@
   append-only JSONL events, transcript logs, and `/resume`.
 - Added `/continue` session selection: list recent sessions, then resume by
   number or session id.
+- Added static tests for stream cancellation and TUI cancel-key detection.
 - Ran a dual DesignDoc implementation eval for `harn` and `harn_stdlib`; the
   setup was identical, but results were not equivalent. See
   `agent_eval_tests/design_doc_dual_eval_report.md`.
@@ -126,6 +129,12 @@
 - `python3 -m compileall -q harn harn_stdlib agent_eval_tests`
 - `python3 -m unittest discover -s agent_eval_tests -v`
   - 25 tests run, 4 live OpenRouter tests skipped as expected.
+- `git diff --check`
+- `rg 'sk-or-v1-<redacted>' -n .`
+  - No matches.
+- `python3 -m compileall -q harn harn_stdlib agent_eval_tests`
+- `python3 -m unittest discover -s agent_eval_tests -v`
+  - 26 tests run, 4 live OpenRouter tests skipped as expected.
 - `git diff --check`
 - `rg 'sk-or-v1-<redacted>' -n .`
   - No matches.

@@ -46,7 +46,8 @@ python -m harn
 The TUI supports slash commands (`/help`, `/commands`, `/clear`, `/continue`,
 `/resume`, `/reset`, `/status`, `/trace`, `/tools`, `/quit`) and shell-like
 input editing with Left/Right, Ctrl+A, Ctrl+E, Ctrl+W, Ctrl+L, and Ctrl+O.
-Ctrl+O toggles full display for collapsed trace entries.
+Ctrl+O toggles full display for collapsed trace entries. Esc or Ctrl+C cancels
+an in-flight generation.
 
 The TUI path streams OpenRouter chunks as they arrive. The agent loop emits
 trace events for OpenRouter reasoning fields, tool calls, bash command
@@ -71,10 +72,12 @@ estimate, message count, transcript size, and session file sizes.
 The curses TUI uses wide-character input, so UTF-8 text such as Cyrillic is
 stored as Unicode instead of byte fragments. It also switches curses input to
 raw mode so Ctrl+O reaches the TUI on terminals that otherwise treat it as
-discard-output. Streamed trace entries are scoped to the active user turn and
-reasoning chunks are overlap-deduplicated and newline-normalized, so a second
-streamed response cannot append above its question or fragment expanded trace
-output into repeated chunks or one-phrase-per-line reasoning.
+discard-output. Generation runs in a worker thread so the main curses loop can
+keep reading Esc/Ctrl+C and cancel the active turn. Streamed trace entries are
+scoped to the active user turn and reasoning chunks are overlap-deduplicated and
+newline-normalized, so a second streamed response cannot append above its
+question or fragment expanded trace output into repeated chunks or
+one-phrase-per-line reasoning.
 
 Runtime settings are resolved from CLI flags, then environment variables, then
 `$HOME/.harn/harn.json`, then defaults. Config keys include `api_key`,

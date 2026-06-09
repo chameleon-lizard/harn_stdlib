@@ -155,6 +155,7 @@ class StaticStdlibTests(unittest.TestCase):
             configure_curses_input,
             input_tail,
             input_view,
+            is_cancel_key,
             is_control_key,
             render_transcript_lines,
             session_status,
@@ -258,9 +259,13 @@ class StaticStdlibTests(unittest.TestCase):
         class FakeWindow:
             def __init__(self) -> None:
                 self.keypad_values: list[bool] = []
+                self.timeout_values: list[int] = []
 
             def keypad(self, value: bool) -> None:
                 self.keypad_values.append(value)
+
+            def timeout(self, value: int) -> None:
+                self.timeout_values.append(value)
 
         fake_curses = FakeCurses()
         colors = setup_colors(fake_curses)
@@ -268,8 +273,13 @@ class StaticStdlibTests(unittest.TestCase):
         configure_curses_input(fake_curses, fake_window)
         self.assertTrue(fake_curses.raw_called)
         self.assertEqual([True], fake_window.keypad_values)
+        self.assertEqual([100], fake_window.timeout_values)
         self.assertEqual(1 | fake_curses.A_BOLD, attr_for_role(fake_curses, colors, "reasoning"))
         self.assertEqual(3 | fake_curses.A_BOLD, attr_for_role(fake_curses, colors, "error"))
+        self.assertTrue(is_cancel_key("\x03"))
+        self.assertTrue(is_cancel_key("\x1b"))
+        self.assertTrue(is_cancel_key(27))
+        self.assertFalse(is_cancel_key("c"))
         self.assertTrue(is_control_key("\x0f", 15))
         self.assertTrue(is_control_key(15, 15))
         self.assertFalse(is_control_key("o", 15))
@@ -590,6 +600,33 @@ class StaticStdlibTests(unittest.TestCase):
         self.assertTrue(error_events)
         self.assertTrue(any("exit_code=7" in event.content for event in error_events))
         self.assertFalse([event for event in result.trace if event.kind == "result"])
+
+    def test_agent_stream_turn_can_be_cancelled(self) -> None:
+        from harn.agent import Agent, AgentCancelled
+
+        class StreamingClient:
+            model = "fake"
+
+            def stream_chat(self, messages: list[dict[str, Any]], **kwargs: Any) -> object:
+                yield {"choices": [{"delta": {"content": "hello"}}]}
+                yield {"choices": [{"delta": {"content": " world"}, "finish_reason": "stop"}]}
+
+        cancelled = False
+
+        def on_trace(_event: object) -> None:
+            nonlocal cancelled
+            cancelled = True
+
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            agent = Agent(StreamingClient(), cwd=Path(raw_tmp), max_steps=3)  # type: ignore[arg-type]
+            with self.assertRaises(AgentCancelled):
+                agent.run_turn(
+                    agent.initial_messages(),
+                    "stream",
+                    trace_callback=on_trace,
+                    stream=True,
+                    cancel_check=lambda: cancelled,
+                )
 
     def test_client_stream_chat_parses_sse_chunks(self) -> None:
         from harn.client import OpenRouterClient

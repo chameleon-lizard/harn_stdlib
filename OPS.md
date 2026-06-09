@@ -102,7 +102,7 @@ Live OpenRouter health:
 RUN_OPENROUTER_EVAL=1 OPENROUTER_API_KEY="sk-or-v1-..." python -m unittest discover -s agent_eval_tests
 ```
 
-Expected static result: twenty-five tests run, four live tests skipped when
+Expected static result: twenty-six tests run, four live tests skipped when
 `RUN_OPENROUTER_EVAL` is not set. The static suite includes parity checks for
 `harn` and `harn_stdlib`, representative original-Harn CLI flag checks, and TUI
 dispatch/render helper checks, plus config-file, TUI input-editing, SSE
@@ -155,6 +155,8 @@ TUI input editing does not behave like a shell:
 - Expected keys: Left/Right move by character, Ctrl+A/Ctrl+E jump to
   start/end, Ctrl+W deletes the previous word, Ctrl+L redraws the screen, and
   Ctrl+O expands or collapses trace details.
+- During an in-flight generation, Esc or Ctrl+C should set cancellation and
+  leave the TUI responsive. Ctrl+C outside generation exits the TUI.
 - Slash commands: `/help`, `/commands`, `/clear`, `/continue`, `/resume`,
   `/reset`, `/status`, `/trace`, `/tools`, and `/quit`.
 - UTF-8 text such as Cyrillic should appear normally. If it appears as mojibake,

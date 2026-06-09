@@ -15,6 +15,8 @@ against OpenRouter's OpenAI-compatible chat-completions API.
   `bash`, `grep`, `find`, and `ls`.
 - `prompts.py` builds the system prompt and auto-loads the nearest
   `AGENTS.md`.
+- `skills.py` discovers and loads local `SKILL.md` files from
+  `$HOME/.harn/skills`.
 - `agent.py` runs the model/tool loop until the assistant returns a final
   answer.
 - `sessions.py` persists TUI state and append-only logs under
@@ -44,10 +46,10 @@ python -m harn
 ```
 
 The TUI supports slash commands (`/help`, `/commands`, `/clear`, `/continue`,
-`/resume`, `/reset`, `/status`, `/trace`, `/tools`, `/quit`) and shell-like
-input editing with Left/Right, Ctrl+A, Ctrl+E, Ctrl+W, Ctrl+L, and Ctrl+O.
-Ctrl+O toggles full display for collapsed trace entries. Esc or Ctrl+C cancels
-an in-flight generation.
+`/resume`, `/reset`, `/skill`, `/skills`, `/status`, `/trace`, `/tools`,
+`/quit`) and shell-like input editing with Left/Right, Ctrl+A, Ctrl+E, Ctrl+W,
+Ctrl+L, and Ctrl+O. Ctrl+O toggles full display for collapsed trace entries.
+Esc or Ctrl+C cancels an in-flight generation.
 
 The TUI path streams OpenRouter chunks as they arrive. The agent loop emits
 trace events for OpenRouter reasoning fields, tool calls, bash command
@@ -84,12 +86,20 @@ Runtime settings are resolved from CLI flags, then environment variables, then
 `openrouter_api_key`, `api_key_env`, `model`, `base_url`,
 `openrouter_base_url`, `timeout`, `temperature`, `max_steps`, `max_tokens`,
 `reasoning`, `reasoning_effort`, `reasoning_max_tokens`, `reasoning_enabled`,
-and `reasoning_exclude`.
+`reasoning_exclude`, `skills`, and `skills_dir`.
+
+Skills are stored under `$HOME/.harn/skills` by default, usually as
+`$HOME/.harn/skills/<name>/SKILL.md`. `--skill`, config key `skills`, or
+`HARN_SKILLS` activates skills; `--list-skills` lists discoverable skills.
+Active skills are rendered into the system prompt after project and extra
+system instructions. The TUI can change active skills with `/skill <name>` and
+`/skill off`.
 
 The CLI accepts common original-Harn flags such as `--print`, `--provider`,
 `--thinking`, `--tools/-t`, `--no-tools/-nt`, `--list-models`, `--offline`,
-`--tui`, and `--no-context-files/-nc`. Unsupported stateful subsystems are parsed for
-compatibility but are not implemented in this dependency-free runtime.
+`--tui`, `--skill`, `--no-skills`, and `--no-context-files/-nc`. Unsupported
+stateful subsystems are parsed for compatibility but are not implemented in
+this dependency-free runtime.
 
 The agent loop treats an empty assistant response without tool calls as an
 incomplete turn. It appends a short continuation prompt and retries until the

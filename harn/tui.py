@@ -15,6 +15,7 @@ from typing import Callable
 from .agent import Agent, AgentCancelled, AgentError, AgentResult, AgentTraceEvent, append_stream_chunk
 from .client import OpenRouterError
 from .sessions import SessionError, SessionStore
+from .skills import SkillError, format_skill_list, split_skill_names
 
 
 @dataclass
@@ -88,6 +89,8 @@ SLASH_COMMANDS = (
     ("/continue", "list sessions or resume a numbered session"),
     ("/resume", "resume the latest or named session"),
     ("/reset", "reset conversation memory"),
+    ("/skill", "enable skills or clear active skills"),
+    ("/skills", "show available and active skills"),
     ("/status", "show model, cwd, and loop settings"),
     ("/trace", "toggle expanded trace details"),
     ("/tools", "show enabled local tools"),
@@ -102,6 +105,8 @@ HELP_TEXT = """Slash commands:
 /continue  list sessions or resume a numbered session
 /resume    resume the latest or named session
 /reset     reset conversation memory
+/skill     enable skills or clear active skills
+/skills    show available and active skills
 /status    show model, cwd, and loop settings
 /trace     toggle expanded trace details
 /tools     show enabled local tools
@@ -237,6 +242,8 @@ def agent_status(agent: Agent) -> str:
             f"temperature: {agent.temperature}",
             f"reasoning: {agent.reasoning or 'auto'}",
             f"tools: {tools}",
+            f"skills_root: {agent.skills_root}",
+            f"skills: {', '.join(agent.active_skill_names()) or 'none'}",
         ]
     )
 
@@ -370,6 +377,21 @@ def agent_tools(agent: Agent) -> str:
     else:
         names = sorted(agent.enabled_tools)
     return "Enabled tools: " + (", ".join(names) if names else "none")
+
+
+def agent_skills(agent: Agent) -> str:
+    """Return available and active skills for slash commands."""
+
+    available = format_skill_list(agent.available_skills(), active_names=agent.active_skill_names())
+    return "\n".join(
+        [
+            f"Skills root: {agent.skills_root}",
+            f"Active skills: {', '.join(agent.active_skill_names()) or 'none'}",
+            "Available skills:",
+            available,
+            "Use /skill <name>[,<name>...] to enable, or /skill off to clear.",
+        ]
+    )
 
 
 def format_trace_event(event: AgentTraceEvent, *, expanded: bool = False) -> str:
@@ -583,6 +605,25 @@ def run_line_repl(agent: Agent, *, out: object = sys.stdout, inp: object = sys.s
             messages = agent.initial_messages()
             print("system> Conversation memory reset.", file=out)
             continue
+        if stripped == "/skills":
+            print(f"system> {agent_skills(agent)}", file=out)
+            continue
+        if stripped == "/skill" or stripped.startswith("/skill "):
+            target = stripped.partition(" ")[2].strip()
+            try:
+                if not target:
+                    print(f"system> {agent_skills(agent)}", file=out)
+                elif target.lower() in {"off", "clear", "none"}:
+                    agent.clear_skills()
+                    messages = agent.initial_messages()
+                    print("system> Active skills cleared.", file=out)
+                else:
+                    agent.set_active_skills(split_skill_names(target))
+                    messages = agent.initial_messages()
+                    print(f"system> Active skills: {', '.join(agent.active_skill_names())}", file=out)
+            except SkillError as exc:
+                print(f"error> {exc}", file=out)
+            continue
         if stripped == "/status":
             print(f"system> {agent_status(agent)}\n{session_status(None, messages, [])}", file=out)
             continue
@@ -703,6 +744,13 @@ def run_curses_tui(agent: Agent) -> int:
             session_store = loaded
             add("system", f"Resumed session {loaded.session_id}.")
             status = f"resumed {loaded.session_id}"
+
+        def refresh_system_message() -> None:
+            if messages and messages[0].get("role") == "system":
+                messages[0]["content"] = agent.system_prompt
+            else:
+                messages.insert(0, {"role": "system", "content": agent.system_prompt})
+            persist_state()
 
         def finish_generation() -> None:
             nonlocal generation_cancel, generation_thread
@@ -891,6 +939,33 @@ def run_curses_tui(agent: Agent) -> int:
                 add("system", "Conversation memory reset.")
                 status = "reset"
                 scroll = 10**9
+                return
+            if command == "/skills":
+                add("system", agent_skills(agent))
+                status = "skills"
+                scroll = 10**9
+                return
+            if command == "/skill":
+                target = command_arg.strip()
+                try:
+                    if not target:
+                        add("system", agent_skills(agent))
+                        status = "skills"
+                    elif target.lower() in {"off", "clear", "none"}:
+                        agent.clear_skills()
+                        refresh_system_message()
+                        add("system", "Active skills cleared.")
+                        status = "skills off"
+                    else:
+                        agent.set_active_skills(split_skill_names(target))
+                        refresh_system_message()
+                        add("system", f"Active skills: {', '.join(agent.active_skill_names())}")
+                        status = "skills"
+                    scroll = 10**9
+                except SkillError as exc:
+                    add("error", str(exc))
+                    status = "error"
+                    scroll = 10**9
                 return
             if command == "/status":
                 add("system", agent_status(agent) + "\n" + session_status(session_store, messages, entries))

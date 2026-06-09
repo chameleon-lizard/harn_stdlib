@@ -35,11 +35,11 @@ When run in an interactive terminal without a prompt, the CLI opens the stdlib
 TUI. The same UI can be forced with `--tui` or disabled with `--no-tui`. The TUI
 keeps a single chat transcript for the session and supports `/help`,
 `/commands`, `/clear`, `/continue`, `/resume`, `/reset`, `/status`, `/trace`,
-`/tools`, and `/quit`. The input line supports Left/Right cursor movement,
-Ctrl+A/Ctrl+E for start/end, Ctrl+W for previous-word deletion, Ctrl+L for
-screen redraw, and Ctrl+O for expanding or collapsing trace details. Esc or
-Ctrl+C cancels an in-flight generation. The TUI shows OpenRouter reasoning
-fields when returned, plus tool calls, bash command results, and edit diffs.
+`/skill`, `/skills`, `/tools`, and `/quit`. The input line supports Left/Right
+cursor movement, Ctrl+A/Ctrl+E for start/end, Ctrl+W for previous-word deletion,
+Ctrl+L for screen redraw, and Ctrl+O for expanding or collapsing trace details.
+Esc or Ctrl+C cancels an in-flight generation. The TUI shows OpenRouter
+reasoning fields when returned, plus tool calls, bash command results, and edit diffs.
 Trace entries collapse to five lines by default. Reasoning blocks use a
 high-contrast blue background, successful tool traces use high-contrast green,
 and tool errors use high-contrast red. Bash results with non-zero `exit_code`
@@ -65,7 +65,17 @@ Configuration is resolved in this order: CLI flags, environment variables,
 `api_key`, `openrouter_api_key`, `api_key_env`, `model`, `base_url`,
 `openrouter_base_url`, `timeout`, `temperature`, `max_steps`, and
 `max_tokens`, `reasoning`, `reasoning_effort`, `reasoning_max_tokens`,
-`reasoning_enabled`, and `reasoning_exclude`.
+`reasoning_enabled`, `reasoning_exclude`, `skills`, and `skills_dir`.
+
+Skills are local instruction packs stored under `$HOME/.harn/skills` by
+default. Harn discovers `<name>/SKILL.md` directories and single `*.md` files.
+Use `--list-skills` to list them, `--skill <name>` to enable one or more skills
+from CLI, config key `skills` or `HARN_SKILLS` to enable default skills, and
+`--skills-dir`, config key `skills_dir`, or `HARN_SKILLS_DIR` to use a
+non-default directory. In the TUI, `/skills` lists available and active skills,
+`/skill <name>[,<name>...]` enables skills, and `/skill off` clears active
+skills. Active skill markdown is rendered into the system prompt for subsequent
+turns.
 
 The CLI also accepts original-Harn compatibility flags where a stdlib
 OpenRouter runtime can support them. Examples include `--print`, `--provider`,
@@ -101,6 +111,9 @@ Paths are scoped to `--cwd` unless `--allow-outside-cwd` is set.
 `harn/prompts.py` builds the base system prompt and finds `AGENTS.md` by walking
 upward from the configured cwd.
 
+`harn/skills.py` discovers and loads `SKILL.md` files from `$HOME/.harn/skills`
+or another configured skills directory.
+
 `harn/agent.py` orchestrates the model/tool loop.
 
 `harn/cli.py` provides argument parsing and terminal output.
@@ -125,10 +138,11 @@ that both module entry points print matching tools and version outputs. It also
 checks that representative original-Harn flags parse in stdlib mode and covers
 TUI dispatch/render helpers, editable input behavior, slash-command discovery,
 config-file option resolution, SSE streaming parsing, session persistence,
-numbered session selection for `/continue`, generation cancellation,
-context/session status reporting, reasoning preservation and overlap
-deduplication, streamed reasoning newline normalization, tool result traces,
-non-zero bash error classification, and edit diff traces.
+numbered session selection for `/continue`, generation cancellation, skill
+discovery and system-prompt injection, context/session status reporting,
+reasoning preservation and overlap deduplication, streamed reasoning newline
+normalization, tool result traces, non-zero bash error classification, and edit
+diff traces.
 
 `agent_eval_tests/test_prompt_eval.py` is a live eval suite. It is skipped by
 default and runs only when `RUN_OPENROUTER_EVAL=1` and `OPENROUTER_API_KEY` are

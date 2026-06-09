@@ -21,6 +21,7 @@ from .config import (
     VERSION,
 )
 from .settings import SettingsError, float_setting, int_setting, load_settings, string_setting
+from .skills import SkillError, coerce_skill_names, default_skills_root, discover_skills, format_skill_list
 from .tui import run_tui
 
 
@@ -238,6 +239,36 @@ def resolve_runtime_options(args: argparse.Namespace, settings: dict[str, object
     }
 
 
+def resolve_skills_root(args: argparse.Namespace, settings: dict[str, object]) -> Path:
+    """Resolve the skills directory from CLI, env, config, then default."""
+
+    raw = (
+        args.skills_dir
+        or os.environ.get("HARN_SKILLS_DIR")
+        or string_setting(settings, "skills_dir", "skill_dir")
+    )
+    return Path(raw).expanduser() if raw else default_skills_root()
+
+
+def resolve_skill_names(args: argparse.Namespace, settings: dict[str, object]) -> list[str]:
+    """Resolve active skills from CLI, env, config, then none."""
+
+    if args.no_skills:
+        return []
+    cli_names: list[str] = []
+    for item in args.skill:
+        cli_names.extend(coerce_skill_names(item))
+    if cli_names:
+        return cli_names
+    env_names = os.environ.get("HARN_SKILLS")
+    if env_names:
+        return coerce_skill_names(env_names)
+    for key in ("skills", "skill"):
+        if key in settings:
+            return coerce_skill_names(settings.get(key))
+    return []
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="harn", description="Stdlib-only OpenRouter coding agent.")
     parser.add_argument("message", nargs="*", help="Prompt text. Tokens like @file are attached as text.")
@@ -290,8 +321,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--export", nargs="*", help="Session export is not available in stdlib mode.")
     parser.add_argument("--extension", "-e", action="append", default=[], help="Accepted compatibility option.")
     parser.add_argument("--no-extensions", "-ne", action="store_true", help="Accepted compatibility option.")
-    parser.add_argument("--skill", action="append", default=[], help="Accepted compatibility option.")
-    parser.add_argument("--no-skills", "-ns", action="store_true", help="Accepted compatibility option.")
+    parser.add_argument("--skill", action="append", default=[], help="Enable a skill by name or path. Can be used more than once.")
+    parser.add_argument("--skills-dir", help="Directory containing skills. Default: ~/.harn/skills.")
+    parser.add_argument("--list-skills", action="store_true", help="List skills from the skills directory and exit.")
+    parser.add_argument("--no-skills", "-ns", action="store_true", help="Disable skills from CLI, environment, and config.")
     parser.add_argument("--prompt-template", action="append", default=[], help="Accepted compatibility option.")
     parser.add_argument("--no-prompt-templates", "-np", action="store_true", help="Accepted compatibility option.")
     parser.add_argument("--theme", action="append", default=[], help="Accepted compatibility option.")
@@ -321,9 +354,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         settings = {} if args.no_config else load_settings(_setting_path(args.config))
         runtime = resolve_runtime_options(args, settings)
-    except SettingsError as exc:
+        skills_root = resolve_skills_root(args, settings)
+        skill_names = resolve_skill_names(args, settings)
+    except (SettingsError, SkillError) as exc:
         print(f"harn: {exc}", file=sys.stderr)
         return 1
+    if args.list_skills:
+        print(format_skill_list(discover_skills(skills_root), active_names=skill_names))
+        return 0
 
     prompt = _collect_prompt(args, read_stdin=not args.tui)
     launch_tui = should_launch_tui(args, prompt)
@@ -361,19 +399,25 @@ def main(argv: list[str] | None = None) -> int:
             print(f"harn: {exc}", file=sys.stderr)
             return 1
 
-    agent = Agent(
-        client,
-        cwd=cwd,
-        tools=args.tools,
-        allow_outside_cwd=args.allow_outside_cwd,
-        max_steps=int(runtime["max_steps"]),
-        temperature=float(runtime["temperature"]),
-        max_tokens=runtime["max_tokens"],  # type: ignore[arg-type]
-        reasoning=runtime["reasoning"],  # type: ignore[arg-type]
-        no_tools=args.no_tools or args.no_builtin_tools,
-        system_prompt=extra_system_prompt,
-        agents_file=agents_file,
-    )
+    try:
+        agent = Agent(
+            client,
+            cwd=cwd,
+            tools=args.tools,
+            allow_outside_cwd=args.allow_outside_cwd,
+            max_steps=int(runtime["max_steps"]),
+            temperature=float(runtime["temperature"]),
+            max_tokens=runtime["max_tokens"],  # type: ignore[arg-type]
+            reasoning=runtime["reasoning"],  # type: ignore[arg-type]
+            no_tools=args.no_tools or args.no_builtin_tools,
+            system_prompt=extra_system_prompt,
+            agents_file=agents_file,
+            skills_root=skills_root,
+            skill_names=skill_names,
+        )
+    except SkillError as exc:
+        print(f"harn: {exc}", file=sys.stderr)
+        return 1
     if launch_tui:
         return run_tui(agent)
 

@@ -45,6 +45,8 @@
   blocks.
 - Added optional user config loading from `$HOME/.harn/harn.json` and
   `--config`, with CLI/env/config/default precedence.
+- Added local skills under `$HOME/.harn/skills`, with CLI `--skill`,
+  `--list-skills`, config/env activation, and TUI `/skills` plus `/skill`.
 - Added optional OpenRouter reasoning request config through `--reasoning`,
   `--reasoning-max-tokens`, environment variables, and config keys.
 - Added automatic TUI launch when `harn` runs without a prompt in an
@@ -66,6 +68,8 @@
 - Added static tests for TUI dispatch and render helpers.
 - Added static tests for TUI line editing, slash-command discovery, and config
   resolution.
+- Added static tests for skill discovery, CLI listing, and system prompt
+  injection.
 - Added static tests for reasoning preservation, tool result traces, and edit
   diff traces.
 - Added static tests for SSE parsing and streaming agent trace events.
@@ -135,6 +139,12 @@
 - `python3 -m compileall -q harn harn_stdlib agent_eval_tests`
 - `python3 -m unittest discover -s agent_eval_tests -v`
   - 26 tests run, 4 live OpenRouter tests skipped as expected.
+- `git diff --check`
+- `rg 'sk-or-v1-<redacted>' -n .`
+  - No matches.
+- `python3 -m compileall -q harn harn_stdlib agent_eval_tests`
+- `python3 -m unittest discover -s agent_eval_tests -v`
+  - 27 tests run, 4 live OpenRouter tests skipped as expected.
 - `git diff --check`
 - `rg 'sk-or-v1-<redacted>' -n .`
   - No matches.

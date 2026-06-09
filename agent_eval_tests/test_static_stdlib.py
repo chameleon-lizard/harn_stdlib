@@ -151,6 +151,7 @@ class StaticStdlibTests(unittest.TestCase):
             InputLine,
             TranscriptEntry,
             append_stream_text,
+            agent_skills,
             collapse_content,
             configure_curses_input,
             input_tail,
@@ -176,6 +177,7 @@ class StaticStdlibTests(unittest.TestCase):
         self.assertIn("/reset", slash_command_help())
         self.assertIn("/trace", slash_command_help())
         self.assertIn("/continue", slash_command_help())
+        self.assertIn("/skills", slash_command_help())
 
         collapsed = collapse_content("\n".join(str(item) for item in range(8)))
         self.assertIn("Ctrl+O to expand", collapsed)
@@ -339,7 +341,7 @@ class StaticStdlibTests(unittest.TestCase):
         self.assertEqual(0, line.cursor)
 
     def test_tui_line_repl_commands(self) -> None:
-        from harn.tui import run_line_repl
+        from harn.tui import agent_skills, run_line_repl
 
         class FakeAgent:
             def initial_messages(self) -> list[dict[str, Any]]:
@@ -352,7 +354,19 @@ class StaticStdlibTests(unittest.TestCase):
         self.assertIn("/clear", output.getvalue())
         self.assertIn("/continue", output.getvalue())
         self.assertIn("/reset", output.getvalue())
+        self.assertIn("/skills", output.getvalue())
         self.assertIn("/trace", output.getvalue())
+
+        class FakeSkillAgent:
+            skills_root = Path("/tmp/skills")
+
+            def active_skill_names(self) -> list[str]:
+                return ["demo"]
+
+            def available_skills(self) -> list[Any]:
+                return []
+
+        self.assertIn("Active skills: demo", agent_skills(FakeSkillAgent()))  # type: ignore[arg-type]
 
     def test_config_file_resolves_runtime_options(self) -> None:
         from harn.cli import build_parser, resolve_runtime_options
@@ -403,6 +417,32 @@ class StaticStdlibTests(unittest.TestCase):
             )
         self.assertEqual(0, completed.returncode, completed.stderr)
         self.assertEqual("home-config-model", completed.stdout.strip())
+
+    def test_skills_are_discovered_and_added_to_system_prompt(self) -> None:
+        from harn.agent import Agent
+        from harn.skills import discover_skills, format_skill_list, load_skills, render_skills_prompt
+
+        class FakeClient:
+            model = "fake"
+
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            root = Path(raw_tmp) / "skills"
+            skill_dir = root / "demo"
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text("# Demo\n\nAlways mention DEMO_SKILL.", encoding="utf-8")
+
+            discovered = discover_skills(root)
+            loaded = load_skills(["demo"], root)
+            prompt = render_skills_prompt(loaded)
+            agent = Agent(FakeClient(), cwd=Path(raw_tmp), skills_root=root, skill_names=["demo"])  # type: ignore[arg-type]
+            completed = self._run_module("harn", "--skills-dir", str(root), "--skill", "demo", "--list-skills")
+
+        self.assertEqual(["demo"], [skill.name for skill in discovered])
+        self.assertIn("DEMO_SKILL", prompt)
+        self.assertIn("Active skill instructions", agent.system_prompt)
+        self.assertIn("DEMO_SKILL", agent.system_prompt)
+        self.assertIn("demo *", format_skill_list(discovered, active_names=["demo"]))
+        self.assertIn("demo *", completed.stdout)
 
     def test_runtime_option_precedence_prefers_cli_then_env_then_config(self) -> None:
         from harn.cli import build_parser, resolve_runtime_options

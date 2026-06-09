@@ -12,6 +12,7 @@ from typing import Any, Callable
 from .client import OpenRouterClient
 from .config import DEFAULT_MAX_STEPS
 from .prompts import build_system_prompt
+from .skills import Skill, default_skills_root, discover_skills, load_skills, render_skills_prompt
 from .tools import ToolError, ToolRegistry, parse_tool_arguments
 
 
@@ -63,6 +64,8 @@ class Agent:
         no_tools: bool = False,
         system_prompt: str = "",
         agents_file: Path | None = None,
+        skills_root: Path | None = None,
+        skill_names: list[str] | None = None,
     ) -> None:
         self.client = client
         self.cwd = cwd.resolve()
@@ -73,7 +76,12 @@ class Agent:
         self.max_tokens = max_tokens
         self.reasoning = reasoning
         self.no_tools = no_tools
-        self.system_prompt = build_system_prompt(self.cwd, system_prompt, agents_file)
+        self.extra_system_prompt = system_prompt
+        self.agents_file = agents_file
+        self.skills_root = skills_root or default_skills_root()
+        self.active_skills: list[Skill] = []
+        self.system_prompt = ""
+        self.set_active_skills(skill_names or [])
 
     def run(self, prompt: str) -> AgentResult:
         """Run the agent until it returns a final answer or max_steps is hit."""
@@ -84,6 +92,36 @@ class Agent:
         """Return a fresh conversation containing the system prompt."""
 
         return [{"role": "system", "content": self.system_prompt}]
+
+    def available_skills(self) -> list[Skill]:
+        """Return skills discoverable from the configured skills root."""
+
+        return discover_skills(self.skills_root)
+
+    def active_skill_names(self) -> list[str]:
+        """Return the active skill names."""
+
+        return [skill.name for skill in self.active_skills]
+
+    def set_active_skills(self, names: list[str]) -> None:
+        """Load and activate a set of skills by name or path."""
+
+        self.active_skills = load_skills(names, self.skills_root) if names else []
+        self._rebuild_system_prompt()
+
+    def clear_skills(self) -> None:
+        """Disable all active skills."""
+
+        self.active_skills = []
+        self._rebuild_system_prompt()
+
+    def _rebuild_system_prompt(self) -> None:
+        self.system_prompt = build_system_prompt(
+            self.cwd,
+            self.extra_system_prompt,
+            self.agents_file,
+            render_skills_prompt(self.active_skills),
+        )
 
     def run_turn(
         self,

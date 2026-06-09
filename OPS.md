@@ -45,14 +45,17 @@ Example config:
   "temperature": 0.2,
   "max_steps": 8,
   "max_tokens": 4096,
-  "reasoning": "enabled"
+  "reasoning": "enabled",
+  "skills": ["code-review"],
+  "skills_dir": "~/.harn/skills"
 }
 ```
 
 Accepted config keys include `api_key`, `openrouter_api_key`, `api_key_env`,
 `model`, `base_url`, `openrouter_base_url`, `timeout`, `temperature`,
 `max_steps`, `max_tokens`, `reasoning`, `reasoning_effort`,
-`reasoning_max_tokens`, `reasoning_enabled`, and `reasoning_exclude`.
+`reasoning_max_tokens`, `reasoning_enabled`, `reasoning_exclude`, `skills`,
+`skill`, `skills_dir`, and `skill_dir`.
 
 Required environment variables when no config key or CLI flag supplies the API
 key:
@@ -67,6 +70,8 @@ Optional environment variables:
 |---|---|---|
 | `HARN_MODEL` | Model passed to OpenRouter | `deepseek-v4-flash` |
 | `OPENROUTER_BASE_URL` | API base URL | `https://openrouter.ai/api/v1` |
+| `HARN_SKILLS` | Comma- or space-separated active skill names | unset |
+| `HARN_SKILLS_DIR` | Directory containing user skills | `$HOME/.harn/skills` |
 | `RUN_OPENROUTER_EVAL` | Enable live eval tests when set to `1` | unset |
 | `HARN_EVAL_PROMPT_DIR` | Override live eval prompt directory | `agent_eval_tests/prompts` |
 
@@ -102,11 +107,11 @@ Live OpenRouter health:
 RUN_OPENROUTER_EVAL=1 OPENROUTER_API_KEY="sk-or-v1-..." python -m unittest discover -s agent_eval_tests
 ```
 
-Expected static result: twenty-six tests run, four live tests skipped when
+Expected static result: twenty-seven tests run, four live tests skipped when
 `RUN_OPENROUTER_EVAL` is not set. The static suite includes parity checks for
 `harn` and `harn_stdlib`, representative original-Harn CLI flag checks, and TUI
 dispatch/render helper checks, plus config-file, TUI input-editing, SSE
-streaming, session persistence, and trace event checks.
+streaming, session persistence, skills, and trace event checks.
 
 ## Logs
 
@@ -158,7 +163,7 @@ TUI input editing does not behave like a shell:
 - During an in-flight generation, Esc or Ctrl+C should set cancellation and
   leave the TUI responsive. Ctrl+C outside generation exits the TUI.
 - Slash commands: `/help`, `/commands`, `/clear`, `/continue`, `/resume`,
-  `/reset`, `/status`, `/trace`, `/tools`, and `/quit`.
+  `/reset`, `/skill`, `/skills`, `/status`, `/trace`, `/tools`, and `/quit`.
 - UTF-8 text such as Cyrillic should appear normally. If it appears as mojibake,
   verify the terminal locale is UTF-8; the TUI reads wide characters through
   curses.
@@ -202,6 +207,16 @@ Session cannot be resumed:
   from that list. `/continue <session-id>` also loads a specific folder name.
 - `/clear` changes visible transcript state but does not remove append-only log
   files.
+
+Skill is not available:
+
+- Skills are stored under `$HOME/.harn/skills` by default.
+- Preferred layout: `$HOME/.harn/skills/<name>/SKILL.md`.
+- `python -m harn --list-skills` lists discoverable skills.
+- `python -m harn --skill <name> -p ...` enables a skill for a non-interactive
+  run. In the TUI, use `/skills`, `/skill <name>`, and `/skill off`.
+- Use `--skills-dir`, `HARN_SKILLS_DIR`, or config key `skills_dir` when skills
+  live outside the default directory.
 
 Tool path rejected:
 

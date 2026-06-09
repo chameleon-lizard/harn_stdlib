@@ -48,9 +48,10 @@ python -m harn --tui --cwd /path/to/project
 
 Inside the TUI, type a prompt and press Enter. Commands: `/help`, `/clear`,
 `/commands`, `/continue`, `/resume`, `/reset`, `/status`, `/trace`, `/tools`,
-and `/quit`. The input line supports Left/Right, Ctrl+A, Ctrl+E, Ctrl+W,
-Ctrl+L, and Ctrl+O. The transcript scrolls with Up/Down and PageUp/PageDown.
-While a response is generating, Esc or Ctrl+C cancels the in-flight turn.
+`/skill`, `/skills`, and `/quit`. The input line supports Left/Right, Ctrl+A,
+Ctrl+E, Ctrl+W, Ctrl+L, and Ctrl+O. The transcript scrolls with Up/Down and
+PageUp/PageDown. While a response is generating, Esc or Ctrl+C cancels the
+in-flight turn.
 
 The TUI streams model output as OpenRouter chunks arrive. It shows reasoning
 traces when OpenRouter returns `reasoning` or `reasoning_details`, plus tool
@@ -98,6 +99,40 @@ ignore the default config. `openrouter_api_key`, `openrouter_base_url`,
 `api_key_env`, `reasoning_effort`, `reasoning_max_tokens`,
 `reasoning_enabled`, and `reasoning_exclude` are also accepted config keys.
 
+## Skills
+
+Skills live under `~/.harn/skills/`. The standard layout is one directory per
+skill with a `SKILL.md` file:
+
+```text
+~/.harn/skills/
+  code-review/
+    SKILL.md
+  docs/
+    SKILL.md
+```
+
+Enable skills from the CLI with `--skill`, or set `"skills"` and optionally
+`"skills_dir"` in `~/.harn/harn.json`:
+
+```bash
+python -m harn --skill code-review -p "Review this change"
+python -m harn --list-skills
+```
+
+```json
+{
+  "skills": ["code-review", "docs"],
+  "skills_dir": "~/.harn/skills"
+}
+```
+
+`HARN_SKILLS` accepts a comma- or space-separated skill list, and
+`HARN_SKILLS_DIR` overrides the skill directory. In the TUI, use `/skills` to
+show available and active skills, `/skill <name>[,<name>...]` to enable skills,
+and `/skill off` to clear them. Active skill instructions are appended to the
+system prompt for subsequent turns.
+
 Reasoning can also be controlled with CLI flags:
 
 ```bash
@@ -134,9 +169,9 @@ python -m harn --no-tools -p "Answer without touching files"
 Original Harn CLI compatibility flags are accepted where they make sense in a
 stdlib/OpenRouter runtime, including `--print`, `--provider`, `--thinking`,
 `--tools/-t`, `--no-tools/-nt`, `--no-builtin-tools/-nbt`, `--list-models`,
-`--mode text|json`, `--offline`, `--tui`, and `--no-context-files/-nc`.
-Session, extension, theme, skill, and export flags are parsed for
-compatibility, but the stdlib runtime does not implement those subsystems.
+`--mode text|json`, `--offline`, `--tui`, `--skill`, `--no-skills`, and
+`--no-context-files/-nc`. Session, extension, theme, and export flags are parsed
+for compatibility, but the stdlib runtime does not implement those subsystems.
 
 ## Tools
 
@@ -181,6 +216,7 @@ The API key is intentionally read from the environment and is not committed.
 
 ```text
 harn/                 stdlib runtime and CLI
+~/.harn/skills/       user skill directories with SKILL.md files
 harn_stdlib/          compatibility alias for harn / harn-stdlib
 agent_eval_tests/     static and live prompt eval tests
 setup.cfg             legacy setuptools metadata for both scripts

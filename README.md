@@ -47,18 +47,25 @@ python -m harn --tui --cwd /path/to/project
 ```
 
 Inside the TUI, type a prompt and press Enter. Commands: `/help`, `/clear`,
-`/commands`, `/reset`, `/status`, `/trace`, `/tools`, and `/quit`. The input
-line supports Left/Right, Ctrl+A, Ctrl+E, Ctrl+W, Ctrl+L, and Ctrl+O. The
-transcript scrolls with Up/Down and PageUp/PageDown.
+`/commands`, `/resume`, `/reset`, `/status`, `/trace`, `/tools`, and `/quit`.
+The input line supports Left/Right, Ctrl+A, Ctrl+E, Ctrl+W, Ctrl+L, and Ctrl+O.
+The transcript scrolls with Up/Down and PageUp/PageDown.
 
 The TUI streams model output as OpenRouter chunks arrive. It shows reasoning
 traces when OpenRouter returns `reasoning` or `reasoning_details`, plus tool
 calls, bash command output, and edit diffs. These details are collapsed to five
 lines by default; press Ctrl+O or run `/trace` to toggle full trace output.
-Reasoning blocks use a blue background, successful tool traces use green, and
-tool errors use red. UTF-8 input such as Cyrillic is read through curses
+Reasoning blocks use a dim blue background, successful tool traces use dim
+green, and tool errors use dim red. Bash results with non-zero `exit_code` are
+treated as errors. UTF-8 input such as Cyrillic is read through curses
 wide-character mode, and streamed trace blocks are scoped per user turn so
 later replies stay below their question.
+
+TUI sessions are saved under `~/.harn/sessions/<session-id>/` with
+`metadata.json`, `state.json`, `events.jsonl`, and `transcript.log`. Use
+`/resume` to resume the latest previous session or `/resume <session-id>` for a
+specific session. `/clear` clears only the visible transcript; the append-only
+logs remain on disk.
 
 Optional user config is loaded from `~/.harn/harn.json` before defaults. CLI
 flags win over environment variables, environment variables win over config,

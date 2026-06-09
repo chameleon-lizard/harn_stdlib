@@ -156,14 +156,33 @@ class Agent:
                 call_id = tool_call.get("id") or f"tool-{tool_call_count}"
                 try:
                     arguments = parse_tool_arguments(function.get("arguments"))
-                    emit(AgentTraceEvent("tool", f"tool call: {name}", format_tool_call(str(name), arguments)))
+                    tool_event_id = f"tool:{call_id}"
+                    tool_display = format_tool_call(str(name), arguments)
+                    emit(
+                        AgentTraceEvent(
+                            "tool",
+                            f"tool call: {name}",
+                            tool_display,
+                            event_id=tool_event_id,
+                        )
+                    )
                     diff = format_tool_diff(str(name), arguments)
                     if diff:
                         emit(AgentTraceEvent("diff", f"diff: {arguments.get('path', name)}", diff))
                     output = self.registry.run(str(name), arguments)
                 except ToolError as exc:
                     output = f"TOOL_ERROR: {exc}"
-                if output.startswith("TOOL_ERROR:"):
+                    tool_display = format_tool_call(str(name), {})
+                    tool_event_id = f"tool:{call_id}"
+                if tool_output_failed(str(name), output):
+                    emit(
+                        AgentTraceEvent(
+                            "error",
+                            f"tool call failed: {name}",
+                            tool_display,
+                            event_id=tool_event_id,
+                        )
+                    )
                     emit(AgentTraceEvent("error", f"tool error: {name}", output))
                 else:
                     emit(AgentTraceEvent("result", f"tool result: {name}", output))
@@ -465,3 +484,26 @@ def format_tool_diff(name: str, arguments: dict[str, Any]) -> str:
             lineterm="",
         )
     )
+
+
+def tool_output_failed(name: str, output: str) -> bool:
+    """Return whether a tool output represents a failed tool call."""
+
+    if output.startswith("TOOL_ERROR:"):
+        return True
+    exit_code = parse_exit_code(output)
+    if name == "bash" and exit_code is not None:
+        return exit_code != 0
+    return False
+
+
+def parse_exit_code(output: str) -> int | None:
+    """Parse the first-line exit_code value emitted by the bash tool."""
+
+    first_line = output.splitlines()[0] if output else ""
+    if not first_line.startswith("exit_code="):
+        return None
+    try:
+        return int(first_line.split("=", 1)[1])
+    except ValueError:
+        return None

@@ -10,6 +10,7 @@ from typing import Callable
 
 from .agent import Agent, AgentError, AgentTraceEvent
 from .client import OpenRouterError
+from .sessions import SessionError, SessionStore
 
 
 @dataclass
@@ -80,6 +81,7 @@ SLASH_COMMANDS = (
     ("/help", "show help and key bindings"),
     ("/commands", "list slash commands"),
     ("/clear", "clear the visible transcript"),
+    ("/resume", "resume the latest or named session"),
     ("/reset", "reset conversation memory"),
     ("/status", "show model, cwd, and loop settings"),
     ("/trace", "toggle expanded trace details"),
@@ -92,6 +94,7 @@ HELP_TEXT = """Slash commands:
 /help      show this help
 /commands  list slash commands
 /clear     clear the visible transcript
+/resume    resume the latest or named session
 /reset     reset conversation memory
 /status    show model, cwd, and loop settings
 /trace     toggle expanded trace details
@@ -270,10 +273,10 @@ def upsert_trace_entry(entries: list[TranscriptEntry], event: AgentTraceEvent, e
     """Append a trace event or extend its existing transcript entry."""
 
     event_id = trace_event_id(event, event_prefix)
-    if event_id and event.append:
+    if event_id:
         for entry in reversed(entries):
             if entry.event_id == event_id:
-                entry.content += event.content
+                entry.content = entry.content + event.content if event.append else trace_event_content(event)
                 entry.role = event.kind
                 entry.collapsible = event.collapsible
                 return
@@ -310,9 +313,52 @@ def attr_for_role(curses_module: object, color_pairs: dict[str, int], role: str)
     if not pair:
         return 0
     try:
-        return curses_module.color_pair(pair)
+        return curses_module.color_pair(pair) | curses_module.A_DIM
     except Exception:
         return 0
+
+
+def serialize_entries(entries: list[TranscriptEntry]) -> list[dict[str, object]]:
+    """Serialize transcript entries for session state."""
+
+    return [
+        {
+            "role": entry.role,
+            "content": entry.content,
+            "collapsible": entry.collapsible,
+            "event_id": entry.event_id,
+        }
+        for entry in entries
+    ]
+
+
+def deserialize_entries(raw_entries: object) -> list[TranscriptEntry]:
+    """Load transcript entries from session state."""
+
+    if not isinstance(raw_entries, list):
+        return []
+    entries: list[TranscriptEntry] = []
+    for raw_entry in raw_entries:
+        if not isinstance(raw_entry, dict):
+            continue
+        entries.append(
+            TranscriptEntry(
+                role=str(raw_entry.get("role") or "system"),
+                content=str(raw_entry.get("content") or ""),
+                collapsible=bool(raw_entry.get("collapsible") or False),
+                event_id=str(raw_entry["event_id"]) if raw_entry.get("event_id") is not None else None,
+            )
+        )
+    return entries
+
+
+def deserialize_messages(raw_messages: object, fallback: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Load messages from session state."""
+
+    if not isinstance(raw_messages, list):
+        return fallback
+    messages = [item for item in raw_messages if isinstance(item, dict)]
+    return messages or fallback
 
 
 def run_line_repl(agent: Agent, *, out: object = sys.stdout, inp: object = sys.stdin) -> int:
@@ -346,6 +392,9 @@ def run_line_repl(agent: Agent, *, out: object = sys.stdout, inp: object = sys.s
             if getattr(out, "isatty", lambda: False)():
                 print("\033[H\033[J", end="", file=out)
             print("system> Transcript cleared.", file=out)
+            continue
+        if stripped.startswith("/resume"):
+            print("system> /resume is available in the full-screen TUI.", file=out)
             continue
         if stripped == "/reset":
             messages = agent.initial_messages()
@@ -397,11 +446,35 @@ def run_curses_tui(agent: Agent) -> int:
             TranscriptEntry("system", "Harn stdlib TUI. Type /help for commands, /quit to exit."),
         ]
         messages = agent.initial_messages()
+        session_store: SessionStore | None = None
+        try:
+            session_store = SessionStore.create(metadata={"model": agent.client.model, "cwd": str(agent.cwd)})
+        except (OSError, SessionError) as exc:
+            entries.append(TranscriptEntry("error", f"Session logging disabled: {exc}"))
         input_line = InputLine()
         scroll = 0
         status = "ready"
         expanded_traces = False
         turn_counter = 0
+
+        def persist_state() -> None:
+            if not session_store:
+                return
+            try:
+                session_store.save_state(messages, serialize_entries(entries))
+            except (OSError, SessionError):
+                pass
+
+        def record_event(role: str, content: str, **metadata: object) -> None:
+            if not session_store:
+                return
+            try:
+                session_store.append_event(role, content, metadata)
+            except (OSError, SessionError):
+                pass
+
+        record_event("system", entries[0].content)
+        persist_state()
 
         def add(
             role: str,
@@ -417,11 +490,23 @@ def run_curses_tui(agent: Agent) -> int:
                         entry.content = entry.content + content if append else content
                         entry.role = role
                         entry.collapsible = collapsible
+                        record_event(role, content, event_id=event_id, append=append, collapsible=collapsible)
+                        persist_state()
                         return
             entries.append(TranscriptEntry(role, content, collapsible=collapsible, event_id=event_id))
+            record_event(role, content, event_id=event_id, append=append, collapsible=collapsible)
+            persist_state()
 
         def add_trace(event: AgentTraceEvent, event_prefix: str = "") -> None:
             upsert_trace_entry(entries, event, event_prefix)
+            record_event(
+                event.kind,
+                event.content,
+                title=event.title,
+                event_id=trace_event_id(event, event_prefix),
+                append=event.append,
+                collapsible=event.collapsible,
+            )
 
         def render() -> None:
             nonlocal scroll
@@ -455,52 +540,78 @@ def run_curses_tui(agent: Agent) -> int:
             stdscr.refresh()
 
         def submit() -> None:
-            nonlocal messages, scroll, status, expanded_traces, turn_counter
+            nonlocal entries, messages, scroll, session_store, status, expanded_traces, turn_counter
             prompt = input_line.text.strip()
             input_line.clear()
             if not prompt:
                 return
-            if prompt in {"/quit", "/exit", ":q"}:
+            command, _space, command_arg = prompt.partition(" ")
+            if command in {"/quit", "/exit", ":q"}:
                 raise KeyboardInterrupt
-            if prompt == "/help":
+            if command == "/help":
                 add("system", HELP_TEXT)
                 status = "help"
                 scroll = 10**9
                 return
-            if prompt == "/commands":
+            if command == "/commands":
                 add("system", slash_command_help())
                 status = "commands"
                 scroll = 10**9
                 return
-            if prompt == "/clear":
+            if command == "/clear":
                 entries.clear()
                 add("system", "Transcript cleared.")
                 status = "cleared"
                 scroll = 0
                 return
-            if prompt == "/reset":
+            if command == "/resume":
+                target = command_arg.strip()
+                try:
+                    loaded = SessionStore.open(target) if target else SessionStore.latest(
+                        exclude=session_store.session_id if session_store else None
+                    )
+                    if loaded is None:
+                        add("error", "No previous session found.")
+                        status = "error"
+                        scroll = 10**9
+                        return
+                    state = loaded.load_state()
+                    loaded_entries = deserialize_entries(state.get("entries"))
+                    entries = loaded_entries or [TranscriptEntry("system", f"Resumed empty session {loaded.session_id}.")]
+                    messages = deserialize_messages(state.get("messages"), agent.initial_messages())
+                    session_store = loaded
+                    add("system", f"Resumed session {loaded.session_id}.")
+                    status = f"resumed {loaded.session_id}"
+                    scroll = 10**9
+                except (OSError, SessionError) as exc:
+                    add("error", str(exc))
+                    status = "error"
+                    scroll = 10**9
+                return
+            if command == "/reset":
                 messages = agent.initial_messages()
                 add("system", "Conversation memory reset.")
                 status = "reset"
                 scroll = 10**9
                 return
-            if prompt == "/status":
-                add("system", agent_status(agent))
+            if command == "/status":
+                session_line = f"session: {session_store.session_id}" if session_store else "session: disabled"
+                add("system", agent_status(agent) + "\n" + session_line)
                 status = "status"
                 scroll = 10**9
                 return
-            if prompt == "/trace":
+            if command == "/trace":
                 expanded_traces = not expanded_traces
                 status = "trace full" if expanded_traces else "trace short"
                 add("system", f"Trace details are now {'expanded' if expanded_traces else 'collapsed'}.")
                 scroll = 10**9
                 return
-            if prompt == "/tools":
+            if command == "/tools":
                 add("system", agent_tools(agent))
                 status = "tools"
                 scroll = 10**9
                 return
-            if prompt.startswith("/"):
+            if command.startswith("/"):
                 add("error", "Unknown slash command. Type /commands.")
                 status = "error"
                 scroll = 10**9
@@ -528,6 +639,7 @@ def run_curses_tui(agent: Agent) -> int:
             messages = result.messages
             if result.content and not any(event.kind == "assistant" for event in result.trace):
                 add("assistant", result.content)
+            persist_state()
             status = f"done: {result.steps} step(s), {result.tool_calls} tool call(s)"
             scroll = 10**9
 

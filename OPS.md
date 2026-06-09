@@ -102,11 +102,11 @@ Live OpenRouter health:
 RUN_OPENROUTER_EVAL=1 OPENROUTER_API_KEY="sk-or-v1-..." python -m unittest discover -s agent_eval_tests
 ```
 
-Expected static result: twenty-three tests run, four live tests skipped when
+Expected static result: twenty-five tests run, four live tests skipped when
 `RUN_OPENROUTER_EVAL` is not set. The static suite includes parity checks for
 `harn` and `harn_stdlib`, representative original-Harn CLI flag checks, and TUI
 dispatch/render helper checks, plus config-file, TUI input-editing, SSE
-streaming, and trace event checks.
+streaming, session persistence, and trace event checks.
 
 ## Logs
 
@@ -155,8 +155,8 @@ TUI input editing does not behave like a shell:
 - Expected keys: Left/Right move by character, Ctrl+A/Ctrl+E jump to
   start/end, Ctrl+W deletes the previous word, Ctrl+L redraws the screen, and
   Ctrl+O expands or collapses trace details.
-- Slash commands: `/help`, `/commands`, `/clear`, `/reset`, `/status`, `/trace`,
-  `/tools`, and `/quit`.
+- Slash commands: `/help`, `/commands`, `/clear`, `/resume`, `/reset`,
+  `/status`, `/trace`, `/tools`, and `/quit`.
 - UTF-8 text such as Cyrillic should appear normally. If it appears as mojibake,
   verify the terminal locale is UTF-8; the TUI reads wide characters through
   curses.
@@ -176,8 +176,19 @@ Reasoning or command feedback is missing in the TUI:
 - Tool calls, bash command results, and edit diffs are shown as trace entries
   and collapse to five lines by default. Press Ctrl+O or run `/trace` to toggle
   full trace output.
-- TUI streaming uses OpenRouter SSE chunks. Reasoning blocks use a blue
-  background, successful tool traces use green, and tool errors use red.
+- TUI streaming uses OpenRouter SSE chunks. Reasoning blocks use a dim blue
+  background, successful tool traces use dim green, and tool errors use dim red.
+  Bash results with non-zero `exit_code` are classified as tool errors.
+
+Session cannot be resumed:
+
+- Sessions are stored in `$HOME/.harn/sessions/<session-id>/`.
+- Each session folder contains `metadata.json`, `state.json`, `events.jsonl`,
+  and `transcript.log`.
+- Use `/resume` to load the latest previous session or `/resume <session-id>`
+  to load a specific folder name.
+- `/clear` changes visible transcript state but does not remove append-only log
+  files.
 
 Tool path rejected:
 

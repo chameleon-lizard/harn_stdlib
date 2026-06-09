@@ -108,6 +108,9 @@
 - `python3 -m compileall -q harn harn_stdlib agent_eval_tests`
 - `python3 -m unittest discover -s agent_eval_tests -v`
   - 23 tests run, 4 live OpenRouter tests skipped as expected.
+- `python3 -m compileall -q harn harn_stdlib agent_eval_tests`
+- `python3 -m unittest discover -s agent_eval_tests -v`
+  - 25 tests run, 4 live OpenRouter tests skipped as expected.
 
 Live OpenRouter verification passed on `deepseek-v4-flash` with the API key
 provided through the environment.

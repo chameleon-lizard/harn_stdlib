@@ -155,6 +155,8 @@ class StaticStdlibTests(unittest.TestCase):
             input_view,
             render_transcript_lines,
             slash_command_help,
+            setup_colors,
+            attr_for_role,
             upsert_trace_entry,
             wrap_transcript,
         )
@@ -204,9 +206,45 @@ class StaticStdlibTests(unittest.TestCase):
             AgentTraceEvent("assistant", "assistant", "three", event_id="assistant:1", append=True),
             "turn:2",
         )
-        self.assertEqual(["user", "assistant", "user", "assistant"], [entry.role for entry in entries])
+        upsert_trace_entry(
+            entries,
+            AgentTraceEvent("tool", "tool call: bash", "$ false", event_id="tool:1"),
+            "turn:2",
+        )
+        upsert_trace_entry(
+            entries,
+            AgentTraceEvent("error", "tool call failed: bash", "$ false", event_id="tool:1"),
+            "turn:2",
+        )
+        self.assertEqual(["user", "assistant", "user", "assistant", "error"], [entry.role for entry in entries])
         self.assertEqual("one two", entries[1].content)
         self.assertEqual("three", entries[3].content)
+        self.assertEqual("error", entries[4].role)
+
+        class FakeCurses:
+            COLOR_WHITE = 7
+            COLOR_BLACK = 0
+            COLOR_BLUE = 4
+            COLOR_GREEN = 2
+            COLOR_RED = 1
+            A_DIM = 256
+
+            def start_color(self) -> None:
+                return None
+
+            def use_default_colors(self) -> None:
+                return None
+
+            def init_pair(self, *_: object) -> None:
+                return None
+
+            def color_pair(self, value: int) -> int:
+                return value
+
+        fake_curses = FakeCurses()
+        colors = setup_colors(fake_curses)
+        self.assertEqual(1 | fake_curses.A_DIM, attr_for_role(fake_curses, colors, "reasoning"))
+        self.assertEqual(3 | fake_curses.A_DIM, attr_for_role(fake_curses, colors, "error"))
 
         reasoning_entries: list[TranscriptEntry] = []
         upsert_trace_entry(
@@ -469,6 +507,47 @@ class StaticStdlibTests(unittest.TestCase):
         self.assertIn("-two", diffs[0])
         self.assertIn("+three", diffs[0])
 
+    def test_agent_marks_nonzero_bash_exit_as_error_trace(self) -> None:
+        from harn.agent import Agent
+
+        class FailingBashClient:
+            model = "fake"
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def chat(self, messages: list[dict[str, Any]], **_: Any) -> dict[str, Any]:
+                self.calls += 1
+                if self.calls == 1:
+                    return {
+                        "choices": [
+                            {
+                                "message": {
+                                    "content": "",
+                                    "tool_calls": [
+                                        {
+                                            "id": "call-1",
+                                            "function": {
+                                                "name": "bash",
+                                                "arguments": json.dumps({"command": "exit 7"}),
+                                            },
+                                        }
+                                    ],
+                                }
+                            }
+                        ]
+                    }
+                return {"choices": [{"message": {"content": "done"}}]}
+
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            agent = Agent(FailingBashClient(), cwd=Path(raw_tmp), max_steps=3)  # type: ignore[arg-type]
+            result = agent.run("run failing command")
+
+        error_events = [event for event in result.trace if event.kind == "error"]
+        self.assertTrue(error_events)
+        self.assertTrue(any("exit_code=7" in event.content for event in error_events))
+        self.assertFalse([event for event in result.trace if event.kind == "result"])
+
     def test_client_stream_chat_parses_sse_chunks(self) -> None:
         from harn.client import OpenRouterClient
 
@@ -571,6 +650,34 @@ class StaticStdlibTests(unittest.TestCase):
         self.assertIn("result", [event.kind for event in events])
         self.assertEqual("assistant:2", [event.event_id for event in events if event.kind == "assistant"][0])
         self.assertIn("ok", "\n".join(event.content for event in events))
+
+    def test_session_store_persists_state_and_finds_latest(self) -> None:
+        from harn.sessions import SessionStore
+
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            root = Path(raw_tmp) / "sessions"
+            first = SessionStore.create(root=root, metadata={"model": "first"})
+            first.save_state(
+                [{"role": "system", "content": "one"}],
+                [{"role": "system", "content": "entry", "collapsible": False, "event_id": None}],
+            )
+            first.append_event("system", "entry")
+
+            second = SessionStore.create(root=root, metadata={"model": "second"})
+            second.save_state(
+                [{"role": "system", "content": "two"}],
+                [{"role": "system", "content": "entry2", "collapsible": False, "event_id": None}],
+            )
+            second.append_event("user", "hello")
+
+            latest = SessionStore.latest(root=root, exclude=second.session_id)
+            reopened = SessionStore.open(second.session_id, root=root)
+            state = reopened.load_state()
+
+            self.assertEqual(first.session_id, latest.session_id)  # type: ignore[union-attr]
+            self.assertEqual("two", state["messages"][0]["content"])
+            self.assertTrue((reopened.path / "events.jsonl").is_file())
+            self.assertIn("hello", (reopened.path / "transcript.log").read_text(encoding="utf-8"))
 
     def test_agent_continues_after_empty_no_tool_reply(self) -> None:
         from harn.agent import Agent

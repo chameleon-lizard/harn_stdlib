@@ -17,6 +17,8 @@ against OpenRouter's OpenAI-compatible chat-completions API.
   `AGENTS.md`.
 - `agent.py` runs the model/tool loop until the assistant returns a final
   answer.
+- `sessions.py` persists TUI state and append-only logs under
+  `$HOME/.harn/sessions`.
 - `cli.py` provides the `python -m harn` command-line interface.
 - `tui.py` provides the stdlib interactive terminal UI and fallback REPL.
 
@@ -41,18 +43,25 @@ Run without a prompt to open the TUI:
 python -m harn
 ```
 
-The TUI supports slash commands (`/help`, `/commands`, `/clear`, `/reset`,
-`/status`, `/trace`, `/tools`, `/quit`) and shell-like input editing with
+The TUI supports slash commands (`/help`, `/commands`, `/clear`, `/resume`,
+`/reset`, `/status`, `/trace`, `/tools`, `/quit`) and shell-like input editing with
 Left/Right, Ctrl+A, Ctrl+E, Ctrl+W, Ctrl+L, and Ctrl+O. Ctrl+O toggles full
 display for collapsed trace entries.
 
 The TUI path streams OpenRouter chunks as they arrive. The agent loop emits
 trace events for OpenRouter reasoning fields, tool calls, bash command
 feedback, and edit diffs. TUI trace entries are collapsed to five lines by
-default. Reasoning blocks use a blue background, successful tool traces use
-green, and tool errors use red. OpenRouter reasoning is preserved on assistant
+default. Reasoning blocks use a dim blue background, successful tool traces use
+dim green, and tool errors use dim red. Bash results with non-zero `exit_code`
+are classified as tool errors. OpenRouter reasoning is preserved on assistant
 messages as `reasoning`, `reasoning_content`, or `reasoning_details` when those
 fields are present in the API response.
+
+Each full-screen TUI run creates a session directory in
+`$HOME/.harn/sessions/<session-id>/`. The directory contains `metadata.json`,
+`state.json`, `events.jsonl`, and `transcript.log`. `/resume` loads the latest
+previous session, `/resume <session-id>` loads a specific session, and `/clear`
+only clears the visible transcript.
 
 The curses TUI uses wide-character input, so UTF-8 text such as Cyrillic is
 stored as Unicode instead of byte fragments. Streamed trace entries are scoped
